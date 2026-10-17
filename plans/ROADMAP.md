@@ -27,6 +27,12 @@ a thread, asks the questions that tag needs to flesh the idea out, rates its com
 files a labeled issue, adds it to the roadmap and posts the issue's direct link in the same
 thread. Capture, triage and filing happen without anyone leaving Discord.
 
+chores4irl is the first target, not the only one. The bot is portable: which channel it
+listens to and which repo it files into are settings, and one deployment (or several
+instances of the same image) can route different channels in the 4irl server to different
+repos in the 4IRL GitHub org. The project is to be renamed
+`discord-github-issue-management-bot` to match.
+
 ### Capabilities
 
 The numbered capabilities define "done". Each is a user-observable outcome, never a
@@ -50,13 +56,17 @@ component.
 5. **Link posted back.** The bot posts the new issue's direct URL in the same thread.
    *Acceptance example:* the thread ends with a message containing
    `https://github.com/4IRL/chores4irl/issues/<n>`.
+6. **Multiple targets.** Several intake channels in the server each file into their own
+   repo in the 4IRL org, from one running bot or from several instances, and adding a
+   target is a settings change, not a code change. *Acceptance example:* a tagged message
+   in a second configured channel files its issue in that channel's repo, while
+   `#c4i-github-issues` keeps filing in chores4irl.
 
 ### Out of scope
 
 - LLM-written questions or triage: clarification and complexity are rule-based by choice.
 - Editing, closing or syncing existing issues from Discord; the bot only creates.
-- Other channels, servers or target repos. The IDs are config, but only this one channel
-  and repo are supported.
+- Channels in other Discord servers, or repos outside the 4IRL GitHub org.
 
 ## Current state
 
@@ -64,7 +74,7 @@ component.
 exist, what the schema is) is META-PLAN's Baseline; do not restate it here. Update the
 "as of" date whenever a row changes, which is normally at a phase-status change. -->
 
-*As of 2026-10-16.*
+*As of 2026-10-17.*
 
 | # | Capability | State | Delivered by |
 |---|---|---|---|
@@ -73,6 +83,7 @@ exist, what the schema is) is META-PLAN's Baseline; do not restate it here. Upda
 | 3 | Complexity rating | none — not started | Phase 3 |
 | 4 | Issue filed and on the roadmap | none — not started | Phases 1 (filed), 2 (structured body), 3 (roadmap) |
 | 5 | Link posted back | none — not started | Phase 1 |
+| 6 | Multiple targets | none — not started | Phases 1 (portable config), 1.5 (routes, instances) |
 
 ## Principles & constraints
 
@@ -89,7 +100,9 @@ README. Keep each item to one or two sentences. -->
   `CLAUDE.md`). *Why:* stray runs must never file spam issues on `4IRL/chores4irl` or post
   in the real channel.
 - **Identifiers are config, not code.** The guild, category, channel and target repo (and
-  its id) come from configuration. *Why:* the bot can be pointed at a test channel or repo.
+  its id) come from configuration, and no target's values are code defaults. *Why:* the
+  bot can be pointed at a test channel or repo, or at any new target, without a code
+  change.
 - **Least-privilege access.** The GitHub credential gets issues write on the target repo
   only, plus from Phase 3 the narrowest org Projects permission roadmap placement needs, and
   the Discord bot asks only for the intents and channel permissions it uses; credentials
@@ -142,6 +155,27 @@ The test suite is green and runs as META-PLAN's Verification.
 GitHub auth, labels) before any conversation logic is built on top, and is useful on its
 own as a quick-capture tool.
 
+### Phase 1.5: Multi-target and rename · planned
+
+**Goal.** The same bot serves more than one intake channel and target repo, and the
+project carries a name that matches. **Advances capabilities:** 6.
+
+- A route table in a config file maps each intake channel in the server to its target repo
+  in the 4IRL org (with its own tag → label map); messages are filed to their channel's
+  repo, and unrouted channels are ignored.
+- The same image runs as one process with several routes or as several containers, each
+  with its own route file; the deployment docs show both.
+- The repo, local folder, docs and image are renamed to
+  `discord-github-issue-management-bot`.
+
+**Exit criteria.** With two routes pointing two test channels at two test repos, a tagged
+message in each channel files in its own repo and posts its link back, both from one
+process and from two containers. The renamed repo's suite is green.
+
+**Why here.** Phase 2 and 3 add per-conversation state and per-repo Project config. Making
+the config multi-target before they start means they are built per target once, instead
+of refactored later.
+
 ### Phase 2: Clarifying conversation · planned
 
 **Goal.** The bot asks the questions each tag needs in the thread and files an issue whose
@@ -166,8 +200,8 @@ Phase 1 thread and filing path to exist first.
 
 ### Phase 3: Triage and roadmap placement · planned
 
-**Goal.** Every filed issue carries a rule-based complexity rating and lands on the
-chores4irl roadmap. **Advances capabilities:** 3, 4.
+**Goal.** Every filed issue carries a rule-based complexity rating and lands on its
+target's roadmap (chores4irl's first). **Advances capabilities:** 3, 4.
 
 - Complexity is computed by documented rules from the tag and the answers (the owner sets
   the scale), shown in the confirmation preview, and members can override it before filing.
@@ -208,8 +242,11 @@ earlier (see Sequencing rationale), but this phase makes it safe to leave runnin
 
 <!-- Phase-level dependencies only. Feature-level chains and couplings live in META-PLAN. -->
 
-`1 → 2 → 3 → 4`. Phase 2 depends on Phase 1 hard (it extends the thread and filing path),
-and Phase 3 depends on Phase 2 hard (the rating reads the answers). Phase 4's hosting
+`1 → 1.5 → 2 → 3 → 4`. Phase 1.5 depends on Phase 1 hard (it generalizes the working
+skeleton). Phases 2 and 3 depend on Phase 1.5 only softly: they could run without it, but
+would then need refactoring to become per-target. Phase 2 depends on Phase 1 hard (it
+extends the thread and filing path), and Phase 3 depends on Phase 2 hard (the rating reads
+the answers). Phase 4's hosting
 and deploy work depends only on Phase 1; putting it last is a preference. If the server
 wants the bot live sooner, its deploy features can be pulled forward after Phase 1 or 2
 without reordering the phases. Phase 3's roadmap placement depends only on Phase 1 and
