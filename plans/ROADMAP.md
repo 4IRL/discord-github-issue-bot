@@ -42,7 +42,8 @@ component.
    answers there. *Acceptance example:* a `#bug` thread asks for steps to reproduce, expected
    behavior and actual behavior before anything is filed.
 3. **Complexity rating.** From the tag and the answers, the bot assigns a complexity rating
-   that becomes part of the filed issue. <Rating scale and rules: set by the owner.>
+   that becomes part of the filed issue. The scale is S / M / L / XL; the owner approves the
+   rules that pick the band.
 4. **Issue filed and on the roadmap.** Once clarification is done, the bot creates the
    issue in `4IRL/chores4irl` with a title, a structured body, the type label and the
    complexity rating, and adds it to the repo's roadmap.
@@ -67,11 +68,11 @@ exist, what the schema is) is META-PLAN's Baseline; do not restate it here. Upda
 
 | # | Capability | State | Delivered by |
 |---|---|---|---|
-| 1 | Tagged capture | none — not started | Phase <N> |
-| 2 | Clarifying thread | none — not started | Phase <N> |
-| 3 | Complexity rating | none — not started | Phase <N> |
-| 4 | Issue filed and on the roadmap | none — not started | Phase <N> |
-| 5 | Link posted back | none — not started | Phase <N> |
+| 1 | Tagged capture | none — not started | Phase 1 |
+| 2 | Clarifying thread | none — not started | Phase 2 |
+| 3 | Complexity rating | none — not started | Phase 3 |
+| 4 | Issue filed and on the roadmap | none — not started | Phases 1 (filed), 3 (roadmap) |
+| 5 | Link posted back | none — not started | Phase 1 |
 
 ## Principles & constraints
 
@@ -105,34 +106,105 @@ Status markers: `done (YYYY-MM-DD)`, `active`, `planned`. Exactly one phase is `
 at a time unless the sequencing rationale says otherwise.
 -->
 
-### Phase 1: <name> · <status>
+### Phase 1: Walking skeleton (message → issue → link) · active
 
-**Goal.** <One sentence.> **Advances capabilities:** <#, #>.
+**Goal.** A tagged message in the channel becomes a minimal GitHub issue, and its link
+appears in a thread, end to end. **Advances capabilities:** 1, 4 (filed only), 5.
 
-- <Scope bullet: an outcome at user or system level, not a task. Name the cross-surface
-  owner if relevant, e.g. "owns the mobile-first layout of its own feature".>
-- <…>
+- The bot runs in its Docker container, connects to the Gateway and listens only to the
+  configured channel; guild, category, channel and target repo all come from config.
+- Tag parsing recognizes `#bug` and `#feature` anywhere in the message, strips the tag to
+  form the title, and ignores untagged, bot and edited messages.
+- For each tagged message the bot opens a thread on it, creates an issue (title, the
+  original message and author as the body, the type label) and posts the issue URL in the
+  thread.
+- The bot authenticates to GitHub with least privilege on the target repo only (issues
+  write; GitHub App vs fine-grained token decided at planning).
+- Tests drive the flow against mocked Discord and GitHub clients; no test touches the live
+  channel or repo.
 
-**Exit criteria.** <Observable conditions, including any real-device or real-data
-verification that tests alone cannot show.>
+**Exit criteria.** In a test channel pointed at a test repo, posting
+"Chore bars turn red on the due date instead of after it #bug" produces a thread, a
+`bug`-labeled issue and its link in the thread, and an untagged message produces nothing.
+The test suite is green and runs as META-PLAN's Verification.
 
-**Why here.** <What it unblocks, or why it must precede the next phase.>
+**Why here.** It proves every external integration (Gateway intents, thread permissions,
+GitHub auth, labels) before any conversation logic is built on top, and is useful on its
+own as a quick-capture tool.
 
-### Phase 2: <name> · planned
+### Phase 2: Clarifying conversation · planned
 
-<…same shape…>
+**Goal.** The bot asks the questions each tag needs in the thread and files an issue whose
+body is built from the answers. **Advances capabilities:** 2, 4.
 
-### Phase <N>: <hardening / as needed> · planned
+- Question sets for each tag are data rather than code (for example `#bug`: steps to
+  reproduce, expected, actual, device/browser; `#feature`: who it is for, the problem it
+  solves, what "done" looks like), so adding a tag or question needs no code change.
+- The bot asks one question at a time and accepts replies from any member in the thread,
+  with commands to skip a question, cancel, or file now.
+- Before filing, the bot posts a preview of the issue and waits for a confirmation, then
+  files the issue with a structured body (sections per question).
+- Conversation state survives a bot restart, and an abandoned thread times out with a note
+  instead of hanging forever.
 
-<Optional final phase for quality-of-life work ordered by impact rather than dependency.>
+**Exit criteria.** In the test channel, a `#bug` and a `#feature` thread each run through
+their questions (including a skip and a cancel), and the filed issue's body has one
+section per answered question. Restarting the container mid-conversation resumes it.
+
+**Why here.** The value of the bot over a plain form is the fleshed-out idea; it needs the
+Phase 1 thread and filing path to exist first.
+
+### Phase 3: Triage and roadmap placement · planned
+
+**Goal.** Every filed issue carries a rule-based complexity rating and lands on the
+chores4irl roadmap. **Advances capabilities:** 3, 4.
+
+- Complexity is computed by documented rules from the tag and the answers (the owner sets
+  the scale), shown in the confirmation preview, and members can override it before filing.
+- The issue gets the type and complexity labels (labels created if missing), and is added
+  to the chores4irl GitHub Projects roadmap with its Status and complexity fields set.
+- The thread's final message shows the issue link together with its rating and roadmap
+  placement.
+
+**Exit criteria.** A filed test issue appears on a test Project board with the correct
+fields, and its labels match the rating shown in Discord. The rating rules are written
+down where members can read them.
+
+**Why here.** Rating needs the Phase 2 answers as input, and roadmap placement needs
+Projects (GraphQL) access, a separate permission best added once filing is proven.
+
+### Phase 4: Production and hardening · planned
+
+**Goal.** The bot runs unattended for the 4irl server and recovers from failures without
+losing ideas. **Advances capabilities:** 1–5 (reliability).
+
+- The bot is deployed on an always-on host with automatic restart, a health check and
+  logs an operator can read; deploying a new version is one documented command.
+- GitHub or Discord errors are reported in the thread with a retry, never silently
+  dropped, and rate limits are respected.
+- Messages posted while the bot was down are picked up on start, and a message is never
+  filed twice.
+- Quality-of-life additions ordered by impact (more tags, duplicate-issue hints, a help
+  command).
+
+**Exit criteria.** Live in `#c4i-github-issues` for two weeks of real use with no lost or
+duplicated issues, and a forced GitHub failure and a container restart each recover
+visibly in the thread.
+
+**Why here.** Hardening is ordered by what real use exposes. The bot can be deployed
+earlier (see Sequencing rationale), but this phase makes it safe to leave running.
 
 ## Sequencing rationale
 
 <!-- Phase-level dependencies only. Feature-level chains and couplings live in META-PLAN. -->
 
-<State the true dependency shape, e.g. `{1, 2} → 3 → 4 → {5, 6}`, then separate hard
-dependencies from preferences: "1 before 2 is a preference (…), not a dependency". Explain
-any inserted N.5 phase.>
+`1 → 2 → 3 → 4`. Phase 2 depends on Phase 1 hard (it extends the thread and filing path),
+and Phase 3 depends on Phase 2 hard (the rating reads the answers). Phase 4's hosting
+and deploy work depends only on Phase 1; putting it last is a preference. If the server
+wants the bot live sooner, its deploy features can be pulled forward after Phase 1 or 2
+without reordering the phases. Phase 3's roadmap placement depends only on Phase 1 and
+could run alongside Phase 2; it stays with the rating so the Projects fields and labels
+are designed once.
 
 ## Maintaining this file
 
