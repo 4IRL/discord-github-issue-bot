@@ -71,7 +71,7 @@ exist, what the schema is) is META-PLAN's Baseline; do not restate it here. Upda
 | 1 | Tagged capture | none — not started | Phase 1 |
 | 2 | Clarifying thread | none — not started | Phase 2 |
 | 3 | Complexity rating | none — not started | Phase 3 |
-| 4 | Issue filed and on the roadmap | none — not started | Phases 1 (filed), 3 (roadmap) |
+| 4 | Issue filed and on the roadmap | none — not started | Phases 1 (filed), 2 (structured body), 3 (roadmap) |
 | 5 | Link posted back | none — not started | Phase 1 |
 
 ## Principles & constraints
