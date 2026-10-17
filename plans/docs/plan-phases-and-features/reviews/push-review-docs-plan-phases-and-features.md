@@ -25,3 +25,32 @@ Cross-references and phases are consistent; the Verification row should be pendi
 - [x] **Mark Verification pending** — `plans/META-PLAN.md` — In Project facts, set Verification to `pending — set by F1`; F1's expected end state already sets the real command.
 - [x] **Reword the Phase 1 path** — `plans/META-PLAN.md` — In "Shortest path to the focus feature", replace "runs F2 → F5 → F7" with "runs F2 and F5 (independent of each other), then F7", to match the dependency graph.
 - [ ] **Fill or trim Principles & constraints** — `plans/ROADMAP.md` — Replace the template bullets with real constraints (for example rule-based only with no LLM; no live Discord/GitHub calls in tests; IDs are config; least-privilege GitHub access; dependence on the Discord and GitHub APIs). This needs the owner's input, so it can be deferred.
+
+## Review 2
+Generated: 2026-10-16 22:37
+Comparison: origin/main d9a668eca5..9a483dc9a4
+Verdict: **PUSHED WITH MINOR FINDINGS**
+Mode: docs-only
+
+### Results by Reviewer
+
+#### 2. Correctness — PASS
+Depends-on cells, diagram, Dependencies paragraphs, effort tally (14), ledger, phases, Delivered-by, ★FOCUS and Next F-ID (F8) are consistent.
+- **minor** `plans/META-PLAN.md:276` — F3's Assumed-starting-state check requires "F5's issue-body builder exists and is the only place that formats an issue body", but F5's Expected end state never requires a single body builder; only the couplings section states it.
+
+#### 5. Completeness & Cleanup — PASS
+Cross-references, F-IDs, tally, phases and ledger are consistent.
+- **minor** `plans/ROADMAP.md:71` — Capability 4's Delivered-by lists Phases 1 and 3, but Phase 2 also advances it (body built from the answers).
+
+### To-Do: Required Changes
+
+- [ ] **Require a single issue-body builder in F5** — `plans/META-PLAN.md` — Add an F5 Expected-end-state bullet: "One issue-body builder function owns body formatting (F3 extends it)", so F3's starting-state check can pass.
+- [ ] **List Phase 2 under capability 4** — `plans/ROADMAP.md` — Change capability 4's Delivered-by to `Phases 1 (filed), 2 (structured body), 3 (roadmap)`.
+- [ ] **Fill or trim Principles & constraints** — `plans/ROADMAP.md` — Carried over from Review 1; needs the owner's input.
+
+### Missed Findings
+
+| Finding | Severity | Unit | Ledger id |
+|---|---|---|---|
+| F5 end state doesn't require the body builder F3 assumes | minor | subagent-2:correctness | not logged (minor; no open pair) |
+| Capability 4 Delivered-by omits Phase 2 | minor | subagent-5:completeness | not logged (minor; no open pair) |
