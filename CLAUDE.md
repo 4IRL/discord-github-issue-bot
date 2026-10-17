@@ -23,10 +23,9 @@ Python 3 with discord.py (Gateway connection) and an HTTP client for the GitHub 
 
 ## Commands
 
-<!-- Fill in once code exists: install, dev server, test, build. Keep them in sync with
-.claude/skill-config.md's test fields. -->
+<!-- Keep these in sync with .claude/skill-config.md's test fields. -->
 
-- Test: _not set up yet_
+- Test: `.venv/bin/pytest` (repo-root venv; install with `.venv/bin/pip install -r requirements-dev.txt`)
 
 ## Project rules
 
