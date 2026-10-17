@@ -1,0 +1,26 @@
+# --- base (always) ---
+.env
+.env.*
+*.pem
+*.key
+secrets/
+credentials/
+.claude/skill-config.md
+.claude/settings.local.json
+.claude/.cc-writes/
+plans/**/tmp/
+.DS_Store
+*:Zone.Identifier
+
+# --- python ---
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# --- local data (bot thread state, if persisted) ---
+data/
+*.db
+*.db-*
+*.sqlite
+*.bak

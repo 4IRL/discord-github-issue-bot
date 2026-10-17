@@ -1,0 +1,10 @@
+# Paths agents must never read (hard deny per global CLAUDE.md)
+.env
+.env.*
+*.pem
+*.key
+secrets/
+credentials/
+
+# Sensitive data from intake: persisted Discord thread state (members' messages)
+data/
