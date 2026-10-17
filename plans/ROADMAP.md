@@ -81,13 +81,23 @@ reason. Verified code facts that must not regress are META-PLAN Standing invaria
 command-level operating rules (exact backup commands, test commands) belong in CLAUDE.md /
 README. Keep each item to one or two sentences. -->
 
-- **<Constraint name>.** <Rule.> *Why:* <reason.> (e.g. "Additive-only schema changes once
-  real data exists. *Why:* there is no migration tool and the data is irreplaceable.")
-- **Accepted risk: <name>.** <The risk the project deliberately carries, and the trigger
-  that makes it no longer acceptable.> (e.g. "No auth while reachable only on the home
-  network; auth becomes mandatory the moment it is reachable beyond it.")
-- **External dependencies.** <Other repos, services or hardware this project relies on, and
-  what happens if each one is unavailable.>
+- **Rule-based only, no LLM.** Clarifying questions and complexity ratings come from
+  per-tag rules and templates, never a language model. *Why:* the behavior stays
+  predictable and free, with no external model to depend on.
+- **No live side effects from tests or agent sessions.** Tests mock the Discord and GitHub
+  clients, and a live smoke test needs the owner's go-ahead each time (operating rule:
+  `CLAUDE.md`). *Why:* stray runs must never file spam issues on `4IRL/chores4irl` or post
+  in the real channel.
+- **Identifiers are config, not code.** The guild, category, channel and target repo (and
+  its id) come from configuration. *Why:* the bot can be pointed at a test channel or repo.
+- **Least-privilege access.** The GitHub credential gets issues write on the target repo
+  only, plus from Phase 3 the narrowest org Projects permission roadmap placement needs, and
+  the Discord bot asks only for the intents and channel permissions it uses; credentials
+  live outside the repo (see `CLAUDE.md`). *Why:* it limits the damage if a credential leaks.
+- **External dependencies.** The bot relies on the Discord Gateway and the GitHub REST and
+  GraphQL APIs, and files nothing while either is unavailable. A GitHub failure is reported
+  in the thread rather than silently dropped (retry added in Phase 4), and messages posted
+  while Discord was unreachable are picked up on restart (Phase 4).
 
 ## Phases
 

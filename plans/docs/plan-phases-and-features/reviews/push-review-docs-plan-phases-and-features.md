@@ -24,7 +24,7 @@ Cross-references and phases are consistent; the Verification row should be pendi
 - [x] **Fix the effort tally** — `plans/META-PLAN.md` — Change `**Effort tally (remaining).** 13 pts` to `14 pts`, the sum of the Backlog rows.
 - [x] **Mark Verification pending** — `plans/META-PLAN.md` — In Project facts, set Verification to `pending — set by F1`; F1's expected end state already sets the real command.
 - [x] **Reword the Phase 1 path** — `plans/META-PLAN.md` — In "Shortest path to the focus feature", replace "runs F2 → F5 → F7" with "runs F2 and F5 (independent of each other), then F7", to match the dependency graph.
-- [ ] **Fill or trim Principles & constraints** — `plans/ROADMAP.md` — Replace the template bullets with real constraints (for example rule-based only with no LLM; no live Discord/GitHub calls in tests; IDs are config; least-privilege GitHub access; dependence on the Discord and GitHub APIs). This needs the owner's input, so it can be deferred.
+- [x] **Fill or trim Principles & constraints** — `plans/ROADMAP.md` — Replace the template bullets with real constraints (for example rule-based only with no LLM; no live Discord/GitHub calls in tests; IDs are config; least-privilege GitHub access; dependence on the Discord and GitHub APIs). This needs the owner's input, so it can be deferred.
 
 ## Review 2
 Generated: 2026-10-16 22:37
@@ -46,7 +46,7 @@ Cross-references, F-IDs, tally, phases and ledger are consistent.
 
 - [x] **Require a single issue-body builder in F5** — `plans/META-PLAN.md` — Add an F5 Expected-end-state bullet: "One issue-body builder function owns body formatting (F3 extends it)", so F3's starting-state check can pass.
 - [x] **List Phase 2 under capability 4** — `plans/ROADMAP.md` — Change capability 4's Delivered-by to `Phases 1 (filed), 2 (structured body), 3 (roadmap)`.
-- [ ] **Fill or trim Principles & constraints** — `plans/ROADMAP.md` — Carried over from Review 1; needs the owner's input.
+- [x] **Fill or trim Principles & constraints** — `plans/ROADMAP.md` — Carried over from Review 1; needs the owner's input.
 
 ### Missed Findings
 
