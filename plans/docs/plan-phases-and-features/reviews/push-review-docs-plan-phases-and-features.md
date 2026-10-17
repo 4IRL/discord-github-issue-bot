@@ -54,3 +54,28 @@ Cross-references, F-IDs, tally, phases and ledger are consistent.
 |---|---|---|---|
 | F5 end state doesn't require the body builder F3 assumes | minor | subagent-2:correctness | not logged (minor; no open pair) |
 | Capability 4 Delivered-by omits Phase 2 | minor | subagent-5:completeness | not logged (minor; no open pair) |
+
+## Review 3
+Generated: 2026-10-16 23:08
+Comparison: origin/docs/plan-phases-and-features 5515d3d48c..187a1a9720
+Verdict: **PUSHED WITH MINOR FINDINGS**
+Mode: docs-only
+
+### Results by Reviewer
+
+#### 2. Correctness — PASS
+Cross-references and facts agree across ROADMAP, META-PLAN and CLAUDE.md: F3's builder check vs the new F5 bullet, Phase 2 under capability 4, the Projects permission vs F6, and Phase 4 retry and restart pickup.
+- **minor** `plans/ROADMAP.md:98` — The External dependencies principle says a GitHub failure "is reported in the thread", but no Phase 1 scope bullet or exit criterion commits to that. Only F7's end state and F5's open risk (b) back it.
+
+#### 5. Completeness & Cleanup — PASS
+The checkboxes match the applied changes, Delivered-by matches Phase 2's "Advances 2, 4", and no template placeholders remain.
+- **minor** `plans/META-PLAN.md:353` — F5 now requires a single issue-body builder, but its Test-suite deltas don't test the builder, and F3 builds on it.
+- **minor** `plans/ROADMAP.md:87` — The "No live side effects" and "Identifiers are config" principles restate CLAUDE.md project rules, against CLAUDE.md's "Each fact has one home".
+
+### To-Do: Required Changes
+
+- [ ] **Commit Phase 1 to reporting GitHub failures** — `plans/ROADMAP.md` — Add a Phase 1 scope bullet or exit criterion that a failed filing posts a visible error in the thread (matching F7's end state), so the External dependencies principle is backed by a phase commitment.
+- [ ] **Add issue-body builder tests to F5** — `plans/META-PLAN.md` — In F5's Test-suite deltas, append "plus issue-body builder tests (original text, author, message link)".
+- [ ] **Trim the principles that copy CLAUDE.md** — `plans/ROADMAP.md` — Shorten "No live side effects…" and "Identifiers are config, not code" to the policy and its *Why*, and point to `CLAUDE.md` for the rule text instead of restating it.
+
+6b: 0 misses
