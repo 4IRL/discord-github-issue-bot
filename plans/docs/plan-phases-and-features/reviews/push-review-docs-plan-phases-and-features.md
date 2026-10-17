@@ -44,7 +44,7 @@ Cross-references, F-IDs, tally, phases and ledger are consistent.
 
 ### To-Do: Required Changes
 
-- [ ] **Require a single issue-body builder in F5** — `plans/META-PLAN.md` — Add an F5 Expected-end-state bullet: "One issue-body builder function owns body formatting (F3 extends it)", so F3's starting-state check can pass.
+- [x] **Require a single issue-body builder in F5** — `plans/META-PLAN.md` — Add an F5 Expected-end-state bullet: "One issue-body builder function owns body formatting (F3 extends it)", so F3's starting-state check can pass.
 - [ ] **List Phase 2 under capability 4** — `plans/ROADMAP.md` — Change capability 4's Delivered-by to `Phases 1 (filed), 2 (structured body), 3 (roadmap)`.
 - [ ] **Fill or trim Principles & constraints** — `plans/ROADMAP.md` — Carried over from Review 1; needs the owner's input.
 

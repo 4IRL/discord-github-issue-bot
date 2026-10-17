@@ -347,6 +347,7 @@ needs only F1, so it can run alongside F2.
 - One GitHub client module owns auth and issue creation. Tests mock it, and no test calls
   the live API (CLAUDE.md rule).
 - The type → label mapping is config (`bug→bug`, `feature→enhancement`).
+- One issue-body builder function owns body formatting (F3 extends it).
 - All suites green; Standing invariants untouched.
 
 **Test-suite deltas.** Client tests against a mocked HTTP transport (success, auth failure,
