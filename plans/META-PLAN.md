@@ -32,7 +32,7 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 
 | Fact | Value |
 |---|---|
-| Verification | `.venv/bin/pytest` |
+| Verification | `pending — set by F1` |
 | PR link form | `[#N](https://github.com/4IRL/c4i-issue-bot/pull/N)` |
 | Merge strategy | `squash` |
 | Worktree prefix | `none` |
@@ -56,7 +56,7 @@ Shipped work is git's record (`gh pr list --state merged`), not this file's. -->
 F1 has no prerequisites. It needs a Discord application with a bot token, the Message
 Content intent enabled, and the bot invited to the 4irl server with permission to read the
 channel. The owner sets that up; the token goes in `.env`. After F1, the Phase 1 skeleton
-runs F2 → F5 → F7.
+runs F2 and F5 (independent of each other), then F7.
 
 ---
 
@@ -110,7 +110,7 @@ gate), unsplit like `cond:`; any other text not in the grammar is reported, neve
 superseded row (Feature cell struck through with `~~`, *Depends on* starting `**superseded`)
 holds its supersession note, not edges; readers skip it. -->
 
-**Effort tally (remaining).** 13 pts (S=1 / M=2 / L=3 / XL=5).
+**Effort tally (remaining).** 14 pts (S=1 / M=2 / L=3 / XL=5).
 
 ---
 
