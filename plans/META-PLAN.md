@@ -32,7 +32,7 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 
 | Fact | Value |
 |---|---|
-| Verification | `pending — set by F1` |
+| Verification | `.venv/bin/pytest` |
 | PR link form | `[#N](https://github.com/4IRL/c4i-issue-bot/pull/N)` |
 | Merge strategy | `squash` |
 | Worktree prefix | `none` |
@@ -121,7 +121,7 @@ holds its supersession note, not edges; readers skip it. -->
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F1 — Channel listener and tag parsing** ★FOCUS | pending | `feature/channel-listener` | — |
+| **F1 — Channel listener and tag parsing** ★FOCUS | in-progress | `feature/channel-listener` | — |
 | **F2 — Thread per tagged message** | pending | `feature/issue-thread` | — |
 | **F3 — Rule-based clarifying questions** | pending | `feature/clarifying-questions` | — |
 | **F4 — Complexity triage (S/M/L/XL)** | pending | `feature/complexity-triage` | — |
