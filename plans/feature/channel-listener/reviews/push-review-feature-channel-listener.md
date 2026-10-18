@@ -113,3 +113,33 @@ Frozen DTOs, a union that forces callers to handle the malformed case, title inv
 - [ ] **State that F2 must expose malformed messages** — `plans/feature/channel-listener/channel-listener.md` contract and `plans/META-PLAN.md` F2 section — Note F2 extends `candidate_from_message`/`IssueBot` (e.g. a malformed-message hook) because F1 only logs the drop.
 
 6b: 0 misses (every finding sits in lines this push introduced or in text made stale by it; none existed at Review 1's head).
+
+## Review 3
+Generated: 2026-10-17 21:35
+Comparison: origin/feature/channel-listener d54b76ab19f24749ad72d8c2b16af158be3fa797..890ae89904dd02a1740b1d4a5cc3a6218528fc81
+Verdict: **PUSHED WITH MINOR FINDINGS**
+Mode: docs-only
+
+### Results by Reviewer
+
+#### 2. Correctness — PASS
+The F9 ★FOCUS change is consistent: FOCUS is marked in all five places, the effort tally of 19 matches, dependency cells follow the grammar and the owner-step claims agree.
+- minor: `plans/META-PLAN.md` F1 Open risks (e) is stale. It says the F1 plan uses `c4i_issue_bot/` and `DEFAULT_*` constants, but F1 shipped `issue_bot`.
+- minor: `plans/META-PLAN.md` dependency diagram: the Phase 1.5 row's "(independent of each other)" is ambiguous now that F9 also has a Focus row.
+- minor: `plans/ROADMAP.md` Phase 1.5 sequencing still says it depends on Phase 1 hard, while F9 now runs after F1 only. F9's end state already commits to the note, so this is transient.
+
+#### 5. Completeness & Cleanup — PASS
+The re-ranking is consistent across sections. Only minor stale or wording items remain.
+- minor: `plans/META-PLAN.md` F1 Open risks (e) is stale (same as Correctness).
+- minor: `plans/META-PLAN.md` Where the work stands: "F6 is additionally gated" no longer follows another gate.
+- minor: `plans/META-PLAN.md` Baseline still describes `main` as the scaffold. That is correct until F1 merges, then it must be refreshed at fold-back.
+
+### To-Do: Required Changes
+
+- [ ] **Mark F1 Open risks (e) resolved** — `plans/META-PLAN.md` F1 section — Say the plan was revised and F1 shipped the `issue_bot` package with no target defaults, or drop the item at F1's fold-back.
+- [ ] **Clarify the diagram's independence note** — `plans/META-PLAN.md` "Dependencies & couplings" diagram — Change "(independent of each other)" to "(F8 and F9 independent of each other)", or drop the duplicate `F1 ──► ★ F9` edge from the Phase 1.5 row.
+- [ ] **Drop "additionally" from the F6 gate sentence** — `plans/META-PLAN.md` "Where the work stands" — "F6 is gated on creating the new chores4irl roadmap Project."
+- [ ] **Refresh the Baseline at F1's fold-back** — `plans/META-PLAN.md` Baseline — Describe `main` with F1's package, config, parser, handler, Dockerfile and tests once PR #2 merges.
+- [ ] **Add the ROADMAP sequencing note during F9** — `plans/ROADMAP.md` Sequencing rationale — Note that the rename (Phase 1.5) went ahead of the rest of Phase 1, as F9's expected end state requires.
+
+6b: 0 misses (the F1 risk (e) text and the ROADMAP Phase 1.5 sequencing sentence were not in Review 2's diff; the other findings are in lines this push introduced).
