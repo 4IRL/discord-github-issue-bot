@@ -309,13 +309,13 @@ Done 2026-10-17: red confirmed (`ModuleNotFoundError: issue_bot.tags`), then `.v
 required and nothing has a code default.
 
 **To-do:**
-- [ ] Red: create `tests/conftest.py` with a `test_env` fixture returning a **fresh** dict of
+- [x] Red: create `tests/conftest.py` with a `test_env` fixture returning a **fresh** dict of
   neutral fixture values for all nine keys: `DISCORD_TOKEN="test-token"`,
   `DISCORD_GUILD_ID="111"`, `DISCORD_CHANNEL_ID="555"`, `DISCORD_CHANNEL_NAME="intake"`,
   `DISCORD_CATEGORY="Intake"`, `GITHUB_REPO="example-org/example-repo"`,
   `GITHUB_REPO_ID="222"`, `GITHUB_LABEL_BUG="bug"`, `GITHUB_LABEL_FEATURE="enhancement"`;
   and a `config` fixture returning `Config.from_env(test_env)`.
-- [ ] Red: create `tests/test_config.py` (each test passes a plain `dict`, never
+- [x] Red: create `tests/test_config.py` (each test passes a plain `dict`, never
   `os.environ`):
   - `test_full_env_loads(test_env)`: `guild_id == 111`; `config.target` is a `TargetConfig`
     with `channel_id == 555`, `channel_name == "intake"`, `category == "Intake"`,
@@ -339,7 +339,7 @@ required and nothing has a code default.
     `"secret-value" not in repr(config)`.
   - `test_labels_read_only`: `config.target.labels[IssueType.BUG] = "x"` raises `TypeError`.
   Run `.venv/bin/pytest tests/test_config.py`; confirm it fails on the missing module.
-- [ ] Green: create `issue_bot/config.py` per the Design section, starting with
+- [x] Green: create `issue_bot/config.py` per the Design section, starting with
   `from __future__ import annotations` (so the self-referencing `-> Config` /
   `-> TargetConfig` annotations resolve on 3.12): `class ConfigError(Exception)`,
   `REPO_PATTERN`, `@dataclass(frozen=True) class TargetConfig` with
@@ -353,8 +353,10 @@ required and nothing has a code default.
   raises `ConfigError(f"{key} must be a positive integer")` for values ≤ 0). Labels:
   `MappingProxyType({t: _required(env, f"GITHUB_LABEL_{t.name}") for t in IssueType})`.
   No module-level default constants and no literal identifier values.
-- [ ] Refactor if needed; confirm `.venv/bin/pytest` green and `grep -rn 'DEFAULT_' issue_bot/`
+- [x] Refactor if needed; confirm `.venv/bin/pytest` green and `grep -rn 'DEFAULT_' issue_bot/`
   prints nothing.
+
+Done 2026-10-17: red confirmed (`ModuleNotFoundError: issue_bot.config` from conftest), then `.venv/bin/pytest` → 53 passed. Review hardening (minor findings): ID keys must be ASCII decimal integers (`ASCII_INTEGER_PATTERN`, so `"١٢٣"`, `"+5"`, `"1_000"` → `must be an integer`) and `GITHUB_REPO` rejects `.`/`..` segments (`DOT_SEGMENTS`); tests extended → 65 passed; `grep -rn 'DEFAULT_' issue_bot/` prints nothing.
 
 **Verify:** `.venv/bin/pytest tests/test_config.py` green.
 
