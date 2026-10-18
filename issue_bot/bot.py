@@ -75,8 +75,10 @@ class IssueBot(discord.Client):
         self._startup_checked = True
         logger.info("connected as %s", self.user)
         channel = self.get_channel(self.config.target.channel_id)
+        # A missing channel leaves the bot unable to work; a mismatched one still works.
+        log_problem = logger.error if channel is None else logger.warning
         for problem in channel_problems(channel, self.config):
-            logger.warning("%s", problem)
+            log_problem("%s", problem)
 
     async def on_message(self, message: discord.Message) -> None:
         candidate = candidate_from_message(message, self.config)

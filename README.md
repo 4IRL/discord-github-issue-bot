@@ -8,7 +8,7 @@ The code itself is target-agnostic: it holds no 4irl values (never as a code def
 
 F1 (channel listener and tag parser) exists: the bot connects to Discord, watches the intake channel and turns each new `!bug` / `!feature` message into an issue candidate. Until F2 (clarifying thread) and F5 (issue filing) land, candidates are only logged, by issue type, message id and message URL.
 
-- The intake channel is matched by `DISCORD_CHANNEL_ID`; its name, category and guild are only checked at startup (a mismatch logs a warning).
+- The intake channel is matched by `DISCORD_CHANNEL_ID`; its name, category and guild are only checked at startup (a mismatch logs a warning; a channel the bot cannot see logs an error).
 - Edited messages are ignored, and so are messages inside threads, from bots or webhooks, and system messages.
 - The first recognized tag decides the issue type; every tag is stripped from the title and body.
 

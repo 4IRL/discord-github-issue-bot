@@ -148,17 +148,34 @@ async def test_default_hook_logs_ids_not_text(
         assert "Alice" not in text
 
 
-async def test_on_ready_logs_channel_problems(
+async def test_on_ready_logs_missing_channel_as_error(
     config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     bot = IssueBot(config)
     monkeypatch.setattr(bot, "get_channel", lambda _id: None)
     with caplog.at_level(logging.INFO):
         await bot.on_ready()
-    warnings = [
-        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.WARNING
+    problems = [
+        (record.levelno, record.getMessage())
+        for record in bot_records(caplog)
+        if record.levelno >= logging.WARNING
     ]
-    assert any("555" in text for text in warnings)
+    assert problems == [(logging.ERROR, "channel 555 not found or not visible to the bot")]
+
+
+async def test_on_ready_logs_channel_mismatch_as_warning(
+    config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(config)
+    monkeypatch.setattr(bot, "get_channel", lambda _id: make_channel(name="general"))
+    with caplog.at_level(logging.INFO):
+        await bot.on_ready()
+    problems = [
+        (record.levelno, record.getMessage())
+        for record in bot_records(caplog)
+        if record.levelno >= logging.WARNING
+    ]
+    assert problems == [(logging.WARNING, "channel name is 'general', expected 'intake'")]
 
 
 async def test_on_ready_matching_channel_logs_no_warning(
