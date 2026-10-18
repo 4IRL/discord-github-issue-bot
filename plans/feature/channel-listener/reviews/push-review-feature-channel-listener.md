@@ -110,7 +110,7 @@ Frozen DTOs, a union that forces callers to handle the malformed case, title inv
 - [x] **Add a bot-level malformed test** — `tests/test_bot.py` — `on_message(make_message("!bug\nBody: x"))` with a recording hook; assert the hook is not awaited.
 - [x] **Say "no usable Title: line" in the drop log** — `issue_bot/handler.py`, `tests/test_handler.py`, plan contract — Match the MalformedTag docstring.
 - [x] **Bring the F1 plan's Design section up to date** — `plans/feature/channel-listener/channel-listener.md` — `[#bug]`→`[!bug]` in the amendment; `!bug`/`!feature` in the overview (line 6) and env table (95-96); tags.py row (77) to `ParsedTag(type, title, body)`, `MalformedTag`, `ParsedTag | MalformedTag | None`; IssueCandidate list (~142) to nine fields with F5 using `body`; re-wrap the long contract bullets.
-- [ ] **State that F2 must expose malformed messages** — `plans/feature/channel-listener/channel-listener.md` contract and `plans/META-PLAN.md` F2 section — Note F2 extends `candidate_from_message`/`IssueBot` (e.g. a malformed-message hook) because F1 only logs the drop.
+- [x] **State that F2 must expose malformed messages** — `plans/feature/channel-listener/channel-listener.md` contract and `plans/META-PLAN.md` F2 section — Note F2 extends `candidate_from_message`/`IssueBot` (e.g. a malformed-message hook) because F1 only logs the drop.
 
 6b: 0 misses (every finding sits in lines this push introduced or in text made stale by it; none existed at Review 1's head).
 
