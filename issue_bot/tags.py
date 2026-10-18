@@ -46,12 +46,9 @@ BRACKETED_TAG = re.compile(
 TITLE_EDGE = " .,:;-|/"
 
 
-def _is_filled(name: str, lines: list[str]) -> bool:
-    """Whether a field holds text: for a title, a letter or digit (the usable-title rule)."""
-    text = "".join(lines)
-    if name == "title":
-        return any(char.isalnum() for char in text)
-    return bool(text.strip())
+def _is_usable_title(title: str) -> bool:
+    """Whether a title holds a letter or digit."""
+    return any(char.isalnum() for char in title)
 
 
 def parse_tag(text: str) -> ParsedTag | MalformedTag | None:
@@ -65,8 +62,9 @@ def parse_tag(text: str) -> ParsedTag | MalformedTag | None:
     if match is None:
         return None
     issue_type = IssueType(match.group(1).lower())
-    fields: dict[str, list[str]] = {}
-    body_lines: list[str] | None = None
+    title = ""
+    body_lines: list[str] = []
+    in_body = False
     for raw_line in text.splitlines():
         line = BRACKETED_TAG.sub(" ", raw_line)
         if line != raw_line:
@@ -75,14 +73,17 @@ def parse_tag(text: str) -> ParsedTag | MalformedTag | None:
             indent = raw_line[: len(raw_line) - len(raw_line.lstrip())]
             line = indent + line.lstrip()
         label = FIELD_LABEL.match(line)
-        name = label.group(1).lower() if label else None
-        if label is not None and not _is_filled(name, fields.get(name, [])):
-            fields[name] = [line[label.end() :]]
-            body_lines = fields[name] if name == "body" else None
-        elif body_lines is not None:
+        name, rest = (label.group(1).lower(), line[label.end() :]) if label else ("", line)
+        if name == "title" and not _is_usable_title(title):
+            title = rest
+            in_body = False
+        elif name == "body" and not any(body_line.strip() for body_line in body_lines):
+            body_lines = [rest]
+            in_body = True
+        elif in_body:
             body_lines.append(line)
-    title = " ".join("".join(fields.get("title", [])).split()).strip(TITLE_EDGE)
-    if not any(char.isalnum() for char in title):
+    title = " ".join(title.split()).strip(TITLE_EDGE)
+    if not _is_usable_title(title):
         return MalformedTag(issue_type)
-    body = "\n".join(line.rstrip() for line in fields.get("body", [])).strip("\n")
+    body = "\n".join(line.rstrip() for line in body_lines).strip("\n")
     return ParsedTag(issue_type, title, body)
