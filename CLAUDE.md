@@ -19,7 +19,7 @@ Each fact has one home. Link to it from elsewhere; never copy it.
 
 ## Stack
 
-Python 3 with discord.py (Gateway connection) and an HTTP client for the GitHub REST/GraphQL APIs, packaged as a Docker container. Clarifying questions and complexity ratings are rule-based (per-tag templates), with no LLM. Docker commands run with `dangerouslyDisableSandbox: true`.
+Python 3 with discord.py (Gateway connection) and aiohttp for the GitHub REST/GraphQL APIs, with PyJWT for GitHub App auth, packaged as a Docker container. Clarifying questions and complexity ratings are rule-based (per-tag templates), with no LLM. Docker commands run with `dangerouslyDisableSandbox: true`.
 
 ## Commands
 
@@ -31,5 +31,5 @@ Python 3 with discord.py (Gateway connection) and an HTTP client for the GitHub 
 
 - **Never create real GitHub issues or post to the live Discord channel from tests or agent sessions.** Tests mock the Discord and GitHub clients; a live smoke test needs the user's explicit go-ahead each time.
 - **Identifiers are config, not code.** Guild `1137236302358659185`, category `C4I`, channel `c4i-github-issues` and target repo `4IRL/chores4irl` (repo id `969373970`) come from configuration, so the bot can point at a test channel or repo. The code holds no 4irl values (never a code default); their config home is `example.env`.
-- The Discord bot token and GitHub credentials live only in `.env` / the container environment; agents never read them. `example.env` is the committed, secret-free template (`.env` itself stays unread).
-- **Logs never contain members' message text or names.** Log the issue type, ids (message, thread) and message URL only; a caught Discord API error is logged by exception type, HTTP status and Discord error code, never its text; message content stays in Discord and the filed issue. Exceptions escaping event handlers and hooks are logged by type and event name only. Never run the `discord` loggers at DEBUG: discord.py logs full gateway payloads (message text, member names) at that level.
+- The Discord bot token and GitHub App ids live only in `.env` / the container environment, and the App private key in a file outside the repo: a host path for a local run, a read-only mounted file in the container (its path is the `GITHUB_APP_PRIVATE_KEY_PATH` env value); agents never read them. `example.env` is the committed, secret-free template (`.env` itself stays unread).
+- **Logs never contain members' message text or names.** Log the issue type, ids (message, thread), the message URL and the filed issue's URL only; a caught Discord API error is logged by exception type, HTTP status and Discord error code, never its text; a GitHub API error is logged by exception type, request stage and HTTP status, never its response text; tokens, JWTs and the App private key are never logged; message content stays in Discord and the filed issue. Exceptions escaping event handlers and hooks are logged by type and event name only. Never run the `discord` loggers at DEBUG: discord.py logs full gateway payloads (message text, member names) at that level.
