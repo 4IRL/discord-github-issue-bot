@@ -155,13 +155,13 @@ and the first two facts are Owner-checklist items. They are not gaps for step 8.
 a GitHub rename or change the remote from an agent session.
 
 **To-do:**
-- [ ] The owner's settings edit is in the branch: Step 1's `allowWrite` JSON check still
+- [x] The owner's settings edit is in the branch: Step 1's `allowWrite` JSON check still
   exits 0, and `git status --porcelain -- .claude/settings.json` prints nothing (committed
   by Step 1).
-- [ ] `git grep -n 'c4i-issue-bot\|c4i_issue_bot' -- ':!plans'` prints only the
+- [x] `git grep -n 'c4i-issue-bot\|c4i_issue_bot' -- ':!plans'` prints only the
   `.claude/settings.json` line holding the old path's `allowWrite` entry (kept, DD-2). Any
   other hit is a gap to fix.
-- [ ] The new name and portable wording landed:
+- [x] The new name and portable wording landed:
   `git grep -n 'discord-github-issue-bot' -- README.md CLAUDE.md plans/ROADMAP.md plans/META-PLAN.md`
   shows the README title and its Docker build and run lines, the CLAUDE.md title, the ROADMAP
   title and Phase 1.5 rename bullet, and the META-PLAN title and PR-link-form row;
@@ -169,17 +169,17 @@ a GitHub rename or change the remote from an agent session.
   CLAUDE.md's opening line; `git grep -n 'configured intake channels' -- plans/ROADMAP.md`
   shows the rewritten *End state* paragraph; `git grep -n 'ahead of the rest of Phase 1' -- plans/ROADMAP.md`
   shows the *Sequencing rationale* sentence.
-- [ ] Standing invariant 1: `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot`
+- [x] Standing invariant 1: `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot`
   prints nothing (exit status 1 is the expected, passing result).
-- [ ] `git diff --name-only $(git merge-base main HEAD)` lists only `README.md`, `CLAUDE.md`,
+- [x] `git diff --name-only $(git merge-base main HEAD)` lists only `README.md`, `CLAUDE.md`,
   `.claude/settings.json`, `plans/ROADMAP.md`, `plans/META-PLAN.md` and files under
   `plans/chore/rename-repo/`. No code or test file is changed.
-- [ ] Write the pre-merge reconciliation into this plan's *Verification log*: the `git grep`
+- [x] Write the pre-merge reconciliation into this plan's *Verification log*: the `git grep`
   gate above replaced META-PLAN F9's literal `grep -rn`, `gh repo view` / origin are
   deferred to the Owner checklist (see *Pre-merge end state* above), and META-PLAN F9's
   settings item ("names the new absolute path, not /home/rmila/Code/c4i-issue-bot") is met in
   DD-2's form: `allowWrite` lists both paths, and dropping the old one is an optional later PR.
-- [ ] Re-read the Owner checklist below and confirm each check uses the name right for its
+- [x] Re-read the Owner checklist below and confirm each check uses the name right for its
   place in the order: `c4i-issue-bot` in the pre-rename PR check and the absence checks
   (folder, history, skill-config, stronghold META-PLAN), `discord-github-issue-bot`
   everywhere else. End the final report with the line
@@ -263,6 +263,30 @@ order, then F9 is folded back from a session in the renamed folder. When re-runn
   prints `0`.
 
 ## Verification log
+
+**Step 4 (2026-10-18), pre-merge end state on `chore/rename-repo`:**
+- Settings: the `allowWrite` JSON check exits 0 (both paths listed) and
+  `git status --porcelain -- .claude/settings.json` prints nothing (committed in c3a6c07).
+- `git grep -n 'c4i-issue-bot\|c4i_issue_bot' -- ':!plans'` prints only
+  `.claude/settings.json:17` (the old path's `allowWrite` entry, kept per DD-2).
+- New name and wording: `discord-github-issue-bot` hits README title and Docker build/run
+  lines (82-83), CLAUDE.md title, ROADMAP title (and End state line 21) and Phase 1.5 bullet
+  (171), META-PLAN title and PR-link-form row (36). `4IRL GitHub org` hits README:3 and
+  CLAUDE.md:3; `configured intake channels` hits ROADMAP:22; `ahead of the rest of Phase 1`
+  hits ROADMAP:257.
+- Standing invariant 1: the identifier grep over `issue_bot/*.py` exits 1 (no hits).
+- `git diff --name-only $(git merge-base main HEAD)` lists only `.claude/settings.json`,
+  `CLAUDE.md`, `README.md`, `plans/META-PLAN.md`, `plans/ROADMAP.md` and files under
+  `plans/chore/rename-repo/`. No code or test file changed.
+- Reconciliation: this step's `git grep` gate stands in for META-PLAN F9's literal
+  `grep -rn ... --exclude-dir=plans .` (see *Pre-merge end state* in Step 4).
+  `gh repo view 4IRL/discord-github-issue-bot` and `git remote get-url origin` are deferred
+  to the Owner checklist; no rename or remote change was run from an agent session. META-PLAN F9's
+  settings item ("names the new absolute path, not /home/rmila/Code/c4i-issue-bot") is met in
+  DD-2's form: `allowWrite` lists both paths, and dropping the old one is an optional later PR.
+- Owner checklist re-read: `c4i-issue-bot` appears only in the pre-rename open-PR check, the
+  rename item's from-name and revert note, and the absence checks (folder, history,
+  skill-config, stronghold META-PLAN); every other check names `discord-github-issue-bot`.
 
 ## Status
 finished: false
