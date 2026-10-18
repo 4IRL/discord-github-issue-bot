@@ -86,7 +86,17 @@ class IssueBot(discord.Client):
             await self.on_candidate(message, candidate)
 
     async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:
-        """Log the exception type and event only: tracebacks and args can quote member text."""
+        """Log the exception type, event and on_message's message id only.
+
+        Tracebacks and args can quote member text; an integer message id cannot.
+        """
         error = sys.exc_info()[1]
         error_name = type(error).__name__ if error is not None else "unknown error"
-        logger.error("unhandled %s in %s", error_name, event_method)
+        message = args[0] if event_method == "on_message" and args else None
+        message_id = getattr(message, "id", None)
+        if isinstance(message_id, int) and not isinstance(message_id, bool):
+            logger.error(
+                "unhandled %s in %s message_id=%d", error_name, event_method, message_id
+            )
+        else:
+            logger.error("unhandled %s in %s", error_name, event_method)

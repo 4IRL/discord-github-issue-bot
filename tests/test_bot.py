@@ -237,6 +237,53 @@ async def test_on_error_without_active_exception(
     assert errors == ["unhandled unknown error in on_ready"]
 
 
+async def test_on_error_adds_message_id_for_on_message(
+    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(config)
+    message = make_message("!bug\nTitle: Secret title words", message_id=4242)
+    with caplog.at_level(logging.INFO):
+        try:
+            raise RuntimeError("Secret title words")
+        except RuntimeError:
+            await bot.on_error("on_message", message)
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert errors == ["unhandled RuntimeError in on_message message_id=4242"]
+    for text in record_texts(caplog):
+        assert "Secret title words" not in text
+        assert "Alice" not in text
+
+
+@pytest.mark.parametrize(
+    ("event_method", "arguments"),
+    [
+        ("on_message", (SimpleNamespace(id="99"),)),
+        ("on_message", (SimpleNamespace(id=True),)),
+        ("on_message", (SimpleNamespace(),)),
+        ("on_message", ()),
+        ("on_guild_join", (SimpleNamespace(id=4242),)),
+    ],
+)
+async def test_on_error_omits_non_message_ids(
+    config: Config,
+    caplog: pytest.LogCaptureFixture,
+    event_method: str,
+    arguments: tuple[SimpleNamespace, ...],
+) -> None:
+    bot = IssueBot(config)
+    with caplog.at_level(logging.INFO):
+        try:
+            raise RuntimeError("boom")
+        except RuntimeError:
+            await bot.on_error(event_method, *arguments)
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert errors == [f"unhandled RuntimeError in {event_method}"]
+
+
 def test_edits_not_handled() -> None:
     assert not hasattr(IssueBot, "on_message_edit")
 
