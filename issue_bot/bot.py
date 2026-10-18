@@ -1,4 +1,4 @@
-"""The Discord client: listens to the intake channel and hands candidates to a hook."""
+"""The Discord client: listens to the intake channel and hands tagged messages to hooks."""
 
 import logging
 import sys
@@ -9,10 +9,13 @@ import discord
 
 from issue_bot.config import Config
 from issue_bot.handler import IssueCandidate, candidate_from_message
+from issue_bot.tags import MalformedTag
+from issue_bot.threads import format_hint, open_thread, thread_name
 
 logger = logging.getLogger(__name__)
 
 CandidateHook = Callable[[discord.Message, IssueCandidate], Awaitable[None]]
+MalformedHook = Callable[[discord.Message, MalformedTag], Awaitable[None]]
 
 
 def build_intents() -> discord.Intents:
@@ -46,23 +49,58 @@ def channel_problems(channel: Any, config: Config) -> list[str]:
     return problems
 
 
-async def log_candidate(_message: discord.Message, candidate: IssueCandidate) -> None:
-    """Default hook: log ids and the message URL only, never member text or names."""
+async def open_issue_thread(message: discord.Message, candidate: IssueCandidate) -> None:
+    """Default hook: open the issue's thread and log ids and the message URL only.
+
+    Never logs member text or names.
+    """
+    thread = await open_thread(message, thread_name(candidate.title))
     logger.info(
-        "captured %s message_id=%s (%s)",
+        "captured %s message_id=%s (%s) thread_id=%s",
         candidate.type,
         candidate.message_id,
         candidate.message_url,
+        thread.id if thread else None,
     )
 
 
-class IssueBot(discord.Client):
-    """Turns new tagged messages in the intake channel into candidates for ``on_candidate``."""
+async def reply_format_hint(message: discord.Message, malformed: MalformedTag) -> None:
+    """Default malformed hook: reply in a ``Format help`` thread with the expected format."""
+    thread = await open_thread(message, f"Format help: !{malformed.type}")
+    if thread is None:
+        return
+    try:
+        await thread.send(format_hint(malformed.type))
+    except discord.HTTPException as exc:
+        logger.error(
+            "could not send format hint for message_id=%s thread_id=%s: %s status=%s code=%s",
+            message.id,
+            thread.id,
+            type(exc).__name__,
+            exc.status,
+            exc.code,
+        )
+        return
+    logger.info("format hint %s message_id=%s thread_id=%s", malformed.type, message.id, thread.id)
 
-    def __init__(self, config: Config, on_candidate: CandidateHook = log_candidate) -> None:
+
+class IssueBot(discord.Client):
+    """Hands new tagged messages in the intake channel to hooks.
+
+    A candidate goes to ``on_candidate`` (default: open its thread); a tagged message
+    without a usable title goes to ``on_malformed`` (default: reply with the format hint).
+    """
+
+    def __init__(
+        self,
+        config: Config,
+        on_candidate: CandidateHook = open_issue_thread,
+        on_malformed: MalformedHook = reply_format_hint,
+    ) -> None:
         super().__init__(intents=build_intents())
         self.config = config
         self.on_candidate = on_candidate
+        self.on_malformed = on_malformed
         self._startup_checked: bool = False
 
     async def on_ready(self) -> None:
@@ -84,6 +122,8 @@ class IssueBot(discord.Client):
         result = candidate_from_message(message, self.config)
         if isinstance(result, IssueCandidate):
             await self.on_candidate(message, result)
+        elif isinstance(result, MalformedTag):
+            await self.on_malformed(message, result)
 
     async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:
         """Log the exception type, event and on_message's message id only.

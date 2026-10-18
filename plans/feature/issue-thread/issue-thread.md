@@ -197,11 +197,11 @@ Widen the CLAUDE.md logging rule, then add `issue_bot/threads.py` with pure name
   `.venv/bin/pytest` and confirm the whole suite passes (`test_on_message_ignores_malformed`
   must still pass).
 
-### 3. Default hooks open the thread and reply with the format hint (TDD)
+### 3. Default hooks open the thread and reply with the format hint (TDD) - COMPLETE (2026-10-18)
 Wire the thread helpers into `IssueBot` as the default `on_candidate` and a new `on_malformed` hook.
 
 **To-do:**
-- [ ] **Red:** in `tests/test_bot.py` add:
+- [x] **Red:** in `tests/test_bot.py` add:
   - Imports: `import discord` placed before `import pytest`; extend
     `from issue_bot.tags import IssueType` to `from issue_bot.tags import IssueType, MalformedTag`;
     add `from issue_bot.threads import format_hint` after the `issue_bot.tags` import (three
@@ -261,7 +261,7 @@ Wire the thread helpers into `IssueBot` as the default `on_candidate` and a new 
   `test_malformed_hint_skipped_when_thread_fails`,
   `test_malformed_hint_send_failure_logged_without_text` (no ERROR record);
   `test_custom_on_malformed_hook` (`TypeError` for the unexpected `on_malformed` kwarg).
-- [ ] **Green:** in `issue_bot/bot.py`:
+- [x] **Green:** in `issue_bot/bot.py`:
   - Import `MalformedTag` from `issue_bot.tags` and `format_hint, open_thread, thread_name`
     from `issue_bot.threads`.
   - Add `MalformedHook = Callable[[discord.Message, MalformedTag], Awaitable[None]]`.
@@ -287,7 +287,7 @@ Wire the thread helpers into `IssueBot` as the default `on_candidate` and a new 
   - `on_message`: `isinstance(result, IssueCandidate)` → `on_candidate`;
     `isinstance(result, MalformedTag)` → `await self.on_malformed(message, result)`.
   Run `.venv/bin/pytest` and confirm the whole suite passes.
-- [ ] **Refactor:** confirm `issue_bot/bot.py` has no unused imports and no log call passes a
+- [x] **Refactor:** confirm `issue_bot/bot.py` has no unused imports and no log call passes a
   title, body, author name, thread name, `exc.text` or `str(exc)`. Run `.venv/bin/pytest`.
 
 ### 4. README
