@@ -171,11 +171,11 @@ Widen the CLAUDE.md logging rule, then add `issue_bot/threads.py` with pure name
   `exc.text`, `fetch_exc.text`, `str(exc)` or `str(fetch_exc)`. Run `.venv/bin/pytest` (whole
   suite green).
 
-### 2. Malformed messages reach the bot (TDD)
+### 2. Malformed messages reach the bot (TDD) - COMPLETE (2026-10-18)
 `candidate_from_message` returns the `MalformedTag` instead of `None`, so `IssueBot` can reply.
 
 **To-do:**
-- [ ] **Red:** in `tests/test_handler.py::test_malformed_ignored_and_logged_without_text`, change
+- [x] **Red:** in `tests/test_handler.py::test_malformed_ignored_and_logged_without_text`, change
   `assert candidate_from_message(message, config) is None` to
   `assert candidate_from_message(message, config) == MalformedTag(IssueType.FEATURE)` (import
   `MalformedTag` from `issue_bot.tags`), and rename the test
@@ -184,7 +184,7 @@ Widen the CLAUDE.md logging rule, then add `issue_bot/threads.py` with pure name
   the test pins the reworded log line below; its no-text assertion stays unchanged. Run
   `.venv/bin/pytest tests/test_handler.py` and confirm it fails (the return is `None`, not the
   `MalformedTag`; the log line still starts with `ignored `).
-- [ ] **Green:** in `issue_bot/handler.py::candidate_from_message`, change the return annotation
+- [x] **Green:** in `issue_bot/handler.py::candidate_from_message`, change the return annotation
   to `IssueCandidate | MalformedTag | None`, return `parsed` instead of `None` in the
   `MalformedTag` branch, reword its log line from `"ignored %s message_id=%s (%s): no usable
   Title: line"` to `"malformed %s message_id=%s (%s): no usable Title: line"` (same

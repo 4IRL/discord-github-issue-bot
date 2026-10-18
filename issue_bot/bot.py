@@ -81,9 +81,9 @@ class IssueBot(discord.Client):
             log_problem("%s", problem)
 
     async def on_message(self, message: discord.Message) -> None:
-        candidate = candidate_from_message(message, self.config)
-        if candidate is not None:
-            await self.on_candidate(message, candidate)
+        result = candidate_from_message(message, self.config)
+        if isinstance(result, IssueCandidate):
+            await self.on_candidate(message, result)
 
     async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:
         """Log the exception type, event and on_message's message id only.
