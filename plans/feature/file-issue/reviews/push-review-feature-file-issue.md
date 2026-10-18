@@ -55,3 +55,45 @@ No breaking changes. The new required keys and pins are documented, and the bot 
 - [ ] **Comment the container-only key path** — `example.env` — Add one line saying a local run must point `GITHUB_APP_PRIVATE_KEY_PATH` at the key's host path.
 - [ ] **Split `FILING_ERROR_REPLY` across lines** — `issue_bot/threads.py` — Optional: use implicit string concatenation inside parentheses.
 - [ ] **Decide on the redundant `from None` and `issue_labels` wrapper** — `issue_bot/github.py`, `issue_bot/issues.py` — Leave as-is (deliberate per DD-13 and symmetry), or drop them.
+
+## Review 2
+Generated: 2026-10-18 17:05
+Comparison: origin/feature/file-issue b314ef24f705f258b105f419e9cdd3fb87409b59..31befd0 (+uncommitted)
+Verdict: **PUSHED WITH MINOR FINDINGS**
+
+Scope: the merge-gate change (author line first, backticks stripped). Type Design was not launched, because no types changed.
+
+### Results by Reviewer
+
+#### 1. Safety & Security — PASS
+The reorder narrows the injection risk. There are no secrets or new boundary inputs.
+
+#### 2. Correctness — PASS
+The blank line before `---` avoids a setext heading. The placeholder and the mention defanging still apply.
+- (minor) An author name made only of backticks becomes empty, which renders an empty code span. This is cosmetic.
+
+#### 3. Simplicity & Conciseness — PASS
+
+#### 4. Test Coverage — PASS
+- (minor) No test covers a name made only of backticks.
+- (minor) The hostile-body test doesn't assert that the member text sits after the `---` separator.
+
+#### 5. Completeness & Cleanup — PASS
+- (minor) The plan's `test_issue_body_has_body_author_and_link` spec still showed the old body-first string. It was fixed before this push.
+
+#### 6. Consistency & Style — PASS
+- (minor) The same stale plan line, fixed before this push.
+
+#### 7. Integration Risk — PASS
+`issue_body` has a single caller. F3 can still extend the one builder by appending below the header.
+- (minor) The same stale plan line, fixed before this push.
+
+#### 8. Error Handling & Silent Failures — PASS
+
+### To-Do: Required Changes
+
+- [x] **Update the stale test spec** — `plans/feature/file-issue/file-issue.md` — Make the `test_issue_body_has_body_author_and_link` bullet expect the header-first string. _(Done before the push.)_
+- [ ] **Fall back when the stripped author is empty** — `issue_bot/issues.py` `issue_body`, `tests/test_issues.py` — Use a placeholder such as `unknown` when `author_name` with its backticks removed is empty, and test a name made only of backticks.
+- [ ] **Assert the separator in the hostile-body test** — `tests/test_issues.py` `test_issue_body_author_line_comes_before_member_text` — Assert `body.split("\n\n---\n\n", 1)[1]` equals the member text.
+
+6b: 0 misses (Review 1 never examined the new hunks; they were written after it).

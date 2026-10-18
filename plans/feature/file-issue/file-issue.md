@@ -193,7 +193,7 @@ Create `issue_bot/issues.py` with the single body builder. The `file_candidate` 
 - [x] Create `tests/test_issues.py` (Red). Build candidates through `candidate_from_message(make_message(...), config)`, because tests never construct `IssueCandidate` directly. Add these tests:
   - `test_issue_title_is_message_title`.
   - `test_issue_title_truncated_to_256`: a title of `"x" * 300` gives length 256 ending in `…`, and `"x" * 256` stays unchanged (no spaces, because the `thread_name` shape rstrips before the `…`).
-  - `test_issue_body_has_body_author_and_link`: for content `"!bug\nTitle: T\nBody: Steps here"` with author `"Alice"`, `issue_body` equals exactly ``"Steps here\n\n---\nReported by `Alice` in Discord: https://discord.com/channels/111/555/99"``.
+  - `test_issue_body_has_body_author_and_link`: for content `"!bug\nTitle: T\nBody: Steps here"` with author `"Alice"`, `issue_body` equals exactly ``"Reported by `Alice` in Discord: https://discord.com/channels/111/555/99\n\n---\n\nSteps here"`` (header-first since the merge gate).
   - `test_issue_body_neutralizes_mentions`: content `"!bug\nTitle: T\nBody: ping @someone"` with author `"@admin"` → the result contains neither `"@someone"` nor `"@admin"` as a literal substring, and contains `"@\u200bsomeone"` and `"@\u200badmin"`.
   - `test_issue_body_without_body_uses_placeholder`: the body ends with `"\n\n---\n\n_No description given._"` (updated at the merge gate with the header-first format; `test_issue_body_author_line_comes_before_member_text` and `test_issue_body_strips_backticks_from_author` added).
   - `test_issue_labels_follow_config`, parametrized `(content, expected)`: `("!bug\nTitle: T", ["bug"])` and `("!feature\nTitle: T", ["enhancement"])`, read from `test_env`'s `GITHUB_LABEL_*`.
