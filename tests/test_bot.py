@@ -2,13 +2,15 @@ import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import discord
 import pytest
 
 import issue_bot.__main__ as entry_point
 from issue_bot.bot import IssueBot, build_intents, channel_problems
 from issue_bot.config import Config
 from issue_bot.handler import IssueCandidate
-from issue_bot.tags import IssueType
+from issue_bot.tags import IssueType, MalformedTag
+from issue_bot.threads import format_hint
 from tests.conftest import MessageFactory
 
 CONFIG_KEYS = (
@@ -120,7 +122,7 @@ async def test_on_message_ignores_untagged(
     hook.assert_not_awaited()
 
 
-async def test_on_message_ignores_malformed(
+async def test_on_message_malformed_skips_candidate_hook(
     config: Config, make_message: MessageFactory
 ) -> None:
     hook = AsyncMock()
@@ -142,10 +144,146 @@ async def test_default_hook_logs_ids_not_text(
     assert any(
         "bug" in text and "99" in text and message.jump_url in text for text in info_messages
     )
+    assert sum("thread_id=1234" in text for text in info_messages) == 1
     for text in record_texts(caplog):
         assert "Secret title words" not in text
         assert "Secret body words" not in text
         assert "Alice" not in text
+
+
+def forbidden(code: int, text: str) -> discord.Forbidden:
+    return discord.Forbidden(
+        SimpleNamespace(status=403, reason="Forbidden"), {"code": code, "message": text}
+    )
+
+
+async def test_default_hook_opens_one_thread_named_from_title(
+    config: Config, make_message: MessageFactory
+) -> None:
+    bot = IssueBot(config)
+    message = make_message("!bug\nTitle: Fix it")
+    await bot.on_message(message)
+    message.create_thread.assert_awaited_once_with(name="Fix it")
+
+
+async def test_default_hook_truncates_long_title(
+    config: Config, make_message: MessageFactory
+) -> None:
+    bot = IssueBot(config)
+    message = make_message("!bug\nTitle: " + "y" * 150)
+    await bot.on_message(message)
+    message.create_thread.assert_awaited_once()
+    assert len(message.create_thread.await_args.kwargs["name"]) == 100
+
+
+async def test_default_hook_skips_message_with_thread(
+    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    existing = SimpleNamespace(id=5)
+    message = make_message(thread=existing)
+    bot = IssueBot(config)
+    with caplog.at_level(logging.INFO):
+        await bot.on_message(message)
+    message.create_thread.assert_not_awaited()
+    assert any(
+        record.levelno == logging.INFO and "thread_id=5" in record.getMessage()
+        for record in bot_records(caplog)
+    )
+
+
+async def test_default_hook_logs_when_thread_fails(
+    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(config)
+    message = make_message("!bug\nTitle: Secret title words")
+    message.create_thread.side_effect = forbidden(50013, "x")
+    with caplog.at_level(logging.INFO):
+        await bot.on_message(message)
+    assert any(
+        record.levelno == logging.INFO and "thread_id=None" in record.getMessage()
+        for record in bot_records(caplog)
+    )
+    assert any(
+        record.name == "issue_bot.threads" and record.levelno == logging.ERROR
+        for record in caplog.records
+    )
+    for text in record_texts(caplog):
+        assert "Secret title words" not in text
+
+
+async def test_malformed_message_gets_format_hint_in_thread(
+    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    hook = AsyncMock()
+    bot = IssueBot(config, on_candidate=hook)
+    message = make_message("!bug\nBody: x")
+    with caplog.at_level(logging.INFO):
+        await bot.on_message(message)
+    hook.assert_not_awaited()
+    message.create_thread.assert_awaited_once_with(name="Format help: !bug")
+    message.create_thread.return_value.send.assert_awaited_once_with(format_hint(IssueType.BUG))
+    assert any(
+        record.levelno == logging.INFO
+        and "format hint bug" in record.getMessage()
+        and "thread_id=1234" in record.getMessage()
+        for record in bot_records(caplog)
+    )
+
+
+async def test_malformed_with_existing_thread_reuses_it(
+    config: Config, make_message: MessageFactory
+) -> None:
+    existing = SimpleNamespace(id=5, send=AsyncMock())
+    message = make_message("!bug\nBody: x", thread=existing)
+    bot = IssueBot(config)
+    await bot.on_message(message)
+    message.create_thread.assert_not_awaited()
+    existing.send.assert_awaited_once()
+
+
+async def test_malformed_hint_skipped_when_thread_fails(
+    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(config)
+    message = make_message("!bug\nBody: x")
+    message.create_thread.side_effect = forbidden(50013, "x")
+    with caplog.at_level(logging.INFO):
+        await bot.on_message(message)
+    thread_errors = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "issue_bot.threads" and record.levelno == logging.ERROR
+    ]
+    assert len(thread_errors) == 1
+    assert "Forbidden" in thread_errors[0] and "99" in thread_errors[0]
+    message.create_thread.return_value.send.assert_not_awaited()
+    message.fetch_thread.assert_not_awaited()
+
+
+async def test_malformed_hint_send_failure_logged_without_text(
+    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(config)
+    message = make_message("!bug\nBody: x")
+    message.create_thread.return_value.send.side_effect = forbidden(50001, "Secret error words")
+    with caplog.at_level(logging.INFO):
+        await bot.on_message(message)
+    bot_errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert len(bot_errors) == 1
+    assert all(part in bot_errors[0] for part in ("Forbidden", "403", "50001", "99"))
+    for text in record_texts(caplog):
+        assert "Secret error words" not in text
+
+
+async def test_custom_on_malformed_hook(config: Config, make_message: MessageFactory) -> None:
+    malformed_hook = AsyncMock()
+    bot = IssueBot(config, on_malformed=malformed_hook)
+    message = make_message("!bug\nBody: x")
+    await bot.on_message(message)
+    malformed_hook.assert_awaited_once_with(message, MalformedTag(IssueType.BUG))
+    message.create_thread.assert_not_awaited()
 
 
 async def test_on_ready_logs_missing_channel_as_error(

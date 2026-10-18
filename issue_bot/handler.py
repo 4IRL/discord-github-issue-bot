@@ -31,8 +31,11 @@ class IssueCandidate:
     target: TargetConfig
 
 
-def candidate_from_message(message: discord.Message, config: Config) -> IssueCandidate | None:
-    """Return a candidate for a new, human, tagged message in the intake channel, else ``None``.
+def candidate_from_message(
+    message: discord.Message, config: Config
+) -> IssueCandidate | MalformedTag | None:
+    """Return a candidate for a new, human, tagged message in the intake channel, the
+    ``MalformedTag`` for a tagged one without a usable title, else ``None``.
 
     Messages in threads are dropped too: their ``channel.id`` is the thread's id.
     """
@@ -49,12 +52,12 @@ def candidate_from_message(message: discord.Message, config: Config) -> IssueCan
         return None
     if isinstance(parsed, MalformedTag):
         logger.info(
-            "ignored %s message_id=%s (%s): no usable Title: line",
+            "malformed %s message_id=%s (%s): no usable Title: line",
             parsed.type,
             message.id,
             message.jump_url,
         )
-        return None
+        return parsed
     return IssueCandidate(
         type=parsed.type,
         title=parsed.title,

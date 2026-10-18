@@ -6,7 +6,7 @@ The code itself is target-agnostic: it holds no 4irl values (never as a code def
 
 ## Status
 
-F1 (channel listener and tag parser) exists: the bot connects to Discord, watches the intake channel and turns each new `!bug` / `!feature` message into an issue candidate. Until F2 (clarifying thread) and F5 (issue filing) land, candidates are only logged, by issue type, message id and message URL.
+F1 (channel listener and tag parser) and F2 (thread per tagged message) exist: the bot connects to Discord, watches the intake channel and turns each new `!bug` / `!feature` message into an issue candidate. Each candidate gets a public thread on its message, named from the title (truncated to 100 characters), and is logged by issue type, message id, message URL and thread id until F5 (issue filing) files it. A message that already has a thread reuses it.
 
 - The intake channel is matched by `DISCORD_CHANNEL_ID`; its name, category and guild are only checked at startup (a mismatch logs a warning; a channel the bot cannot see logs an error).
 - Edited messages are ignored, and so are messages inside threads, from bots or webhooks, and system messages.
@@ -26,7 +26,7 @@ Body: allow easy sharing/inviting to UTubs for members outside the UTub
 - `Body:` is optional and keeps its line breaks. It runs to the end of the message, or to a later `Title:` line while the title is still missing or blank.
 - Lines outside the two fields are ignored.
 - A blank `Title:` (one with no letter or digit) or a blank `Body:` yields to a later line with the same label. Once a label has text, a repeated label is ordinary text inside the Body and is ignored elsewhere.
-- A tagged message with no usable `Title:` line is dropped, and the drop is logged by issue type, message id and message URL. F2 will reply in the thread with a format hint.
+- A tagged message with no usable `Title:` line files no issue: the bot opens a `Format help: !<tag>` thread on it, replies with the expected format, and logs it by issue type, message id, message URL and thread id.
 
 Direction: [`plans/ROADMAP.md`](plans/ROADMAP.md). Next work: [`plans/META-PLAN.md`](plans/META-PLAN.md).
 
@@ -41,7 +41,7 @@ Direction: [`plans/ROADMAP.md`](plans/ROADMAP.md). Next work: [`plans/META-PLAN.
 
 1. In the [Discord Developer Portal](https://discord.com/developers/applications), create an application and add a bot to it. Copy the bot token.
 2. Under **Bot → Privileged Gateway Intents**, enable **Message Content Intent**. Without it the bot sees empty message text and never finds a tag.
-3. Invite the bot to the server with the **View Channel** and **Read Message History** permissions on the intake channel. (F2 will add the thread permissions.)
+3. Invite the bot to the server with the **View Channel**, **Read Message History**, **Create Public Threads** and **Send Messages in Threads** permissions on the intake channel. Threads use the channel's default auto-archive duration.
 
 ### Configuration
 

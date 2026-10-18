@@ -5,7 +5,7 @@ import pytest
 
 from issue_bot.config import Config
 from issue_bot.handler import IssueCandidate, candidate_from_message
-from issue_bot.tags import IssueType
+from issue_bot.tags import IssueType, MalformedTag
 from tests.conftest import MessageFactory
 
 
@@ -63,7 +63,7 @@ def test_system_message_ignored(config: Config, make_message: MessageFactory) ->
 
 def test_reply_type_accepted(config: Config, make_message: MessageFactory) -> None:
     message = make_message(message_type=discord.MessageType.reply)
-    assert candidate_from_message(message, config) is not None
+    assert isinstance(candidate_from_message(message, config), IssueCandidate)
 
 
 def test_untagged_ignored(config: Config, make_message: MessageFactory) -> None:
@@ -74,7 +74,7 @@ def test_untagged_ignored(config: Config, make_message: MessageFactory) -> None:
     "content",
     ["Secret words without fields !feature", "!feature\nTitle: ?!?\nBody: Secret words"],
 )
-def test_malformed_ignored_and_logged_without_text(
+def test_malformed_returned_and_logged_without_text(
     config: Config,
     make_message: MessageFactory,
     caplog: pytest.LogCaptureFixture,
@@ -82,10 +82,11 @@ def test_malformed_ignored_and_logged_without_text(
 ) -> None:
     message = make_message(content)
     with caplog.at_level(logging.INFO, logger="issue_bot"):
-        assert candidate_from_message(message, config) is None
+        assert candidate_from_message(message, config) == MalformedTag(IssueType.FEATURE)
     texts = [record.getMessage() for record in caplog.records]
     assert any(
-        "feature" in text
+        text.startswith("malformed ")
+        and "feature" in text
         and "99" in text
         and message.jump_url in text
         and "no usable Title: line" in text

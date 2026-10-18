@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import discord
 import pytest
@@ -45,6 +46,8 @@ def make_message() -> MessageFactory:
         author_id: int = 7,
         author_name: str = "Alice",
         message_id: int = 99,
+        thread: object | None = None,
+        created_thread_id: int = 1234,
     ) -> SimpleNamespace:
         return SimpleNamespace(
             content=content,
@@ -54,6 +57,11 @@ def make_message() -> MessageFactory:
             type=message_type,
             id=message_id,
             jump_url=f"https://discord.com/channels/111/{channel_id}/{message_id}",
+            thread=thread,
+            create_thread=AsyncMock(
+                return_value=SimpleNamespace(id=created_thread_id, send=AsyncMock())
+            ),
+            fetch_thread=AsyncMock(return_value=SimpleNamespace(id=message_id, send=AsyncMock())),
         )
 
     return factory
