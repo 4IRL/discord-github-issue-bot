@@ -222,10 +222,10 @@ report):
 ## Amendment: structured messages (2026-10-17)
 After the push review, the owner required a structured message instead of deriving the
 title from the whole de-tagged text: a recognized tag anywhere, a required one-line
-`Title:` field and an optional `Body:` field that runs to the end of the message (or to a
-later `Title:` line), labels case-insensitive and optionally bolded. A tag wrapped in
-brackets (`[#bug]`) is removed with its brackets; other brackets stay. Lines outside the
-fields are ignored. `parse_tag` returns `ParsedTag(type, title, body)`, `MalformedTag(type)`
+`Title:` field and an optional `Body:` field (it runs to the end of the message, or to a
+later `Title:` line while the title is still missing or blank); labels case-insensitive
+and optionally bolded. A tag wrapped in brackets (`[#bug]`) is removed with its brackets;
+other brackets stay. Lines outside the fields are ignored. `parse_tag` returns `ParsedTag(type, title, body)`, `MalformedTag(type)`
 for a tagged message without a usable title, or `None` when untagged. The tag-grammar
 section above still holds; the title rules there (strip every tag, now with only its own brackets,
 trim `TITLE_EDGE`) now apply to the `Title:` value only.

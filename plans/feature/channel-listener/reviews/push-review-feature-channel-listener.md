@@ -103,7 +103,7 @@ Frozen DTOs, a union that forces callers to handle the malformed case, title inv
 ### To-Do: Required Changes
 
 - [x] **Let an empty first label yield to a later filled one** — `issue_bot/tags.py` `parse_tag` — When the first `Title:` (or `Body:`) is blank, let a later same-named label replace it (or document first-label-wins in README "Message format"); add a test for `!bug\nTitle:\nTitle: real`.
-- [ ] **Fix the Body-termination wording** — `issue_bot/tags.py` module docstring, `README.md` "Message format", plan amendment — Say Body runs to the end of the message, or, when Body comes before Title, to the `Title:` line.
+- [x] **Fix the Body-termination wording** — `issue_bot/tags.py` module docstring, `README.md` "Message format", plan amendment — Say Body runs to the end of the message, or, when Body comes before Title, to the `Title:` line.
 - [ ] **Trim tag-removal whitespace in Body** — `issue_bot/tags.py` — lstrip a body line only when tag removal changed it, and drop a body line that held only a tag; add CRLF and tag-only-body-line cases to `tests/test_tags.py`.
 - [ ] **Simplify parse_tag's field tracking** — `issue_bot/tags.py` — Keep `title: str | None` and `body_lines: list[str] | None` instead of the `fields` dict and alias; drop the `name = ... else None` double check.
 - [ ] **Simplify BRACKETED_TAG** — `issue_bot/tags.py` — Use one regex with an optional bracket pair around the tag instead of four interpolations.

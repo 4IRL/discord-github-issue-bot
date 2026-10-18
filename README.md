@@ -23,9 +23,9 @@ Body: allow easy sharing/inviting to UTubs for members outside the UTub
 ```
 
 - `Title:` is required and is one line.
-- `Body:` is optional. It runs to the end of the message and keeps its line breaks.
+- `Body:` is optional and keeps its line breaks. It runs to the end of the message, or to a later `Title:` line while the title is still missing or blank.
 - Lines outside the two fields are ignored.
-- A blank `Title:` (one with no letter or digit) or a blank `Body:` yields to a later line with the same label. Once a label has text, a repeated label is ordinary text.
+- A blank `Title:` (one with no letter or digit) or a blank `Body:` yields to a later line with the same label. Once a label has text, a repeated label is ordinary text inside the Body and is ignored elsewhere.
 - A tagged message with no usable `Title:` line is dropped, and the drop is logged by issue type, message id and message URL. F2 will reply in the thread with a format hint.
 
 Direction: [`plans/ROADMAP.md`](plans/ROADMAP.md). Next work: [`plans/META-PLAN.md`](plans/META-PLAN.md).

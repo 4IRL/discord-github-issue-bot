@@ -86,6 +86,11 @@ def test_blank_label_yields_to_later_one(text: str, expected: ParsedTag) -> None
     [
         ("!bug\nTitle: x\nTitle: y", ParsedTag(IssueType.BUG, "x")),
         ("!bug\nTitle: x\nBody:\ntext\nBody: y", ParsedTag(IssueType.BUG, "x", "text\nBody: y")),
+        # Outside the Body, a repeated filled label is ignored.
+        (
+            "!bug\nTitle:\nBody: one\nTitle: real\nBody: two",
+            ParsedTag(IssueType.BUG, "real", "one"),
+        ),
     ],
 )
 def test_filled_label_is_final(text: str, expected: ParsedTag) -> None:

@@ -7,8 +7,9 @@ A message files an issue only in the structured form::
     Body: allow easy sharing/inviting to UTubs for members outside the UTub
 
 ``Title:`` is one line and required; ``Body:`` is optional and runs to the end of the
-message (or to a later ``Title:`` line). Labels are case-insensitive and may be bolded.
-A blank label yields to a later one with the same name; a repeated filled label is text.
+message, or to a later ``Title:`` line while the title is still missing or blank. Labels
+are case-insensitive and may be bolded. A blank label yields to a later one with the same
+name; a repeated filled label is text inside the Body and is ignored elsewhere.
 """
 
 import re
