@@ -43,16 +43,16 @@ Greenfield bot with no existing callers. Env keys are documented, dependencies p
 
 ### To-Do: Required Changes
 
-- [ ] **Run the startup channel check once** — `issue_bot/bot.py` — Guard on_ready's channel_problems check and "connected as" log with a once-flag (or move to setup_hook-time state) so Gateway reconnects don't repeat it; add a test calling on_ready twice.
-- [ ] **Escalate a missing intake channel to ERROR** — `issue_bot/bot.py` channel_problems/on_ready, `tests/test_bot.py` — Log the "not found or not visible" problem at ERROR (name/category/guild mismatches stay WARNING); update the on_ready test.
-- [ ] **Add the message id to on_error for on_message** — `issue_bot/bot.py` on_error, `tests/test_bot.py` — When `args[0]` has an integer `id`, append `message_id=<id>`; keep no traceback/message/text. Test it.
-- [ ] **Test a raising hook through discord dispatch** — `tests/test_bot.py` — Run a hook raising `RuntimeError("Secret title words")` via `await bot._run_event(bot.on_message, "on_message", msg)`; assert one ERROR from `issue_bot.bot` and no record containing the text.
-- [ ] **Assert padded IDs and dot-segment repos** — `tests/test_config.py` — Add cases: `DISCORD_CHANNEL_ID=" 555 "` parses to 555; `GITHUB_REPO` `"x/.."` and `"../x"` raise `GITHUB_REPO must be owner/name` (if not already parametrized).
-- [ ] **Enforce TargetConfig invariants at construction** — `issue_bot/config.py` — Add `__post_init__` checking `set(labels) == set(IssueType)` and wrapping labels in `MappingProxyType` (via object.__setattr__); add a test constructing TargetConfig directly with a missing label.
-- [ ] **Simplify _positive_int** — `issue_bot/config.py` — Merge the regex and ValueError paths into one "must be an integer" branch, or add a one-line comment on why the try/except stays (int digit limit).
-- [ ] **Inline from_env locals** — `issue_bot/config.py` — Pass simple lookups directly into the `cls(...)` calls; keep the validated github_repo local.
-- [ ] **Align module layout** — `issue_bot/tags.py` — Move TAG_PATTERN/EMPTY_BRACKETS/TITLE_EDGE above the classes and add one-line docstrings to IssueType and ParsedTag.
-- [ ] **Signal the unused hook parameter** — `issue_bot/bot.py` log_candidate — Rename `message` to `_message`.
+- [x] **Run the startup channel check once** — `issue_bot/bot.py` — Guard on_ready's channel_problems check and "connected as" log with a once-flag (or move to setup_hook-time state) so Gateway reconnects don't repeat it; add a test calling on_ready twice.
+- [x] **Escalate a missing intake channel to ERROR** — `issue_bot/bot.py` channel_problems/on_ready, `tests/test_bot.py` — Log the "not found or not visible" problem at ERROR (name/category/guild mismatches stay WARNING); update the on_ready test.
+- [x] **Add the message id to on_error for on_message** — `issue_bot/bot.py` on_error, `tests/test_bot.py` — When `args[0]` has an integer `id`, append `message_id=<id>`; keep no traceback/message/text. Test it.
+- [x] **Test a raising hook through discord dispatch** — `tests/test_bot.py` — Run a hook raising `RuntimeError("Secret title words")` via `await bot._run_event(bot.on_message, "on_message", msg)`; assert one ERROR from `issue_bot.bot` and no record containing the text.
+- [x] **Assert padded IDs and dot-segment repos** — `tests/test_config.py` — Add cases: `DISCORD_CHANNEL_ID=" 555 "` parses to 555; `GITHUB_REPO` `"x/.."` and `"../x"` raise `GITHUB_REPO must be owner/name` (if not already parametrized). Applied as a padded-ID test plus a `"../x"` repo case; the existing `"a/.."` case already covers `"x/.."`.
+- [x] **Enforce TargetConfig invariants at construction** — `issue_bot/config.py` — Add `__post_init__` checking `set(labels) == set(IssueType)` and wrapping labels in `MappingProxyType` (via object.__setattr__); add a test constructing TargetConfig directly with a missing label. Applied: a non-mapping labels value also raises the same key-only ConfigError; label values are still checked only in from_env.
+- [x] **Simplify _positive_int** — `issue_bot/config.py` — Merge the regex and ValueError paths into one "must be an integer" branch, or add a one-line comment on why the try/except stays (int digit limit).  Applied as one try/except: a regex miss raises ValueError inside it, so both paths share the "must be an integer" branch; a comment names the int digit limit and a 5000-digit test case pins it.
+- [x] **Inline from_env locals** — `issue_bot/config.py` — Pass simple lookups directly into the `cls(...)` calls; keep the validated github_repo local.  Applied: Config.from_env and the reads after the repo check (GITHUB_REPO_ID, labels) are inlined; channel_id, channel_name and category stay locals, since inlining them would move the GITHUB_REPO check ahead of them. A test now pins that the first missing key in order is reported (it replaces the empty-env test).
+- [x] **Align module layout** — `issue_bot/tags.py` — Move TAG_PATTERN/EMPTY_BRACKETS/TITLE_EDGE above the classes and add one-line docstrings to IssueType and ParsedTag. Applied: TAG_PATTERN, FIELD_LABEL, BRACKETED_TAG and TITLE_EDGE now sit above the classes; EMPTY_BRACKETS no longer exists (Review 2 folded it into BRACKETED_TAG). IssueType and ParsedTag got one-line docstrings; MalformedTag already had one.
+- [x] **Signal the unused hook parameter** — `issue_bot/bot.py` log_candidate — Rename `message` to `_message`. Applied: the only caller, IssueBot.on_message, passes it positionally, so nothing breaks.
 - [ ] **Refresh META-PLAN's "Nothing is built yet"** — `plans/META-PLAN.md` — Reword "Where the work stands" during the F1 fold-back (Phase C).
 
 ## Review 2
@@ -102,15 +102,15 @@ Frozen DTOs, a union that forces callers to handle the malformed case, title inv
 
 ### To-Do: Required Changes
 
-- [ ] **Let an empty first label yield to a later filled one** — `issue_bot/tags.py` `parse_tag` — When the first `Title:` (or `Body:`) is blank, let a later same-named label replace it (or document first-label-wins in README "Message format"); add a test for `!bug\nTitle:\nTitle: real`.
-- [ ] **Fix the Body-termination wording** — `issue_bot/tags.py` module docstring, `README.md` "Message format", plan amendment — Say Body runs to the end of the message, or, when Body comes before Title, to the `Title:` line.
-- [ ] **Trim tag-removal whitespace in Body** — `issue_bot/tags.py` — lstrip a body line only when tag removal changed it, and drop a body line that held only a tag; add CRLF and tag-only-body-line cases to `tests/test_tags.py`.
-- [ ] **Simplify parse_tag's field tracking** — `issue_bot/tags.py` — Keep `title: str | None` and `body_lines: list[str] | None` instead of the `fields` dict and alias; drop the `name = ... else None` double check.
-- [ ] **Simplify BRACKETED_TAG** — `issue_bot/tags.py` — Use one regex with an optional bracket pair around the tag instead of four interpolations.
-- [ ] **Add a bot-level malformed test** — `tests/test_bot.py` — `on_message(make_message("!bug\nBody: x"))` with a recording hook; assert the hook is not awaited.
-- [ ] **Say "no usable Title: line" in the drop log** — `issue_bot/handler.py`, `tests/test_handler.py`, plan contract — Match the MalformedTag docstring.
-- [ ] **Bring the F1 plan's Design section up to date** — `plans/feature/channel-listener/channel-listener.md` — `[#bug]`→`[!bug]` in the amendment; `!bug`/`!feature` in the overview (line 6) and env table (95-96); tags.py row (77) to `ParsedTag(type, title, body)`, `MalformedTag`, `ParsedTag | MalformedTag | None`; IssueCandidate list (~142) to nine fields with F5 using `body`; re-wrap the long contract bullets.
-- [ ] **State that F2 must expose malformed messages** — `plans/feature/channel-listener/channel-listener.md` contract and `plans/META-PLAN.md` F2 section — Note F2 extends `candidate_from_message`/`IssueBot` (e.g. a malformed-message hook) because F1 only logs the drop.
+- [x] **Let an empty first label yield to a later filled one** — `issue_bot/tags.py` `parse_tag` — When the first `Title:` (or `Body:`) is blank, let a later same-named label replace it (or document first-label-wins in README "Message format"); add a test for `!bug\nTitle:\nTitle: real`.
+- [x] **Fix the Body-termination wording** — `issue_bot/tags.py` module docstring, `README.md` "Message format", plan amendment — Say Body runs to the end of the message, or, when Body comes before Title, to the `Title:` line.
+- [x] **Trim tag-removal whitespace in Body** — `issue_bot/tags.py` — lstrip a body line only when tag removal changed it, and drop a body line that held only a tag; add CRLF and tag-only-body-line cases to `tests/test_tags.py`.
+- [x] **Simplify parse_tag's field tracking** — `issue_bot/tags.py` — Keep `title: str | None` and `body_lines: list[str] | None` instead of the `fields` dict and alias; drop the `name = ... else None` double check. Applied as `title: str`, `body_lines: list[str]` and an `in_body` flag (a late `Title:` ends the Body without discarding it, so collecting and holding text are separate).
+- [x] **Simplify BRACKETED_TAG** — `issue_bot/tags.py` — Use one regex with an optional bracket pair around the tag instead of four interpolations.
+- [x] **Add a bot-level malformed test** — `tests/test_bot.py` — `on_message(make_message("!bug\nBody: x"))` with a recording hook; assert the hook is not awaited.
+- [x] **Say "no usable Title: line" in the drop log** — `issue_bot/handler.py`, `tests/test_handler.py`, plan contract — Match the MalformedTag docstring.
+- [x] **Bring the F1 plan's Design section up to date** — `plans/feature/channel-listener/channel-listener.md` — `[#bug]`→`[!bug]` in the amendment; `!bug`/`!feature` in the overview (line 6) and env table (95-96); tags.py row (77) to `ParsedTag(type, title, body)`, `MalformedTag`, `ParsedTag | MalformedTag | None`; IssueCandidate list (~142) to nine fields with F5 using `body`; re-wrap the long contract bullets.
+- [x] **State that F2 must expose malformed messages** — `plans/feature/channel-listener/channel-listener.md` contract and `plans/META-PLAN.md` F2 section — Note F2 extends `candidate_from_message`/`IssueBot` (e.g. a malformed-message hook) because F1 only logs the drop.
 
 6b: 0 misses (every finding sits in lines this push introduced or in text made stale by it; none existed at Review 1's head).
 
@@ -136,9 +136,9 @@ The re-ranking is consistent across sections. Only minor stale or wording items 
 
 ### To-Do: Required Changes
 
-- [ ] **Mark F1 Open risks (e) resolved** — `plans/META-PLAN.md` F1 section — Say the plan was revised and F1 shipped the `issue_bot` package with no target defaults, or drop the item at F1's fold-back.
-- [ ] **Clarify the diagram's independence note** — `plans/META-PLAN.md` "Dependencies & couplings" diagram — Change "(independent of each other)" to "(F8 and F9 independent of each other)", or drop the duplicate `F1 ──► ★ F9` edge from the Phase 1.5 row.
-- [ ] **Drop "additionally" from the F6 gate sentence** — `plans/META-PLAN.md` "Where the work stands" — "F6 is gated on creating the new chores4irl roadmap Project."
+- [x] **Mark F1 Open risks (e) resolved** — `plans/META-PLAN.md` F1 section — Say the plan was revised and F1 shipped the `issue_bot` package with no target defaults, or drop the item at F1's fold-back.
+- [x] **Clarify the diagram's independence note** — `plans/META-PLAN.md` "Dependencies & couplings" diagram — Change "(independent of each other)" to "(F8 and F9 independent of each other)", or drop the duplicate `F1 ──► ★ F9` edge from the Phase 1.5 row.
+- [x] **Drop "additionally" from the F6 gate sentence** — `plans/META-PLAN.md` "Where the work stands" — "F6 is gated on creating the new chores4irl roadmap Project."
 - [ ] **Refresh the Baseline at F1's fold-back** — `plans/META-PLAN.md` Baseline — Describe `main` with F1's package, config, parser, handler, Dockerfile and tests once PR #2 merges.
 - [ ] **Add the ROADMAP sequencing note during F9** — `plans/ROADMAP.md` Sequencing rationale — Note that the rename (Phase 1.5) went ahead of the rest of Phase 1, as F9's expected end state requires.
 

@@ -67,6 +67,37 @@ def test_repeated_label_inside_body_is_text() -> None:
 
 
 @pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("!bug\nTitle:\nTitle: real", ParsedTag(IssueType.BUG, "real")),
+        ("!bug\nTitle:  \nBody: one\nTitle: real", ParsedTag(IssueType.BUG, "real", "one")),
+        ("!bug\nTitle: x\nBody:\n\nBody: real", ParsedTag(IssueType.BUG, "x", "real")),
+        ("!bug\nTitle: -\nTitle: real", ParsedTag(IssueType.BUG, "real")),
+        # A late Title: that fills a blank one ends the body.
+        ("!bug\nTitle:\nBody: one\nTitle: real\nmore", ParsedTag(IssueType.BUG, "real", "one")),
+    ],
+)
+def test_blank_label_yields_to_later_one(text: str, expected: ParsedTag) -> None:
+    assert parse_tag(text) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("!bug\nTitle: x\nTitle: y", ParsedTag(IssueType.BUG, "x")),
+        ("!bug\nTitle: x\nBody:\ntext\nBody: y", ParsedTag(IssueType.BUG, "x", "text\nBody: y")),
+        # Outside the Body, a repeated filled label is ignored.
+        (
+            "!bug\nTitle:\nBody: one\nTitle: real\nBody: two",
+            ParsedTag(IssueType.BUG, "real", "one"),
+        ),
+    ],
+)
+def test_filled_label_is_final(text: str, expected: ParsedTag) -> None:
+    assert parse_tag(text) == expected
+
+
+@pytest.mark.parametrize(
     "text",
     [
         "!feature\ntitle: Dark mode\nBODY: please",
@@ -149,6 +180,29 @@ def test_title_cleanup(text: str, expected_title: str) -> None:
     parsed = parse_tag(text)
     assert isinstance(parsed, ParsedTag)
     assert parsed.title == expected_title
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_body"),
+    [
+        ("!bug\nTitle: x\nBody: one\n!bug\ntwo", "one\ntwo"),
+        ("!bug\nTitle: x\nBody: one\n  [!feature]  \ntwo", "one\ntwo"),
+        ("!bug\nTitle: x\nBody: one\n!bug two", "one\ntwo"),
+        ("!bug\nTitle: x\nBody: one\n  (!bug) two", "one\n  two"),
+        ("!bug\nTitle: x\nBody: one\n  { !bug } two", "one\n  two"),
+        ("!bug\nTitle: x\nBody: a (!bug] b", "a ( ] b"),
+        ("Title: x\nBody: one\n!bug\n  two", "one\n  two"),
+    ],
+)
+def test_tag_removal_leaves_no_stray_whitespace(text: str, expected_body: str) -> None:
+    parsed = parse_tag(text)
+    assert isinstance(parsed, ParsedTag)
+    assert parsed.body == expected_body
+
+
+def test_crlf_line_endings() -> None:
+    text = "!bug\r\nTitle: Crash\r\nBody: one\r\n!bug\r\ntwo\r\n"
+    assert parse_tag(text) == ParsedTag(IssueType.BUG, "Crash", "one\ntwo")
 
 
 def test_body_brackets_kept_unless_they_held_a_tag() -> None:

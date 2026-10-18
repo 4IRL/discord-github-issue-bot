@@ -34,9 +34,10 @@ def _required(env: Mapping[str, str], key: str) -> str:
 
 def _positive_int(env: Mapping[str, str], key: str) -> int:
     raw_value = _required(env, key)
-    if not ASCII_INTEGER_PATTERN.fullmatch(raw_value):
-        raise ConfigError(f"{key} must be an integer")
+    # int() also raises ValueError past Python's int digit limit.
     try:
+        if not ASCII_INTEGER_PATTERN.fullmatch(raw_value):
+            raise ValueError
         number = int(raw_value)
     except ValueError:
         raise ConfigError(f"{key} must be an integer") from None
@@ -56,8 +57,16 @@ class TargetConfig:
     github_repo_id: int
     labels: Mapping[IssueType, str]
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.labels, Mapping) or set(self.labels) != set(IssueType):
+            raise ConfigError("labels must have one entry per IssueType")
+        # Copy before wrapping, so a caller's dict can't change the labels later.
+        object.__setattr__(self, "labels", MappingProxyType(dict(self.labels)))
+
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> TargetConfig:
+        # Keys are read in order, so the first bad one is reported; the
+        # values ahead of the repo check stay locals to keep that order.
         channel_id = _positive_int(env, "DISCORD_CHANNEL_ID")
         channel_name = _required(env, "DISCORD_CHANNEL_NAME")
         category = _required(env, "DISCORD_CATEGORY")
@@ -66,20 +75,16 @@ class TargetConfig:
             segment in DOT_SEGMENTS for segment in github_repo.split("/")
         ):
             raise ConfigError("GITHUB_REPO must be owner/name")
-        github_repo_id = _positive_int(env, "GITHUB_REPO_ID")
-        labels = MappingProxyType(
-            {
-                issue_type: _required(env, f"GITHUB_LABEL_{issue_type.name}")
-                for issue_type in IssueType
-            }
-        )
         return cls(
             channel_id=channel_id,
             channel_name=channel_name,
             category=category,
             github_repo=github_repo,
-            github_repo_id=github_repo_id,
-            labels=labels,
+            github_repo_id=_positive_int(env, "GITHUB_REPO_ID"),
+            labels={
+                issue_type: _required(env, f"GITHUB_LABEL_{issue_type.name}")
+                for issue_type in IssueType
+            },
         )
 
 
@@ -93,7 +98,8 @@ class Config:
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> Config:
-        discord_token = _required(env, "DISCORD_TOKEN")
-        guild_id = _positive_int(env, "DISCORD_GUILD_ID")
-        target = TargetConfig.from_env(env)
-        return cls(discord_token=discord_token, guild_id=guild_id, target=target)
+        return cls(
+            discord_token=_required(env, "DISCORD_TOKEN"),
+            guild_id=_positive_int(env, "DISCORD_GUILD_ID"),
+            target=TargetConfig.from_env(env),
+        )

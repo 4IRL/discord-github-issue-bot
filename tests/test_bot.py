@@ -120,6 +120,15 @@ async def test_on_message_ignores_untagged(
     hook.assert_not_awaited()
 
 
+async def test_on_message_ignores_malformed(
+    config: Config, make_message: MessageFactory
+) -> None:
+    hook = AsyncMock()
+    bot = IssueBot(config, on_candidate=hook)
+    await bot.on_message(make_message("!bug\nBody: x"))
+    hook.assert_not_awaited()
+
+
 async def test_default_hook_logs_ids_not_text(
     config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -139,17 +148,34 @@ async def test_default_hook_logs_ids_not_text(
         assert "Alice" not in text
 
 
-async def test_on_ready_logs_channel_problems(
+async def test_on_ready_logs_missing_channel_as_error(
     config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     bot = IssueBot(config)
     monkeypatch.setattr(bot, "get_channel", lambda _id: None)
     with caplog.at_level(logging.INFO):
         await bot.on_ready()
-    warnings = [
-        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.WARNING
+    problems = [
+        (record.levelno, record.getMessage())
+        for record in bot_records(caplog)
+        if record.levelno >= logging.WARNING
     ]
-    assert any("555" in text for text in warnings)
+    assert problems == [(logging.ERROR, "channel 555 not found or not visible to the bot")]
+
+
+async def test_on_ready_logs_channel_mismatch_as_warning(
+    config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(config)
+    monkeypatch.setattr(bot, "get_channel", lambda _id: make_channel(name="general"))
+    with caplog.at_level(logging.INFO):
+        await bot.on_ready()
+    problems = [
+        (record.levelno, record.getMessage())
+        for record in bot_records(caplog)
+        if record.levelno >= logging.WARNING
+    ]
+    assert problems == [(logging.WARNING, "channel name is 'general', expected 'intake'")]
 
 
 async def test_on_ready_matching_channel_logs_no_warning(
@@ -160,6 +186,26 @@ async def test_on_ready_matching_channel_logs_no_warning(
     with caplog.at_level(logging.INFO):
         await bot.on_ready()
     assert not [record for record in bot_records(caplog) if record.levelno >= logging.WARNING]
+
+
+async def test_on_ready_checks_channel_once_across_reconnects(
+    config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(config)
+    lookups: list[int] = []
+
+    def get_channel(channel_id: int) -> None:
+        lookups.append(channel_id)
+        return None
+
+    monkeypatch.setattr(bot, "get_channel", get_channel)
+    with caplog.at_level(logging.INFO):
+        await bot.on_ready()
+        await bot.on_ready()
+    assert lookups == [555]
+    bot_messages = [record.getMessage() for record in bot_records(caplog)]
+    assert sum(text.startswith("connected as") for text in bot_messages) == 1
+    assert sum("not found or not visible" in text for text in bot_messages) == 1
 
 
 async def test_on_error_hides_exception_text(
@@ -189,6 +235,73 @@ async def test_on_error_without_active_exception(
         record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
     ]
     assert errors == ["unhandled unknown error in on_ready"]
+
+
+async def test_on_error_adds_message_id_for_on_message(
+    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(config)
+    message = make_message("!bug\nTitle: Secret title words", message_id=4242)
+    with caplog.at_level(logging.INFO):
+        try:
+            raise RuntimeError("Secret title words")
+        except RuntimeError:
+            await bot.on_error("on_message", message)
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert errors == ["unhandled RuntimeError in on_message message_id=4242"]
+    for text in record_texts(caplog):
+        assert "Secret title words" not in text
+        assert "Alice" not in text
+
+
+async def test_raising_hook_dispatched_by_discord_logs_type_and_id_only(
+    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    hook = AsyncMock(side_effect=RuntimeError("Secret exception words"))
+    bot = IssueBot(config, on_candidate=hook)
+    message = make_message("!bug\nTitle: Secret title words", message_id=4242)
+    with caplog.at_level(logging.INFO):
+        # discord.py's own dispatch path: it catches the error and calls on_error.
+        await bot._run_event(bot.on_message, "on_message", message)
+    hook.assert_awaited_once()
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert errors == ["unhandled RuntimeError in on_message message_id=4242"]
+    for text in record_texts(caplog):
+        assert "Secret exception words" not in text
+        assert "Secret title words" not in text
+        assert "Alice" not in text
+
+
+@pytest.mark.parametrize(
+    ("event_method", "arguments"),
+    [
+        ("on_message", (SimpleNamespace(id="99"),)),
+        ("on_message", (SimpleNamespace(id=True),)),
+        ("on_message", (SimpleNamespace(),)),
+        ("on_message", ()),
+        ("on_guild_join", (SimpleNamespace(id=4242),)),
+    ],
+)
+async def test_on_error_omits_non_message_ids(
+    config: Config,
+    caplog: pytest.LogCaptureFixture,
+    event_method: str,
+    arguments: tuple[SimpleNamespace, ...],
+) -> None:
+    bot = IssueBot(config)
+    with caplog.at_level(logging.INFO):
+        try:
+            raise RuntimeError("boom")
+        except RuntimeError:
+            await bot.on_error(event_method, *arguments)
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert errors == [f"unhandled RuntimeError in {event_method}"]
 
 
 def test_edits_not_handled() -> None:

@@ -49,7 +49,7 @@ def candidate_from_message(message: discord.Message, config: Config) -> IssueCan
         return None
     if isinstance(parsed, MalformedTag):
         logger.info(
-            "ignored %s message_id=%s (%s): no Title: line",
+            "ignored %s message_id=%s (%s): no usable Title: line",
             parsed.type,
             message.id,
             message.jump_url,

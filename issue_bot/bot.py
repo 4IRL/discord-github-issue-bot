@@ -46,7 +46,7 @@ def channel_problems(channel: Any, config: Config) -> list[str]:
     return problems
 
 
-async def log_candidate(message: discord.Message, candidate: IssueCandidate) -> None:
+async def log_candidate(_message: discord.Message, candidate: IssueCandidate) -> None:
     """Default hook: log ids and the message URL only, never member text or names."""
     logger.info(
         "captured %s message_id=%s (%s)",
@@ -63,12 +63,22 @@ class IssueBot(discord.Client):
         super().__init__(intents=build_intents())
         self.config = config
         self.on_candidate = on_candidate
+        self._startup_checked: bool = False
 
     async def on_ready(self) -> None:
+        """Check the intake channel once: on_ready fires again after each Gateway reconnect.
+
+        The flag is set before the check, so a check that raises is logged once and not retried.
+        """
+        if self._startup_checked:
+            return
+        self._startup_checked = True
         logger.info("connected as %s", self.user)
         channel = self.get_channel(self.config.target.channel_id)
+        # A missing channel leaves the bot unable to work; a mismatched one still works.
+        log_problem = logger.error if channel is None else logger.warning
         for problem in channel_problems(channel, self.config):
-            logger.warning("%s", problem)
+            log_problem("%s", problem)
 
     async def on_message(self, message: discord.Message) -> None:
         candidate = candidate_from_message(message, self.config)
@@ -76,7 +86,17 @@ class IssueBot(discord.Client):
             await self.on_candidate(message, candidate)
 
     async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:
-        """Log the exception type and event only: tracebacks and args can quote member text."""
+        """Log the exception type, event and on_message's message id only.
+
+        Tracebacks and args can quote member text; an integer message id cannot.
+        """
         error = sys.exc_info()[1]
         error_name = type(error).__name__ if error is not None else "unknown error"
-        logger.error("unhandled %s in %s", error_name, event_method)
+        message = args[0] if event_method == "on_message" and args else None
+        message_id = getattr(message, "id", None)
+        if isinstance(message_id, int) and not isinstance(message_id, bool):
+            logger.error(
+                "unhandled %s in %s message_id=%d", error_name, event_method, message_id
+            )
+        else:
+            logger.error("unhandled %s in %s", error_name, event_method)
