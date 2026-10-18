@@ -189,7 +189,7 @@ Add the three instance-wide App keys to `Config`, load and validate the private 
 Create `issue_bot/issues.py` with the single body builder. The `file_candidate` wrapper is added in step 4, once the client exists.
 
 **To-do:**
-- [ ] Create `tests/test_issues.py` (Red). Build candidates through `candidate_from_message(make_message(...), config)`, because tests never construct `IssueCandidate` directly. Add these tests:
+- [x] Create `tests/test_issues.py` (Red). Build candidates through `candidate_from_message(make_message(...), config)`, because tests never construct `IssueCandidate` directly. Add these tests:
   - `test_issue_title_is_message_title`.
   - `test_issue_title_truncated_to_256`: a title of `"x" * 300` gives length 256 ending in `…`, and `"x" * 256` stays unchanged (no spaces, because the `thread_name` shape rstrips before the `…`).
   - `test_issue_body_has_body_author_and_link`: for content `"!bug\nTitle: T\nBody: Steps here"` with author `"Alice"`, `issue_body` equals exactly ``"Steps here\n\n---\nReported by `Alice` in Discord: https://discord.com/channels/111/555/99"``.
@@ -198,9 +198,9 @@ Create `issue_bot/issues.py` with the single body builder. The `file_candidate` 
   - `test_issue_labels_follow_config`, parametrized `(content, expected)`: `("!bug\nTitle: T", ["bug"])` and `("!feature\nTitle: T", ["enhancement"])`, read from `test_env`'s `GITHUB_LABEL_*`.
   - `test_issue_labels_use_target_mapping`: a `test_env` with `GITHUB_LABEL_FEATURE="idea"` and content `"!feature\nTitle: T"` gives `["idea"]`.
 
-  Run it and confirm the tests fail with an `ImportError`.
-- [ ] Create `issue_bot/issues.py` (Green). Module docstring: "Turns a candidate into the GitHub issue's title, body and labels; the only place an issue body is formatted." Add `ISSUE_TITLE_LIMIT = 256  # GitHub's maximum issue-title length.` and `issue_title`, `_defang_mentions`, `issue_body` and `issue_labels` exactly as in **Design**. It imports `IssueCandidate` from `issue_bot.handler` only. Write U+200B only as the `\u200b` escape in source and tests, never as a literal character. New imports follow the convention of `config.py` and `bot.py`: stdlib, third-party and project groups separated by a blank line, plain `import x` lines before `from x import y` lines within a group, each alphabetized by module.
-- [ ] Verify: `.venv/bin/pytest -q` all green.
+  Run it and confirm the tests fail with an `ImportError`. — Red confirmed 2026-10-18: collection fails with `ModuleNotFoundError` (an `ImportError`) for `issue_bot.issues`.
+- [x] Create `issue_bot/issues.py` (Green). Module docstring: "Turns a candidate into the GitHub issue's title, body and labels; the only place an issue body is formatted." Add `ISSUE_TITLE_LIMIT = 256  # GitHub's maximum issue-title length.` and `issue_title`, `_defang_mentions`, `issue_body` and `issue_labels` exactly as in **Design**. It imports `IssueCandidate` from `issue_bot.handler` only. Write U+200B only as the `\u200b` escape in source and tests, never as a literal character. New imports follow the convention of `config.py` and `bot.py`: stdlib, third-party and project groups separated by a blank line, plain `import x` lines before `from x import y` lines within a group, each alphabetized by module.
+- [x] Verify: `.venv/bin/pytest -q` all green. — Verified 2026-10-18: pytest 207 passed; neither `issue_bot/issues.py` nor `tests/test_issues.py` contains a raw U+200B (escape only).
 
 ### 4. GitHub client module (TDD)
 Create `issue_bot/github.py` (App JWT, cached installation token, issue creation) behind an injected transport, guard tests against live calls, and add `file_candidate`.
