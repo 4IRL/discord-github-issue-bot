@@ -517,7 +517,7 @@ configured channel at startup.
 Commit the example env file, package the bot and document how to configure, run and test it.
 
 **To-do:**
-- [ ] Create `example.env` at the repo root with the Write tool, content exactly the lines
+- [x] Create `example.env` at the repo root with the Write tool, content exactly the lines
   inside the Design's `example.env` code block (no fence lines, ending with one newline).
   Verify it byte for byte against the plan:
   ``awk '/^`example.env` exact content/{f=1; next} f && /^```/{if (b) exit; b=1; next} b' plans/feature/channel-listener/channel-listener.md | diff - example.env; echo "exit=$?"``
@@ -526,18 +526,18 @@ Commit the example env file, package the bot and document how to configure, run 
   `git check-ignore -q .env; echo $?` prints `0` (still ignored), and
   `git ls-files --others --exclude-standard -- example.env` prints `example.env`. Stage it by
   explicit path in this step's commit.
-- [ ] Create `.dockerignore` excluding `.env`, `.env.*`, `example.env`, `.git`, `.venv`, `__pycache__`,
+- [x] Create `.dockerignore` excluding `.env`, `.env.*`, `example.env`, `.git`, `.venv`, `__pycache__`,
   `*.pyc`, `.pytest_cache`, `data/`, `plans/`, `tests/`, `.claude/`, `*.pem`, `*.key`,
   `secrets/`, `credentials/` — the image must never contain credentials or a target
   config (all config arrives through the environment at run time).
-- [ ] Create `Dockerfile`: `FROM python:3.12.11-slim` (tag verified to exist at pass-1
+- [x] Create `Dockerfile`: `FROM python:3.12.11-slim` (tag verified to exist at pass-1
   review); `ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1`; `WORKDIR /app`;
   `COPY requirements.txt .`; `RUN pip install --no-cache-dir -r requirements.txt`;
   `COPY issue_bot/ issue_bot/`; create and switch to a non-root user
   (`RUN useradd --create-home --uid 10001 bot` then `USER bot`); `STOPSIGNAL SIGINT` (Python
   is PID 1 and ignores SIGTERM; SIGINT triggers discord.py's graceful shutdown);
   `CMD ["python", "-m", "issue_bot"]`. No `ENV` line sets any config key.
-- [ ] Update `README.md`: keep the intro (it describes the 4irl deployment) and add one
+- [x] Update `README.md`: keep the intro (it describes the 4irl deployment) and add one
   sentence that the code is target-agnostic: it holds no 4irl values (never a code default),
   and their config home is `example.env`. Replace "Getting started" with prerequisites (Python 3.12, Docker),
   Discord setup (create an application and bot, enable the **Message Content** privileged
@@ -557,12 +557,12 @@ Commit the example env file, package the bot and document how to configure, run 
   tests mock Discord. Update "Status" to say F1 (listener + parser) exists and candidates
   are only logged (ids and URLs) until F2/F5. Note that edited messages and messages inside
   threads are ignored and the channel is matched by `DISCORD_CHANNEL_ID`.
-- [ ] Update `CLAUDE.md` § Project rules: add
+- [x] Update `CLAUDE.md` § Project rules: add
   `- **Logs never contain members' message text or names.** Log the issue type, message id and message URL only; message content stays in Discord and the filed issue. Exceptions escaping event handlers and hooks are logged by type and event name only. Never run the `discord` loggers at DEBUG: discord.py logs full gateway payloads (message text, member names) at that level.`
   In the existing "Identifiers are config, not code" rule, append that the code holds no
   4irl values (never a code default) and their config home is `example.env`, and in the existing credentials rule note that `example.env` is
   the committed, secret-free template (`.env` itself stays unread).
-- [ ] Docker build check (needs `dangerouslyDisableSandbox: true`): `docker build -t
+- [x] Docker build check (needs `dangerouslyDisableSandbox: true`): `docker build -t
   issue-bot:dev .`, then `docker run --rm issue-bot:dev; echo "exit=$?"` with **no**
   env file; the output must contain the `DISCORD_TOKEN is required` log line and `exit=2`
   (proves the image starts the bot entry point without contacting Discord). Then remove the
@@ -575,6 +575,8 @@ Commit the example env file, package the bot and document how to configure, run 
   `UNRESOLVED — requires user decision/action: docker build could not run: <error>`, end
   your final report with that same line, and stop. On a later run where the gate passes,
   delete that marker line before ticking the box.
+
+Done 2026-10-17: `example.env` awk|diff → `exit=0`; `git check-ignore` example.env → 1, .env → 0. `docker build -t issue-bot:dev .` OK; `docker run --rm issue-bot:dev` logged `configuration error: DISCORD_TOKEN is required`, `exit=2`; image removed. `.venv/bin/pytest` → 93 passed; portability gate and `DEFAULT_` grep print nothing. Review fixes (minor): `.dockerignore` adds `**/` variants (Docker patterns match from the context root only; image now has no `__pycache__`); README's shell-form run is wrapped in a subshell `(set -a; . ./.env; set +a; exec .venv/bin/python -m issue_bot)` so the token is not left exported, and its caveat also names `$`, backticks and backslashes.
 
 **Verify:** `.venv/bin/pytest` green; the Design's portability gate prints nothing for both
 greps.

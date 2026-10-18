@@ -30,5 +30,6 @@ Python 3 with discord.py (Gateway connection) and an HTTP client for the GitHub 
 ## Project rules
 
 - **Never create real GitHub issues or post to the live Discord channel from tests or agent sessions.** Tests mock the Discord and GitHub clients; a live smoke test needs the user's explicit go-ahead each time.
-- **Identifiers are config, not code.** Guild `1137236302358659185`, category `C4I`, channel `c4i-github-issues` and target repo `4IRL/chores4irl` (repo id `969373970`) come from configuration, so the bot can point at a test channel or repo.
-- The Discord bot token and GitHub credentials live only in `.env` / the container environment; agents never read them.
+- **Identifiers are config, not code.** Guild `1137236302358659185`, category `C4I`, channel `c4i-github-issues` and target repo `4IRL/chores4irl` (repo id `969373970`) come from configuration, so the bot can point at a test channel or repo. The code holds no 4irl values (never a code default); their config home is `example.env`.
+- The Discord bot token and GitHub credentials live only in `.env` / the container environment; agents never read them. `example.env` is the committed, secret-free template (`.env` itself stays unread).
+- **Logs never contain members' message text or names.** Log the issue type, message id and message URL only; message content stays in Discord and the filed issue. Exceptions escaping event handlers and hooks are logged by type and event name only. Never run the `discord` loggers at DEBUG: discord.py logs full gateway payloads (message text, member names) at that level.

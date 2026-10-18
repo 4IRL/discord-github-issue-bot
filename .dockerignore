@@ -1,0 +1,27 @@
+# The image holds code and pinned dependencies only: no credentials, no target config.
+# All config arrives through the environment at run time.
+.env
+.env.*
+example.env
+.git
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+data/
+plans/
+tests/
+.claude/
+*.pem
+*.key
+secrets/
+credentials/
+# Docker matches the patterns above from the context root only; repeat them for subdirectories.
+**/.env
+**/.env.*
+**/__pycache__
+**/*.pyc
+**/*.pem
+**/*.key
+**/secrets/
+**/credentials/
