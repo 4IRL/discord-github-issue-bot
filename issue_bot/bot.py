@@ -63,8 +63,16 @@ class IssueBot(discord.Client):
         super().__init__(intents=build_intents())
         self.config = config
         self.on_candidate = on_candidate
+        self._startup_checked: bool = False
 
     async def on_ready(self) -> None:
+        """Check the intake channel once: on_ready fires again after each Gateway reconnect.
+
+        The flag is set before the check, so a check that raises is logged once and not retried.
+        """
+        if self._startup_checked:
+            return
+        self._startup_checked = True
         logger.info("connected as %s", self.user)
         channel = self.get_channel(self.config.target.channel_id)
         for problem in channel_problems(channel, self.config):

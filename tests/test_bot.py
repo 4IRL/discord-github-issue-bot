@@ -171,6 +171,26 @@ async def test_on_ready_matching_channel_logs_no_warning(
     assert not [record for record in bot_records(caplog) if record.levelno >= logging.WARNING]
 
 
+async def test_on_ready_checks_channel_once_across_reconnects(
+    config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(config)
+    lookups: list[int] = []
+
+    def get_channel(channel_id: int) -> None:
+        lookups.append(channel_id)
+        return None
+
+    monkeypatch.setattr(bot, "get_channel", get_channel)
+    with caplog.at_level(logging.INFO):
+        await bot.on_ready()
+        await bot.on_ready()
+    assert lookups == [555]
+    bot_messages = [record.getMessage() for record in bot_records(caplog)]
+    assert sum(text.startswith("connected as") for text in bot_messages) == 1
+    assert sum("not found or not visible" in text for text in bot_messages) == 1
+
+
 async def test_on_error_hides_exception_text(
     config: Config, caplog: pytest.LogCaptureFixture
 ) -> None:

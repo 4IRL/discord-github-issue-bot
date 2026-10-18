@@ -43,7 +43,7 @@ Greenfield bot with no existing callers. Env keys are documented, dependencies p
 
 ### To-Do: Required Changes
 
-- [ ] **Run the startup channel check once** — `issue_bot/bot.py` — Guard on_ready's channel_problems check and "connected as" log with a once-flag (or move to setup_hook-time state) so Gateway reconnects don't repeat it; add a test calling on_ready twice.
+- [x] **Run the startup channel check once** — `issue_bot/bot.py` — Guard on_ready's channel_problems check and "connected as" log with a once-flag (or move to setup_hook-time state) so Gateway reconnects don't repeat it; add a test calling on_ready twice.
 - [ ] **Escalate a missing intake channel to ERROR** — `issue_bot/bot.py` channel_problems/on_ready, `tests/test_bot.py` — Log the "not found or not visible" problem at ERROR (name/category/guild mismatches stay WARNING); update the on_ready test.
 - [ ] **Add the message id to on_error for on_message** — `issue_bot/bot.py` on_error, `tests/test_bot.py` — When `args[0]` has an integer `id`, append `message_id=<id>`; keep no traceback/message/text. Test it.
 - [ ] **Test a raising hook through discord dispatch** — `tests/test_bot.py` — Run a hook raising `RuntimeError("Secret title words")` via `await bot._run_event(bot.on_message, "on_message", msg)`; assert one ERROR from `issue_bot.bot` and no record containing the text.
