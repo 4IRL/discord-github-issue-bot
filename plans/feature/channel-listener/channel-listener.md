@@ -3,13 +3,13 @@
 ## Summary
 Stand up the bot's code skeleton and its first behavior: a discord.py client that connects
 to the Gateway, listens only to the configured intake channel, and turns a new message
-carrying `#bug` or `#feature` into an `IssueCandidate` (type, title, raw content, author,
-message link, target). Untagged, bot, webhook, system, edited, in-thread and other-channel messages
-are ignored. The code is portable: the package has the generic name `issue_bot`, every
-identifier comes from the environment, per-target values sit in one `TargetConfig` object
-separate from instance-wide values, and no 4irl/chores4irl literal is a code default (no
-`*.py` outside tests holds one; the config home for the 4irl values is the committed
-`example.env`).
+carrying `!bug` or `!feature` into an `IssueCandidate` (type, title, body, raw content,
+author, message link, target). Untagged, bot, webhook, system, edited, in-thread and
+other-channel messages are ignored. The code is portable: the package has the generic
+name `issue_bot`, every identifier comes from the environment, per-target values sit in
+one `TargetConfig` object separate from instance-wide values, and no 4irl/chores4irl
+literal is a code default (no `*.py` outside tests holds one; the config home for the 4irl
+values is the committed `example.env`).
 F1 also adds the test harness (META-PLAN Verification: `.venv/bin/pytest`), the Docker image
 and the README/CLAUDE.md run and test docs. Later features (F2 thread, F5 filing) consume
 candidates through a single `on_candidate(message, candidate)` hook.
@@ -74,7 +74,7 @@ Package `issue_bot/` at the repo root; tests in `tests/`.
 
 | Module | Owns |
 |---|---|
-| `tags.py` | `IssueType` (`StrEnum`: `BUG = "bug"`, `FEATURE = "feature"`), `ParsedTag` (frozen dataclass: `type: IssueType`, `title: str`), `parse_tag(text: str) -> ParsedTag | None` |
+| `tags.py` | `IssueType` (`StrEnum`: `BUG = "bug"`, `FEATURE = "feature"`), `ParsedTag` (frozen dataclass: `type: IssueType`, `title: str`, `body: str = ""`), `MalformedTag` (frozen dataclass: `type: IssueType`), `parse_tag(text: str) -> ParsedTag | MalformedTag | None` |
 | `config.py` | `ConfigError`, `TargetConfig` and `Config` (frozen dataclasses), each with `from_env(env: Mapping[str, str])` |
 | `handler.py` | `IssueCandidate` (frozen dataclass), `candidate_from_message(message, config) -> IssueCandidate | None` |
 | `bot.py` | `build_intents()`, `channel_problems(channel, config) -> list[str]`, `CandidateHook`, `log_candidate` (default hook), `IssueBot(discord.Client)` |
@@ -92,8 +92,8 @@ Environment keys (names only here; every key is required and has **no default in
 | `DISCORD_CATEGORY` | target | str | Expected category name (startup sanity check only) |
 | `GITHUB_REPO` | target | `owner/name` | Output repo |
 | `GITHUB_REPO_ID` | target | positive int | Output repo id |
-| `GITHUB_LABEL_BUG` | target | str | Label for `#bug` |
-| `GITHUB_LABEL_FEATURE` | target | str | Label for `#feature` |
+| `GITHUB_LABEL_BUG` | target | str | Label for `!bug` |
+| `GITHUB_LABEL_FEATURE` | target | str | Label for `!feature` |
 
 Label keys are derived, not listed: `f"GITHUB_LABEL_{issue_type.name}"` for each `IssueType`,
 so adding a tag type adds exactly one required key.
@@ -139,12 +139,14 @@ GITHUB_LABEL_BUG=bug
 GITHUB_LABEL_FEATURE=enhancement
 ```
 
-`IssueCandidate` fields: `type: IssueType`, `title: str`, `content: str` (raw
-`message.content`, unmodified: F5 puts it in the issue body), `author_id: int`,
-`author_name: str` (`message.author.display_name`), `message_id: int`, `message_url: str`
-(`message.jump_url`), `target: TargetConfig` (the route the message arrived on; F1 sets it to
-`config.target`). `title`, `content` and `author_name` are declared `field(repr=False)`, so
-`repr(candidate)` (and any log or traceback that formats it) carries no member text or name.
+`IssueCandidate` fields (nine): `type: IssueType`, `title: str` (the `Title:` field),
+`body: str` (the `Body:` field, `""` when absent: F5 puts it in the issue body),
+`content: str` (raw `message.content`, unmodified), `author_id: int`, `author_name: str`
+(`message.author.display_name`), `message_id: int`, `message_url: str`
+(`message.jump_url`), `target: TargetConfig` (the route the message arrived on; F1 sets it
+to `config.target`). `title`, `body`, `content` and `author_name` are declared
+`field(repr=False)`, so `repr(candidate)` (and any log or traceback that formats it)
+carries no member text or name.
 
 Hook contract: `CandidateHook = Callable[[discord.Message, IssueCandidate], Awaitable[None]]`.
 `IssueBot.on_message` awaits `self.on_candidate(message, candidate)`, so F2 can call
@@ -153,7 +155,8 @@ repo and labels from `candidate.target`; when F8 turns `Config.target` into rout
 signature stays the same because each candidate already carries its own target.
 
 Tag grammar (verified at pass-1 review and re-verified at the portability-revision DD pass
-against every test input in Step 2):
+against every test input in Step 2; the prefix is now `!` and the title rules apply to the
+`Title:` value only, see *Amendment: structured messages* below):
 - ``TAG_PATTERN = re.compile(r"(?<![\w#/`])#(bug|feature)(?![\w`-])", re.IGNORECASE)``. So
   `#BUG` and `#Feature` match, as does a tag in a quoted line (`> #bug quoted`); `#bugfix`,
   `#bug-report`, `foo#bug`, `##bug`, URL fragments (`x.com/#bug`) and a tag touching a
@@ -167,7 +170,7 @@ against every test input in Step 2):
 
 Messages in threads under the channel are **not** captured: a thread message's
 `message.channel.id` is the thread's id, so the channel-ID filter drops it. F3's in-thread
-answers containing `#bug` therefore never spawn new candidates.
+answers containing `!bug` therefore never spawn new candidates.
 
 Logging rule: log records never contain message text, titles or member names; log the
 issue type, `message_id` and `message_url` only. Rejected config values and the token are
@@ -189,11 +192,11 @@ also covers the `Dockerfile` (Step 6: no `ENV` line sets any config key) and
 ## Contract for later features
 What F2, F5 and F8 may rely on once F1 merges (Step 7 copies this section into the final
 report):
-- Modules: `issue_bot.tags` (`IssueType` `StrEnum` with `BUG = "bug"`, `FEATURE = "feature"`;
-  `ParsedTag`, `MalformedTag`, `parse_tag`), `issue_bot.config` (`Config`, `TargetConfig`, `ConfigError`),
-  `issue_bot.handler` (`IssueCandidate`, `candidate_from_message`), `issue_bot.bot`
-  (`IssueBot`, `CandidateHook`, `log_candidate`); the entry point is `issue_bot/__main__.py`'s
-  `main()`, run as a module.
+- Modules: `issue_bot.tags` (`IssueType` `StrEnum` with `BUG = "bug"`,
+  `FEATURE = "feature"`; `ParsedTag`, `MalformedTag`, `parse_tag`), `issue_bot.config`
+  (`Config`, `TargetConfig`, `ConfigError`), `issue_bot.handler` (`IssueCandidate`,
+  `candidate_from_message`), `issue_bot.bot` (`IssueBot`, `CandidateHook`,
+  `log_candidate`); the entry point is `issue_bot/__main__.py`'s `main()`, run as a module.
 - Hook: `CandidateHook = Callable[[discord.Message, IssueCandidate], Awaitable[None]]`, passed
   as `IssueBot(config, on_candidate=...)` and awaited once per new tagged message in the
   intake channel (default `log_candidate`, which logs ids and URLs only). An exception
@@ -205,7 +208,8 @@ report):
   `message_url: str`, `target: TargetConfig`. `title`, `body`, `content` and `author_name`
   are `field(repr=False)`. `title` is the message's one-line `Title:` field and `body` its
   optional multi-line `Body:` field (`""` when absent), both with tags stripped (amended
-  2026-10-17, see *Amendment: structured messages*). Not hashable (it carries `target`): key sets/dicts by `message_id`.
+  2026-10-17, see *Amendment: structured messages*). Not hashable (it carries `target`):
+  key sets/dicts by `message_id`.
 - `TargetConfig` (frozen): `channel_id`, `channel_name`, `category`, `github_repo`,
   `github_repo_id`, `labels: Mapping[IssueType, str]` (read-only `MappingProxyType`, one
   entry per `IssueType`). `Config` (frozen): `discord_token` (repr-hidden), `guild_id`,
@@ -216,19 +220,23 @@ report):
 - `title`, `body` and `content` keep raw Discord mention markup (`<@id>`, `<#id>`, `<@&id>`):
   F2's thread name and F5's issue title and body must clean them.
 - A tagged message with no usable `Title:` line yields no candidate; `candidate_from_message`
-  logs `ignored <type> message_id=<id> (<url>): no usable Title: line` at INFO. F2 replies to it
-  with a format hint.
+  logs `ignored <type> message_id=<id> (<url>): no usable Title: line` at INFO. F2 replies
+  to it with a format hint.
 
 ## Amendment: structured messages (2026-10-17)
 After the push review, the owner required a structured message instead of deriving the
 title from the whole de-tagged text: a recognized tag anywhere, a required one-line
 `Title:` field and an optional `Body:` field (it runs to the end of the message, or to a
 later `Title:` line while the title is still missing or blank); labels case-insensitive
-and optionally bolded. A tag wrapped in brackets (`[#bug]`) is removed with its brackets;
-other brackets stay. Lines outside the fields are ignored. `parse_tag` returns `ParsedTag(type, title, body)`, `MalformedTag(type)`
-for a tagged message without a usable title, or `None` when untagged. The tag-grammar
-section above still holds; the title rules there (strip every tag, now with only its own brackets,
-trim `TITLE_EDGE`) now apply to the `Title:` value only.
+and optionally bolded. A tag wrapped in brackets (`[!bug]`) is removed with its brackets;
+other brackets stay. Lines outside the fields are ignored. `parse_tag` returns
+`ParsedTag(type, title, body)`, `MalformedTag(type)` for a tagged message without a usable
+title, or `None` when untagged. The tag-grammar section above still holds; the title rules
+there (strip every tag, now with only its own brackets, trim `TITLE_EDGE`) now apply to the
+`Title:` value only, and a title without a letter or digit yields `MalformedTag`, not
+`None`. A first `Title:` without a letter or digit, or a blank first `Body:`, yields to a
+later label of the same name. In both fields a line that held only a tag is dropped, and a
+tagged line keeps its original indent.
 
 Tag prefix (same day): typing `#fea…` in Discord pops up channel autocomplete, so the tag
 prefix changed from `#` to `!` (`!bug`, `!feature`), which Discord doesn't autocomplete.
