@@ -111,15 +111,15 @@ Point META-PLAN's title and *PR link form* fact at the new repo, and its *Shorte
 this plan's Owner checklist (DD-5).
 
 **To-do:**
-- [ ] `plans/META-PLAN.md` line 1: `# META-PLAN — discord-github-issue-bot feature rollout`.
-- [ ] *Project facts* `PR link form` row: change it to
+- [x] `plans/META-PLAN.md` line 1: `# META-PLAN — discord-github-issue-bot feature rollout`.
+- [x] *Project facts* `PR link form` row: change it to
   `` `[#N](https://github.com/4IRL/discord-github-issue-bot/pull/N)` ``. (Links in this form
   404 until the owner renames the repo. After the rename, GitHub redirects the old URLs, so
   links already written in the old form keep working. F9's own in-review ledger cell
   (Phase A step 10) may carry either form, since `/run-feature` reads Project facts at the
   start of its invocation; both resolve after the rename, and the row is removed at
   fold-back.)
-- [ ] *Where the work stands* → *Shortest path to the focus feature*, item 2: replace its
+- [x] *Where the work stands* → *Shortest path to the focus feature*, item 2: replace its
   pointer "(its *Expected end state*, "Owner checklist")" with
   "(`plans/chore/rename-repo/rename-repo.md` § Owner checklist, which supersedes the copy in
   F9's section: each item has a **Check**, and `allowWrite` keeps both paths)", keeping
@@ -130,11 +130,11 @@ this plan's Owner checklist (DD-5).
   replace "Then fold F9 back from the renamed folder (`/run-feature F9`), which re-checks
   the checklist." with "Then, once every Check in that checklist passes, fold F9 back from
   the renamed folder (`/run-feature F9`); `/run-feature` has no checklist step of its own."
-- [ ] Leave every other META-PLAN line alone: F9's own section, ledger row, Backlog row,
+- [x] Leave every other META-PLAN line alone: F9's own section, ledger row, Backlog row,
   ★FOCUS lines and Feature-list line go at F9's fold-back, the Feature list is written only by
   `/new-feature`, and the stale Baseline is refreshed at the fold-back (owner's choice,
   2026-10-18).
-- [ ] Verify: `git diff $(git merge-base main HEAD) -- plans/META-PLAN.md` shows only line 1,
+- [x] Verify: `git diff $(git merge-base main HEAD) -- plans/META-PLAN.md` shows only line 1,
   the PR-link-form row, the two *Shortest path* items above and the F9 Status-ledger change
   `/run-feature` already committed; `git grep -n 'rename-repo.md. § Owner checklist' -- plans/META-PLAN.md`
   shows the new item-2 pointer, and `git grep -n 're-checks the checklist' -- plans/META-PLAN.md`
