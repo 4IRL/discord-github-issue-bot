@@ -126,7 +126,7 @@ holds its supersession note, not edges; readers skip it. -->
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F1 — Channel listener and tag parsing** ★FOCUS | in-progress | `feature/channel-listener` | — |
+| **F1 — Channel listener and tag parsing** ★FOCUS | in-review | `feature/channel-listener` | [#2](https://github.com/4IRL/c4i-issue-bot/pull/2) |
 | **F2 — Thread per tagged message** | pending | `feature/issue-thread` | — |
 | **F3 — Rule-based clarifying questions** | pending | `feature/clarifying-questions` | — |
 | **F4 — Complexity triage (S/M/L/XL)** | pending | `feature/complexity-triage` | — |
