@@ -189,6 +189,8 @@ def test_title_cleanup(text: str, expected_title: str) -> None:
         ("!bug\nTitle: x\nBody: one\n  [!feature]  \ntwo", "one\ntwo"),
         ("!bug\nTitle: x\nBody: one\n!bug two", "one\ntwo"),
         ("!bug\nTitle: x\nBody: one\n  (!bug) two", "one\n  two"),
+        ("!bug\nTitle: x\nBody: one\n  { !bug } two", "one\n  two"),
+        ("!bug\nTitle: x\nBody: a (!bug] b", "a ( ] b"),
         ("Title: x\nBody: one\n!bug\n  two", "one\n  two"),
     ],
 )

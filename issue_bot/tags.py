@@ -38,9 +38,10 @@ class MalformedTag:
 
 TAG_PATTERN = re.compile(r"(?<![\w!/`])!(bug|feature)(?![\w`-])", re.IGNORECASE)
 FIELD_LABEL = re.compile(r"^\s*[*_]*(title|body)[*_]*\s*:[*_]*[ \t]*", re.IGNORECASE)
+# A tag, with the matching (), [] or {} pair around it when there is one.
 BRACKETED_TAG = re.compile(
-    rf"\(\s*{TAG_PATTERN.pattern}\s*\)|\[\s*{TAG_PATTERN.pattern}\s*\]"
-    rf"|\{{\s*{TAG_PATTERN.pattern}\s*\}}|{TAG_PATTERN.pattern}",
+    rf"(?:(?:(?P<paren>\()|(?P<square>\[)|(?P<curly>\{{))\s*)?{TAG_PATTERN.pattern}"
+    r"(?(paren)\s*\))(?(square)\s*\])(?(curly)\s*\})",
     re.IGNORECASE,
 )
 TITLE_EDGE = " .,:;-|/"
