@@ -120,6 +120,15 @@ async def test_on_message_ignores_untagged(
     hook.assert_not_awaited()
 
 
+async def test_on_message_ignores_malformed(
+    config: Config, make_message: MessageFactory
+) -> None:
+    hook = AsyncMock()
+    bot = IssueBot(config, on_candidate=hook)
+    await bot.on_message(make_message("!bug\nBody: x"))
+    hook.assert_not_awaited()
+
+
 async def test_default_hook_logs_ids_not_text(
     config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
