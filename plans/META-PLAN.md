@@ -43,21 +43,32 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 
 ## Where the work stands
 
-**★FOCUS: `F1` — Channel listener and tag parsing** (runnable; branch `feature/channel-listener`).
+**★FOCUS: `F9` — Rename to discord-github-issue-management-bot** (blocked on F1's merge;
+branch `chore/rename-repo`).
 
-Nothing is built yet. F1 is the only feature with no prerequisites, and every other feature
-builds on it. F6 is additionally gated on creating the new chores4irl roadmap Project. Phase
-1.5 (F8 multi-target routes, F9 repo rename) follows the Phase 1 skeleton and precedes F3.
+F1 is built and in review ([#2](https://github.com/4IRL/c4i-issue-bot/pull/2)); `main` is
+still the scaffold. F9 is pulled ahead of the rest of Phase 1 (owner's choice, 2026-10-17) so
+the next `/stronghold-sweep` indexes the project under its new name and portable function.
+F6 is additionally gated on creating the new chores4irl roadmap Project.
 
 <!-- Two or three sentences at most: what is runnable today, what is gated and on what.
 Shipped work is git's record (`gh pr list --state merged`), not this file's. -->
 
 ### Shortest path to the focus feature
 
-F1 has no prerequisites. It needs a Discord application with a bot token, the Message
-Content intent enabled, and the bot invited to the 4irl server with permission to read the
-channel. The owner sets that up; the token goes in `.env`. After F1, the Phase 1 skeleton
-runs F2 and F5 (independent of each other), then F7.
+1. **Merge F1** ([#2](https://github.com/4IRL/c4i-issue-bot/pull/2)) and fold it back
+   (`/run-feature F1`). That is F9's only hard prerequisite; F1 already created the package
+   under the generic name `issue_bot`, so nothing gets renamed twice.
+2. **Run F9** (`/run-feature F9`, effort M). In-repo: docs, titles, *PR link form*, image
+   name, and README/ROADMAP describing the portable function. Owner steps: the GitHub repo
+   rename, the local folder move, `.claude/settings.json` and `.claude/skill-config.md`
+   (agent sessions can't write these), and the Claude project-history directory move.
+3. **Then run `/stronghold-sweep`** from `~/Code`, which re-indexes the project under the new
+   name.
+
+After F9, the Phase 1 skeleton resumes: F2 and F5 (independent of each other), then F7. F1's
+external setup (Discord application, bot token in `.env`, Message Content intent, bot
+invited) is only needed for a live run, not for F9.
 
 ---
 
@@ -75,7 +86,7 @@ runs F2 and F5 (independent of each other), then F7.
 - [ ] **F6** (added 2026-10-16): Add the created issue to the chores4irl roadmap (split from "create the issue in the 4IRL/chores4irl GitHub repo and add it to its roadmap").
 - [ ] **F7** (added 2026-10-16): Post a direct link to the newly created issue in the same thread.
 - [ ] **F8** (added 2026-10-17): Multiple instances of the bot should be deployable: spool up multiple bots, or have multiple listeners that port issues to different repos based on the bot's instantiation settings/parameters; all channels come from the same Discord server and all issues go to repos in the 4IRL GitHub org (both a route table in one process and multi-container deployment).
-- [ ] **F9** (added 2026-10-17): Rename the repo to reflect its portability: c4i-issue-bot → discord-github-issue-management-bot (GitHub repo, local folder, docs and project facts; the Python package already takes the generic name in F1).
+- [ ] **F9** (added 2026-10-17): Rename the repo to reflect its portability: c4i-issue-bot → discord-github-issue-management-bot (GitHub repo, local folder, docs and project facts; the Python package already takes the generic name in F1) (amended 2026-10-17: made ★FOCUS ahead of the rest of Phase 1 so the next `/stronghold-sweep` indexes the project under its new name; scope adds README/ROADMAP describing the portable function.)
 
 ---
 
@@ -83,12 +94,12 @@ runs F2 and F5 (independent of each other), then F7.
 
 | Order | Feature | Effort | Depends on | Phase |
 |---|---|---|---|---|
-| ★ 1 | **F1** — Channel listener and tag parsing **[FOCUS]** | L | — | 1 |
-| 2 | **F2** — Thread per tagged message | S | F1 | 1 |
-| 3 | **F5** — File the issue in 4IRL/chores4irl | M | F1 | 1 |
-| 4 | **F7** — Post the issue link in the thread | S | F2, F5 | 1 |
-| 5 | **F8** — Multi-target routes and multi-instance deployment | L | F5, F7 | 1.5 |
-| 6 | **F9** — Rename to discord-github-issue-management-bot | M | F1 | 1.5 |
+| 1 | **F1** — Channel listener and tag parsing (in review) | L | — | 1 |
+| ★ 2 | **F9** — Rename to discord-github-issue-management-bot **[FOCUS]** | M | F1 | 1.5 |
+| 3 | **F2** — Thread per tagged message | S | F1 | 1 |
+| 4 | **F5** — File the issue in 4IRL/chores4irl | M | F1 | 1 |
+| 5 | **F7** — Post the issue link in the thread | S | F2, F5 | 1 |
+| 6 | **F8** — Multi-target routes and multi-instance deployment | L | F5, F7 | 1.5 |
 | 7 | **F3** — Rule-based clarifying questions | L | F2, F5; soft: F8 | 2 |
 | 8 | **F4** — Complexity triage (S/M/L/XL) | M | F3 | 3 |
 | 9 | **F6** — Add the issue to the chores4irl roadmap Project | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
@@ -126,7 +137,7 @@ holds its supersession note, not edges; readers skip it. -->
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F1 — Channel listener and tag parsing** ★FOCUS | in-review | `feature/channel-listener` | [#2](https://github.com/4IRL/c4i-issue-bot/pull/2) |
+| **F1 — Channel listener and tag parsing** | in-review | `feature/channel-listener` | [#2](https://github.com/4IRL/c4i-issue-bot/pull/2) |
 | **F2 — Thread per tagged message** | pending | `feature/issue-thread` | — |
 | **F3 — Rule-based clarifying questions** | pending | `feature/clarifying-questions` | — |
 | **F4 — Complexity triage (S/M/L/XL)** | pending | `feature/complexity-triage` | — |
@@ -134,7 +145,7 @@ holds its supersession note, not edges; readers skip it. -->
 | **F6 — Add the issue to the chores4irl roadmap Project** | pending | `feature/roadmap-project` | — |
 | **F7 — Post the issue link in the thread** | pending | `feature/post-issue-link` | — |
 | **F8 — Multi-target routes and multi-instance deployment** | pending | `feature/multi-target` | — |
-| **F9 — Rename to discord-github-issue-management-bot** | pending | `chore/rename-repo` | — |
+| **F9 — Rename to discord-github-issue-management-bot** ★FOCUS | pending | `chore/rename-repo` | — |
 
 ---
 
@@ -197,7 +208,7 @@ None yet.
 
 # REMAINING FEATURES
 
-## F1 — Channel listener and tag parsing · Phase 1 · Effort L · ★FOCUS · (added 2026-10-16)
+## F1 — Channel listener and tag parsing · Phase 1 · Effort L · (added 2026-10-16)
 
 **Goal.** The bot runs, connects to the Discord Gateway, listens only to the configured
 channel, and turns a tagged message into a parsed issue candidate (type, title, author,
@@ -507,7 +518,7 @@ contract those features build on. (d) Hot reload of the route file: recommend re
 **Session.** `/run-feature F8` on branch `feature/multi-target`; plan at
 `plans/feature/multi-target/multi-target.md`.
 
-## F9 — Rename to discord-github-issue-management-bot · Phase 1.5 · Effort M · (added 2026-10-17)
+## F9 — Rename to discord-github-issue-management-bot · Phase 1.5 · Effort M · ★FOCUS · (added 2026-10-17)
 
 **Goal.** The project's name matches its portable scope: the GitHub repo
 `4IRL/c4i-issue-bot` becomes `4IRL/discord-github-issue-management-bot` (or the name the
@@ -515,9 +526,10 @@ owner settles on at planning), along with the local folder, README/CLAUDE.md, RO
 title, META-PLAN title and *PR link form*, and the Docker image name. The Python package
 already has the generic name from F1. Feature-list line F9.
 
-**Rank rationale.** After F1, so the package is created under the generic name once and
-never renamed. It's early, before Phase 2 adds code and docs that mention the old name.
-Independent of F8.
+**Rank rationale.** ★FOCUS (owner's choice, 2026-10-17): pulled ahead of F2, F5 and F7 so
+the next `/stronghold-sweep` indexes the project under its new name and portable function.
+It needs only F1 (the generic package name), not the rest of Phase 1, and the earlier it
+lands, the fewer files mention the old name. Independent of F8.
 
 **Dependencies.** F1.
 
@@ -532,6 +544,10 @@ Independent of F8.
 - `grep -rn 'c4i-issue-bot\|c4i_issue_bot' --exclude-dir=.git .` hits only historical
   plan/review files (or nothing).
 - META-PLAN's *PR link form* uses the new repo URL.
+- The README's opening and the ROADMAP's end state describe the portable function (any
+  channel in the server → any repo in the 4IRL org), with chores4irl as the first, example
+  target. The next sweep reads that description. The ROADMAP's sequencing rationale notes
+  that the rename went ahead of the rest of Phase 1.
 - All suites green; Standing invariants untouched.
 
 **Test-suite deltas.** None beyond the full suite passing after the rename.
@@ -543,7 +559,11 @@ Claude Code's per-project history and memory directory
 The index is rewritten only by `/stronghold-sweep`, so run a sweep afterwards; the history
 move is an owner step outside this repo. (c) Whether the Discord bot's display name and
 `#c4i-github-issues` channel change too is out of this repo's scope; the channel name is
-config after F1.
+config after F1. (d) `.claude/settings.json` (sandbox `allowWrite` holds the old absolute
+path) and the gitignored `.claude/skill-config.md` (`project_name`, `repo`) are write-denied
+to agent sessions, so the owner edits them; the plan lists them as owner steps. (e) Rename
+the folder between sessions: close the session in the old folder, move it, and reopen in
+the new one.
 
 **Session.** `/run-feature F9` on branch `chore/rename-repo`; plan at
 `plans/chore/rename-repo/rename-repo.md`.
@@ -553,9 +573,10 @@ config after F1.
 ## Dependencies & couplings (remaining work)
 
 ```
-Phase 1:    ★ F1 ──► F2 ──────┐
-                └──► F5 ──────┴──► F7
-Phase 1.5:  {F5, F7} ──► F8        F1 ──► F9   (independent of each other)
+Focus:      F1 (in review, #2) ──► ★ F9   (pulled ahead of the rest of Phase 1)
+Phase 1:    F1 ──► F2 ──────┐
+              └──► F5 ──────┴──► F7
+Phase 1.5:  {F5, F7} ──► F8        F1 ──► ★ F9   (independent of each other)
 Phase 2:    {F2, F5} ──► F3        (soft: after F8)
 Phase 3:    F3 ──► F4
             F5 ──► F6   [cond: new roadmap Project] (couples F4; soft: after F8)
@@ -563,10 +584,10 @@ Phase 3:    F3 ──► F4
 
 - **Hard chains:** F1 → F2, F1 → F5, {F2, F5} → F7, {F5, F7} → F8, F1 → F9,
   {F2, F5} → F3 → F4, F5 → F6.
-- **Soft preferences:** F7 before F3, so the skeleton is end-to-end usable before the
+- **Soft preferences:** F9 right after F1, ahead of F2/F5/F7 (owner's ★FOCUS choice,
+  2026-10-17). F7 before F3, so the skeleton is end-to-end usable before the
   conversation work; F3 doesn't need F7. F8 before F3 and F6, so conversation state and
-  Project config are per-target from the start. F9 before Phase 2, while the old name
-  appears in as few files as possible. F6 could start any time after F5 once its Project
+  Project config are per-target from the start. F6 could start any time after F5 once its Project
   exists; the ROADMAP keeps it in Phase 3 so the Project fields are designed alongside F4.
 - **Couplings to honor:** F3 ↔ F5: F3 reuses F5's single issue-body builder rather than
   formatting a second body. F1 ↔ F8: F8 turns F1's single target config object into a
