@@ -144,7 +144,7 @@ holds its supersession note, not edges; readers skip it. -->
 | **F6 — Add the issue to the chores4irl roadmap Project** | pending | `feature/roadmap-project` | — |
 | **F7 — Post the issue link in the thread** | pending | `feature/post-issue-link` | — |
 | **F8 — Multi-target routes and multi-instance deployment** | pending | `feature/multi-target` | — |
-| **F9 — Rename to discord-github-issue-management-bot** ★FOCUS | pending | `chore/rename-repo` | — |
+| **F9 — Rename to discord-github-issue-management-bot** ★FOCUS | in-progress | `chore/rename-repo` | — |
 
 ---
 
