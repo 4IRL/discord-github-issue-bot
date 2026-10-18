@@ -1,6 +1,6 @@
-# c4i-issue-bot
+# discord-github-issue-bot
 
-A Discord bot for the 4irl server that turns tagged messages in `#c4i-github-issues` (`!bug`, `!feature`) into fleshed-out issues on the `4IRL/chores4irl` GitHub repo and its roadmap. It asks clarifying questions in a thread, then posts the new issue's link back there.
+A Discord bot that turns tagged messages (`!bug`, `!feature`) in a configured intake channel of a Discord server into fleshed-out GitHub issues in a configured repo of the 4IRL GitHub org, and onto that repo's roadmap. It asks clarifying questions in a thread, then posts the new issue's link back there. Its first target (an example) is `#c4i-github-issues` in the 4irl server → `4IRL/chores4irl`.
 
 The code itself is target-agnostic: it holds no 4irl values (never as a code default), and their config home is the committed [`example.env`](example.env).
 
@@ -79,8 +79,8 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 ### Run with Docker
 
 ```sh
-docker build -t issue-bot .
-docker run --rm --env-file .env issue-bot
+docker build -t discord-github-issue-bot .
+docker run --rm --env-file .env discord-github-issue-bot
 ```
 
 The image contains only the code and its pinned dependencies; no credentials or target config are baked in.
