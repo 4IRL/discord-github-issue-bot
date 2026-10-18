@@ -16,14 +16,28 @@ import re
 from dataclasses import dataclass
 from enum import StrEnum
 
+TAG_PATTERN = re.compile(r"(?<![\w!/`])!(bug|feature)(?![\w`-])", re.IGNORECASE)
+FIELD_LABEL = re.compile(r"^\s*[*_]*(title|body)[*_]*\s*:[*_]*[ \t]*", re.IGNORECASE)
+# A tag, with the matching (), [] or {} pair around it when there is one.
+BRACKETED_TAG = re.compile(
+    rf"(?:(?:(?P<paren>\()|(?P<square>\[)|(?P<curly>\{{))\s*)?{TAG_PATTERN.pattern}"
+    r"(?(paren)\s*\))(?(square)\s*\])(?(curly)\s*\})",
+    re.IGNORECASE,
+)
+TITLE_EDGE = " .,:;-|/"
+
 
 class IssueType(StrEnum):
+    """The kind of issue a tag files."""
+
     BUG = "bug"
     FEATURE = "feature"
 
 
 @dataclass(frozen=True)
 class ParsedTag:
+    """A tagged message's issue type, title and optional body."""
+
     type: IssueType
     title: str
     body: str = ""
@@ -34,17 +48,6 @@ class MalformedTag:
     """A tagged message without a usable ``Title:`` field."""
 
     type: IssueType
-
-
-TAG_PATTERN = re.compile(r"(?<![\w!/`])!(bug|feature)(?![\w`-])", re.IGNORECASE)
-FIELD_LABEL = re.compile(r"^\s*[*_]*(title|body)[*_]*\s*:[*_]*[ \t]*", re.IGNORECASE)
-# A tag, with the matching (), [] or {} pair around it when there is one.
-BRACKETED_TAG = re.compile(
-    rf"(?:(?:(?P<paren>\()|(?P<square>\[)|(?P<curly>\{{))\s*)?{TAG_PATTERN.pattern}"
-    r"(?(paren)\s*\))(?(square)\s*\])(?(curly)\s*\})",
-    re.IGNORECASE,
-)
-TITLE_EDGE = " .,:;-|/"
 
 
 def _is_usable_title(title: str) -> bool:
