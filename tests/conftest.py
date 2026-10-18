@@ -1,3 +1,7 @@
+from collections.abc import Callable
+from types import SimpleNamespace
+
+import discord
 import pytest
 
 from issue_bot.config import Config
@@ -22,3 +26,34 @@ def test_env() -> dict[str, str]:
 @pytest.fixture
 def config(test_env: dict[str, str]) -> Config:
     return Config.from_env(test_env)
+
+
+MessageFactory = Callable[..., SimpleNamespace]
+
+
+@pytest.fixture
+def make_message() -> MessageFactory:
+    """Build a duck-typed stand-in for ``discord.Message`` (no real Discord objects)."""
+
+    def factory(
+        content: str = "Fix it #bug",
+        *,
+        channel_id: int = 555,
+        author_bot: bool = False,
+        webhook_id: int | None = None,
+        message_type: discord.MessageType = discord.MessageType.default,
+        author_id: int = 7,
+        author_name: str = "Alice",
+        message_id: int = 99,
+    ) -> SimpleNamespace:
+        return SimpleNamespace(
+            content=content,
+            channel=SimpleNamespace(id=channel_id),
+            author=SimpleNamespace(bot=author_bot, id=author_id, display_name=author_name),
+            webhook_id=webhook_id,
+            type=message_type,
+            id=message_id,
+            jump_url=f"https://discord.com/channels/111/{channel_id}/{message_id}",
+        )
+
+    return factory

@@ -1,0 +1,62 @@
+import discord
+
+from issue_bot.config import Config
+from issue_bot.handler import IssueCandidate, candidate_from_message
+from issue_bot.tags import IssueType
+from tests.conftest import MessageFactory
+
+
+def test_tagged_message_becomes_candidate(config: Config, make_message: MessageFactory) -> None:
+    candidate = candidate_from_message(make_message(), config)
+    assert isinstance(candidate, IssueCandidate)
+    assert candidate.type == IssueType.BUG
+    assert candidate.title == "Fix it"
+    assert candidate.content == "Fix it #bug"
+    assert candidate.author_id == 7
+    assert candidate.author_name == "Alice"
+    assert candidate.message_id == 99
+    assert candidate.message_url == "https://discord.com/channels/111/555/99"
+    assert candidate.target is config.target
+
+
+def test_candidate_repr_hides_text(config: Config, make_message: MessageFactory) -> None:
+    candidate = candidate_from_message(
+        make_message("Secret title words #bug", author_name="Alice"), config
+    )
+    assert candidate is not None
+    text = repr(candidate)
+    assert "Secret title words" not in text
+    assert "#bug" not in text
+    assert "Alice" not in text
+    assert "message_id=99" in text
+
+
+def test_other_channel_ignored(config: Config, make_message: MessageFactory) -> None:
+    assert candidate_from_message(make_message(channel_id=556), config) is None
+
+
+def test_thread_message_ignored(config: Config, make_message: MessageFactory) -> None:
+    # 777 stands for a thread under the configured channel: its channel.id is the thread's.
+    assert candidate_from_message(make_message("#bug x", channel_id=777), config) is None
+
+
+def test_bot_author_ignored(config: Config, make_message: MessageFactory) -> None:
+    assert candidate_from_message(make_message(author_bot=True), config) is None
+
+
+def test_webhook_ignored(config: Config, make_message: MessageFactory) -> None:
+    assert candidate_from_message(make_message(webhook_id=123), config) is None
+
+
+def test_system_message_ignored(config: Config, make_message: MessageFactory) -> None:
+    message = make_message(message_type=discord.MessageType.thread_created)
+    assert candidate_from_message(message, config) is None
+
+
+def test_reply_type_accepted(config: Config, make_message: MessageFactory) -> None:
+    message = make_message(message_type=discord.MessageType.reply)
+    assert candidate_from_message(message, config) is not None
+
+
+def test_untagged_ignored(config: Config, make_message: MessageFactory) -> None:
+    assert candidate_from_message(make_message("anyone around tonight?"), config) is None

@@ -364,7 +364,7 @@ Done 2026-10-17: red confirmed (`ModuleNotFoundError: issue_bot.config` from con
 `candidate_from_message` applies the filters and builds an `IssueCandidate`.
 
 **To-do:**
-- [ ] Red: add to `tests/conftest.py` a `make_message` fixture returning a factory
+- [x] Red: add to `tests/conftest.py` a `make_message` fixture returning a factory
   `make_message(content="Fix it #bug", *, channel_id=555, author_bot=False, webhook_id=None,
   message_type=discord.MessageType.default, author_id=7, author_name="Alice", message_id=99)`
   that builds a `types.SimpleNamespace` with `content`, `channel=SimpleNamespace(id=channel_id)`,
@@ -372,7 +372,7 @@ Done 2026-10-17: red confirmed (`ModuleNotFoundError: issue_bot.config` from con
   `webhook_id`, `type=message_type`, `id=message_id`,
   `jump_url=f"https://discord.com/channels/111/{channel_id}/{message_id}"`. No real Discord
   objects or network.
-- [ ] Red: create `tests/test_handler.py`:
+- [x] Red: create `tests/test_handler.py`:
   - `test_tagged_message_becomes_candidate`: all eight `IssueCandidate` fields match:
     `type == IssueType.BUG`, `title == "Fix it"`, `content == "Fix it #bug"` (the raw text),
     `author_id == 7`, `author_name == "Alice"`, `message_id == 99`,
@@ -389,7 +389,7 @@ Done 2026-10-17: red confirmed (`ModuleNotFoundError: issue_bot.config` from con
   - `test_system_message_ignored` (`message_type=discord.MessageType.thread_created`) → `None`.
   - `test_reply_type_accepted` (`message_type=discord.MessageType.reply`) → candidate.
   - `test_untagged_ignored` (`"anyone around tonight?"`) → `None`.
-- [ ] Green: create `issue_bot/handler.py` with `IssueCandidate` (the Design's eight fields,
+- [x] Green: create `issue_bot/handler.py` with `IssueCandidate` (the Design's eight fields,
   `title`, `content` and `author_name` as `field(repr=False)`) and
   `candidate_from_message(message, config: Config) -> IssueCandidate | None`. Order of
   checks: `message.channel.id != config.target.channel_id` → None; `message.author.bot` →
@@ -398,7 +398,9 @@ Done 2026-10-17: red confirmed (`ModuleNotFoundError: issue_bot.config` from con
   `parse_tag(message.content)` is None → None; else build the candidate with
   `content=message.content` and `target=config.target`. Annotate `message` as
   `discord.Message` (tests duck-type it).
-- [ ] Refactor; `.venv/bin/pytest` green.
+- [x] Refactor; `.venv/bin/pytest` green.
+
+Done 2026-10-17: red confirmed (`ModuleNotFoundError: issue_bot.handler`), then `.venv/bin/pytest` → 74 passed. Accepted message types live in the module constant `ACCEPTED_MESSAGE_TYPES`; `tests/test_handler.py` imports the `MessageFactory` type alias from `tests/conftest.py`.
 
 **Verify:** `.venv/bin/pytest tests/test_handler.py` green.
 
