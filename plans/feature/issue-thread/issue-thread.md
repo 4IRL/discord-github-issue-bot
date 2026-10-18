@@ -314,14 +314,14 @@ Document the new behaviour and permissions.
   `grep -n 'Create Public Threads' README.md` and `grep -n 'Send Messages in Threads' README.md`
   and confirm each prints at least one line.
 
-### 5. Verify All Tests Pass
+### 5. Verify All Tests Pass - COMPLETE (2026-10-18)
 Run the full suite and the Standing-invariant checks.
 
 **To-do:**
-- [ ] Run `.venv/bin/pytest` and confirm all tests pass.
-- [ ] Run `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues'
+- [x] Run `.venv/bin/pytest` and confirm all tests pass.
+- [x] Run `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues'
   --include='*.py' issue_bot || true` and confirm it prints nothing (Standing invariant 1).
-- [ ] Run `grep -nE -A6 '(logger\.(info|warning|error|debug|exception)|log_problem)\(' issue_bot/*.py`
+- [x] Run `grep -nE -A6 '(logger\.(info|warning|error|debug|exception)|log_problem)\(' issue_bot/*.py`
   and read each call's arguments in the context lines and confirm none passes a title, body,
   content, author name, thread name or exception text (Standing invariant 2, as Step 1 widened
   it in CLAUDE.md). The pre-existing
@@ -330,9 +330,9 @@ Run the full suite and the Standing-invariant checks.
   `connected as %s` call (the bot's own account, not a member) and `log_problem("%s", problem)`
   in `on_ready` (channel id, name and category from `channel_problems`, never member text) are
   exempt too.
-- [ ] Investigate and fix any failures before marking the plan finished; when every check above
-  passed, tick this box with "(none to fix)".
-- [ ] Copy the "Manual checks (owner only)" bullets below, including the fold-back bullet,
+- [x] Investigate and fix any failures before marking the plan finished; when every check above
+  passed, tick this box with "(none to fix)". (none to fix)
+- [x] Copy the "Manual checks (owner only)" bullets below, including the fold-back bullet,
   verbatim into your final report.
 
 ## Manual checks (owner only)
@@ -379,4 +379,4 @@ checks; this plan never edits META-PLAN itself.
 - Orchestrator (/run-plan): append these bullets verbatim to the COMPLETE summary.
 
 ## Status
-finished: false
+finished: true
