@@ -125,7 +125,7 @@ holds its supersession note, not edges; readers skip it. -->
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F2 — Thread per tagged message** ★FOCUS | pending | `feature/issue-thread` | — |
+| **F2 — Thread per tagged message** ★FOCUS | in-progress | `feature/issue-thread` | — |
 | **F3 — Rule-based clarifying questions** | pending | `feature/clarifying-questions` | — |
 | **F4 — Complexity triage (S/M/L/XL)** | pending | `feature/complexity-triage` | — |
 | **F5 — File the issue in 4IRL/chores4irl** | pending | `feature/file-issue` | — |
