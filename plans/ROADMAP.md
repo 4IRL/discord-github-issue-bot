@@ -21,8 +21,9 @@
 c4i-issue-bot is a Discord bot in the 4irl server (guild `1137236302358659185`). It watches
 the `#c4i-github-issues` channel in the `C4I` category and turns members' ideas into
 well-formed issues on the `4IRL/chores4irl` GitHub repo (repo id `969373970`) and its roadmap.
-Any member posts a one-line idea ending in a type tag, such as "Chore bars turn red on the due
-date instead of after it #bug". The bot ignores untagged chatter. For a tagged message it opens
+Any member posts an idea as a type tag plus a `Title:` line and an optional `Body:`, such as
+"!bug / Title: Chore bars turn red on the due date" (one field per line). The bot ignores
+untagged chatter. For a tagged message it opens
 a thread, asks the questions that tag needs to flesh the idea out, rates its complexity, then
 files a labeled issue, adds it to the roadmap and posts the issue's direct link in the same
 thread. Capture, triage and filing happen without anyone leaving Discord.
@@ -40,12 +41,13 @@ component.
 
 1. **Tagged capture.** A message in `#c4i-github-issues` from any member that carries a
    known type tag is picked up; untagged messages and bot messages are ignored.
-   *Acceptance example:* "Display chore count next to Room tab name in parentheses when each
-   Room tab is active #feature" is captured as a `feature` with that title; "anyone around
-   tonight?" produces no response.
+   Messages use the structured form `!feature` / `Title: …` / `Body: …` (Body optional).
+   *Acceptance example:* "!feature / Title: Sharing/Inviting to UTubs / Body: allow easy
+   sharing/inviting to UTubs for members outside the UTub" (one field per line) is captured
+   as a `feature` with that title and body; "anyone around tonight?" produces no response.
 2. **Clarifying thread.** For each captured message the bot opens a thread on it and asks
    the rule-based questions that tag requires, collecting the author's (or any member's)
-   answers there. *Acceptance example:* a `#bug` thread asks for steps to reproduce, expected
+   answers there. *Acceptance example:* a `!bug` thread asks for steps to reproduce, expected
    behavior and actual behavior before anything is filed.
 3. **Complexity rating.** From the tag and the answers, the bot assigns a complexity rating
    that becomes part of the filed issue. The scale is S / M / L / XL; the owner approves the
@@ -136,10 +138,10 @@ appears in a thread, end to end. **Advances capabilities:** 1, 4 (filed only), 5
 
 - The bot runs in its Docker container, connects to the Gateway and listens only to the
   configured channel; guild, category, channel and target repo all come from config.
-- Tag parsing recognizes `#bug` and `#feature` anywhere in the message, strips the tag to
-  form the title, and ignores untagged, bot and edited messages.
-- For each tagged message the bot opens a thread on it, creates an issue (title, the
-  original message and author as the body, the type label) and posts the issue URL in the
+- Tag parsing recognizes `!bug` and `!feature` anywhere in the message, reads the required
+  `Title:` and optional `Body:` fields, and ignores untagged, bot and edited messages.
+- For each tagged message the bot opens a thread on it, creates an issue (the `Title:`, the
+  `Body:` and author as the body, the type label) and posts the issue URL in the
   thread.
 - The bot authenticates to GitHub with least privilege on the target repo only (issues
   write; GitHub App vs fine-grained token decided at planning).
@@ -147,7 +149,7 @@ appears in a thread, end to end. **Advances capabilities:** 1, 4 (filed only), 5
   channel or repo.
 
 **Exit criteria.** In a test channel pointed at a test repo, posting
-"Chore bars turn red on the due date instead of after it #bug" produces a thread, a
+"!bug / Title: Chore bars turn red on the due date" (one field per line) produces a thread, a
 `bug`-labeled issue and its link in the thread, and an untagged message produces nothing.
 The test suite is green and runs as META-PLAN's Verification.
 
@@ -181,8 +183,8 @@ of refactored later.
 **Goal.** The bot asks the questions each tag needs in the thread and files an issue whose
 body is built from the answers. **Advances capabilities:** 2, 4.
 
-- Question sets for each tag are data rather than code (for example `#bug`: steps to
-  reproduce, expected, actual, device/browser; `#feature`: who it is for, the problem it
+- Question sets for each tag are data rather than code (for example `!bug`: steps to
+  reproduce, expected, actual, device/browser; `!feature`: who it is for, the problem it
   solves, what "done" looks like), so adding a tag or question needs no code change.
 - The bot asks one question at a time and accepts replies from any member in the thread,
   with commands to skip a question, cancel, or file now.
@@ -191,7 +193,7 @@ body is built from the answers. **Advances capabilities:** 2, 4.
 - Conversation state survives a bot restart, and an abandoned thread times out with a note
   instead of hanging forever.
 
-**Exit criteria.** In the test channel, a `#bug` and a `#feature` thread each run through
+**Exit criteria.** In the test channel, a `!bug` and a `!feature` thread each run through
 their questions (including a skip and a cancel), and the filed issue's body has one
 section per answered question. Restarting the container mid-conversation resumes it.
 

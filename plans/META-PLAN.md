@@ -67,7 +67,7 @@ runs F2 and F5 (independent of each other), then F7.
 
 **Next F-ID:** `F10`
 
-- [ ] **F1** (added 2026-10-16): Listen to the 'c4i-github-issues' channel in the 'C4I' category of the 4irl server and parse messages from any member for a type tag such as #feature or #bug, ignoring untagged messages. (amended 2026-10-17: portability, "the resulting Discord bot should have readily tunable parameters to easily adjust its pointed intake Discord channel and its pointed output GitHub repo … able to plug into different endpoints, not just the currently planned for chores4irl"; per-target values live in one target config object with no chores4irl defaults in code, and the package takes the new generic name.)
+- [ ] **F1** (added 2026-10-16): Listen to the 'c4i-github-issues' channel in the 'C4I' category of the 4irl server and parse messages from any member for a type tag such as #feature or #bug, ignoring untagged messages. (amended 2026-10-17: portability, "the resulting Discord bot should have readily tunable parameters to easily adjust its pointed intake Discord channel and its pointed output GitHub repo … able to plug into different endpoints, not just the currently planned for chores4irl"; per-target values live in one target config object with no chores4irl defaults in code, and the package takes the new generic name.) (amended 2026-10-17: structured messages, "require users structure their message for easier parsing by the bot … a diff block for issue title and body"; a tagged message carries a required one-line `Title:` and an optional multi-line `Body:`, and one without a usable `Title:` is dropped with an ids-only log line.) (amended 2026-10-17: the tag prefix is `!` (`!bug`, `!feature`), not `#`, because `#` triggers Discord's channel autocomplete.)
 - [ ] **F2** (added 2026-10-16): For each tagged message, create a thread for the issue.
 - [ ] **F3** (added 2026-10-16): In the thread, ask the clarifying questions needed to flesh out the idea (rule-based, per tag).
 - [ ] **F4** (added 2026-10-16): Evaluate the issue's complexity (triage).
@@ -164,7 +164,7 @@ None yet.
 
 ### Assumptions to revisit at planning time
 
-1. `#bug` maps to chores4irl's existing `bug` label and `#feature` to its existing
+1. `!bug` maps to chores4irl's existing `bug` label and `!feature` to its existing
    `enhancement` label (owner's choice, 2026-10-16); F5 verifies both still exist.
 2. The roadmap is a **new** chores4irl roadmap Project, not the existing org Project #2
    "chores4irl fold" (owner's choice, 2026-10-16). F6 verifies the new Project exists.
@@ -230,9 +230,11 @@ because the config shape and package name are cheapest to get right before any c
   fixtures.
 - The Python package has the new generic name (chosen at planning to match F9's repo name,
   e.g. `issue_bot`), not `c4i_issue_bot`.
-- A pure tag parser recognizes `#bug` and `#feature` (case-insensitive, anywhere in the
-  text). It returns the type and the title with the tag stripped, or nothing for untagged
-  text. Unit tests use the ROADMAP's two acceptance examples.
+- A pure tag parser recognizes `!bug` and `!feature` (case-insensitive, anywhere in the
+  text). It returns the type with the `Title:` (required, one line) and `Body:` (optional,
+  multi-line) fields, tags stripped; a malformed result for a tagged message with no usable
+  `Title:`; or nothing for untagged text (amended 2026-10-17). Unit tests use the
+  ROADMAP's two acceptance examples.
 - A `Dockerfile` builds an image that starts the bot. `README.md` documents the `.env` keys
   by name only.
 - `.venv/bin/pytest` is green. META-PLAN's Verification row and CLAUDE.md's Test command
@@ -272,10 +274,12 @@ from the title. All later conversation and the final link go there. Feature-list
 - A tagged message triggers exactly one `create_thread` on that message (mocked in tests).
   The thread name is the title truncated to Discord's 100-character limit.
 - A message that already has a thread doesn't get a second one.
+- A tagged message that F1 drops as malformed (no usable `Title:` line) gets a thread reply
+  with the expected `!tag` / `Title:` / `Body:` format, and no candidate.
 - All suites green; Standing invariants untouched.
 
-**Test-suite deltas.** Handler tests for thread creation, name truncation and the
-no-duplicate guard.
+**Test-suite deltas.** Handler tests for thread creation, name truncation, the
+no-duplicate guard and the malformed-message format hint.
 
 **Open risks / decisions.** (a) Needs the Create Public Threads and Send Messages in Threads
 permissions. (b) Thread auto-archive duration: recommend the channel default.
@@ -353,8 +357,8 @@ issues/metadata write permission on chores4irl.
 
 **Goal.** The bot creates a GitHub issue in the configured target repo (chores4irl in the
 example config; no code default, per F1's 2026-10-17 portability amendment) from the
-candidate. The title comes from the message; the body holds the original text, the
-Discord author and a link to the message; the type label is `bug` or `enhancement`.
+candidate. The title is the message's `Title:` field; the body holds its `Body:` field,
+the Discord author and a link to the message; the type label is `bug` or `enhancement`.
 Feature-list line F5.
 
 **Rank rationale.** It's the core of the Phase 1 skeleton and proves GitHub auth early. It

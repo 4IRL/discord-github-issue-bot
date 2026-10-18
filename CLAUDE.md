@@ -1,6 +1,6 @@
 # CLAUDE.md — c4i-issue-bot
 
-A Discord bot for the 4irl server that turns tagged messages in `#c4i-github-issues` (`#bug`, `#feature`) into fleshed-out issues on the `4IRL/chores4irl` GitHub repo and its roadmap. It asks clarifying questions in a thread, then posts the new issue's link back there.
+A Discord bot for the 4irl server that turns tagged messages in `#c4i-github-issues` (`!bug`, `!feature`) into fleshed-out issues on the `4IRL/chores4irl` GitHub repo and its roadmap. It asks clarifying questions in a thread, then posts the new issue's link back there.
 
 <!-- Project-specific rules only. Global rules (secrets, branch guard, sandbox, env-var
 parsing) come from ~/.claude/CLAUDE.md and are not repeated here. -->

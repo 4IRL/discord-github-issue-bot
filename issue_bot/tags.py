@@ -1,4 +1,14 @@
-"""Recognize issue tags (``#bug``, ``#feature``) in message text and derive a title."""
+"""Recognize issue tags (``!bug``, ``!feature``) and the ``Title:`` / ``Body:`` fields.
+
+A message files an issue only in the structured form::
+
+    !feature
+    Title: Sharing/Inviting to UTubs
+    Body: allow easy sharing/inviting to UTubs for members outside the UTub
+
+``Title:`` is one line and required; ``Body:`` is optional and runs to the end of the
+message (or to a later ``Title:`` line). Labels are case-insensitive and may be bolded.
+"""
 
 import re
 from dataclasses import dataclass
@@ -14,23 +24,49 @@ class IssueType(StrEnum):
 class ParsedTag:
     type: IssueType
     title: str
+    body: str = ""
 
 
-TAG_PATTERN = re.compile(r"(?<![\w#/`])#(bug|feature)(?![\w`-])", re.IGNORECASE)
-EMPTY_BRACKETS = re.compile(r"\(\s*\)|\[\s*\]|\{\s*\}")
+@dataclass(frozen=True)
+class MalformedTag:
+    """A tagged message without a usable ``Title:`` field."""
+
+    type: IssueType
+
+
+TAG_PATTERN = re.compile(r"(?<![\w!/`])!(bug|feature)(?![\w`-])", re.IGNORECASE)
+FIELD_LABEL = re.compile(r"^\s*[*_]*(title|body)[*_]*\s*:[*_]*[ \t]*", re.IGNORECASE)
+BRACKETED_TAG = re.compile(
+    rf"\(\s*{TAG_PATTERN.pattern}\s*\)|\[\s*{TAG_PATTERN.pattern}\s*\]"
+    rf"|\{{\s*{TAG_PATTERN.pattern}\s*\}}|{TAG_PATTERN.pattern}",
+    re.IGNORECASE,
+)
 TITLE_EDGE = " .,:;-|/"
 
 
-def parse_tag(text: str) -> ParsedTag | None:
-    """Return the first recognized tag's type and the text with every tag removed.
+def parse_tag(text: str) -> ParsedTag | MalformedTag | None:
+    """Return the first recognized tag's type with the message's title and body.
 
-    Returns ``None`` when the text has no tag or nothing but the tag.
+    Returns ``None`` when the text has no tag, and ``MalformedTag`` when it has a tag but
+    no ``Title:`` line with a letter or digit. Every tag is stripped from both fields.
     """
     match = TAG_PATTERN.search(text)
     if match is None:
         return None
-    without_tags = EMPTY_BRACKETS.sub(" ", TAG_PATTERN.sub(" ", text))
-    title = " ".join(without_tags.split()).strip(TITLE_EDGE)
+    issue_type = IssueType(match.group(1).lower())
+    fields: dict[str, list[str]] = {}
+    body_lines: list[str] | None = None
+    for raw_line in text.splitlines():
+        line = BRACKETED_TAG.sub(" ", raw_line)
+        label = FIELD_LABEL.match(line)
+        name = label.group(1).lower() if label else None
+        if label is not None and name not in fields:
+            fields[name] = [line[label.end() :]]
+            body_lines = fields[name] if name == "body" else None
+        elif body_lines is not None:
+            body_lines.append(line)
+    title = " ".join("".join(fields.get("title", [])).split()).strip(TITLE_EDGE)
     if not any(char.isalnum() for char in title):
-        return None
-    return ParsedTag(IssueType(match.group(1).lower()), title)
+        return MalformedTag(issue_type)
+    body = "\n".join(line.rstrip() for line in fields.get("body", [])).strip("\n")
+    return ParsedTag(issue_type, title, body)

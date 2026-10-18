@@ -1,16 +1,31 @@
 # c4i-issue-bot
 
-A Discord bot for the 4irl server that turns tagged messages in `#c4i-github-issues` (`#bug`, `#feature`) into fleshed-out issues on the `4IRL/chores4irl` GitHub repo and its roadmap. It asks clarifying questions in a thread, then posts the new issue's link back there.
+A Discord bot for the 4irl server that turns tagged messages in `#c4i-github-issues` (`!bug`, `!feature`) into fleshed-out issues on the `4IRL/chores4irl` GitHub repo and its roadmap. It asks clarifying questions in a thread, then posts the new issue's link back there.
 
 The code itself is target-agnostic: it holds no 4irl values (never as a code default), and their config home is the committed [`example.env`](example.env).
 
 ## Status
 
-F1 (channel listener and tag parser) exists: the bot connects to Discord, watches the intake channel and turns each new `#bug` / `#feature` message into an issue candidate. Until F2 (clarifying thread) and F5 (issue filing) land, candidates are only logged, by issue type, message id and message URL.
+F1 (channel listener and tag parser) exists: the bot connects to Discord, watches the intake channel and turns each new `!bug` / `!feature` message into an issue candidate. Until F2 (clarifying thread) and F5 (issue filing) land, candidates are only logged, by issue type, message id and message URL.
 
 - The intake channel is matched by `DISCORD_CHANNEL_ID`; its name, category and guild are only checked at startup (a mismatch logs a warning).
 - Edited messages are ignored, and so are messages inside threads, from bots or webhooks, and system messages.
-- The first recognized tag decides the issue type; every tag is stripped from the title.
+- The first recognized tag decides the issue type; every tag is stripped from the title and body.
+
+### Message format
+
+A message files an issue only in this structured form. The tag can go anywhere; the labels are case-insensitive and may be bolded.
+
+```text
+!feature
+Title: Sharing/Inviting to UTubs
+Body: allow easy sharing/inviting to UTubs for members outside the UTub
+```
+
+- `Title:` is required and is one line.
+- `Body:` is optional. It runs to the end of the message and keeps its line breaks.
+- Lines outside the two fields are ignored.
+- A tagged message with no usable `Title:` line is dropped, and the drop is logged by issue type, message id and message URL. F2 will reply in the thread with a format hint.
 
 Direction: [`plans/ROADMAP.md`](plans/ROADMAP.md). Next work: [`plans/META-PLAN.md`](plans/META-PLAN.md).
 
@@ -46,8 +61,8 @@ Then set the bot token and the intake channel's ID in `.env` (enable Developer M
 | `DISCORD_CATEGORY` | target | string | Expected category name (startup sanity check only) |
 | `GITHUB_REPO` | target | `owner/name` | Output repo |
 | `GITHUB_REPO_ID` | target | positive integer | Output repo id |
-| `GITHUB_LABEL_BUG` | target | string | Label for `#bug` |
-| `GITHUB_LABEL_FEATURE` | target | string | Label for `#feature` |
+| `GITHUB_LABEL_BUG` | target | string | Label for `!bug` |
+| `GITHUB_LABEL_FEATURE` | target | string | Label for `!feature` |
 
 Pointing the bot at another channel or repo (for example a test channel) means changing only `.env`.
 

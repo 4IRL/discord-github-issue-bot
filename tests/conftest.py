@@ -36,7 +36,7 @@ def make_message() -> MessageFactory:
     """Build a duck-typed stand-in for ``discord.Message`` (no real Discord objects)."""
 
     def factory(
-        content: str = "Fix it #bug",
+        content: str = "!bug\nTitle: Fix it",
         *,
         channel_id: int = 555,
         author_bot: bool = False,

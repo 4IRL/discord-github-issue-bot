@@ -124,7 +124,7 @@ async def test_default_hook_logs_ids_not_text(
     config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
     bot = IssueBot(config)
-    message = make_message("Secret title words #bug")
+    message = make_message("!bug\nTitle: Secret title words\nBody: Secret body words")
     with caplog.at_level(logging.INFO):
         await bot.on_message(message)
     info_messages = [
@@ -135,6 +135,7 @@ async def test_default_hook_logs_ids_not_text(
     )
     for text in record_texts(caplog):
         assert "Secret title words" not in text
+        assert "Secret body words" not in text
         assert "Alice" not in text
 
 

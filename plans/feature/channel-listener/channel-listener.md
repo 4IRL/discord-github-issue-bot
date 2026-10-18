@@ -190,7 +190,7 @@ also covers the `Dockerfile` (Step 6: no `ENV` line sets any config key) and
 What F2, F5 and F8 may rely on once F1 merges (Step 7 copies this section into the final
 report):
 - Modules: `issue_bot.tags` (`IssueType` `StrEnum` with `BUG = "bug"`, `FEATURE = "feature"`;
-  `parse_tag`), `issue_bot.config` (`Config`, `TargetConfig`, `ConfigError`),
+  `ParsedTag`, `MalformedTag`, `parse_tag`), `issue_bot.config` (`Config`, `TargetConfig`, `ConfigError`),
   `issue_bot.handler` (`IssueCandidate`, `candidate_from_message`), `issue_bot.bot`
   (`IssueBot`, `CandidateHook`, `log_candidate`); the entry point is `issue_bot/__main__.py`'s
   `main()`, run as a module.
@@ -200,10 +200,12 @@ report):
   escaping the hook or any event handler is logged by `IssueBot.on_error` by type and event
   name only (no traceback, message or arguments); a hook that needs more detail logs it
   itself under the logging rule.
-- `IssueCandidate` (frozen dataclass), eight fields: `type: IssueType`, `title: str`,
-  `content: str`, `author_id: int`, `author_name: str`, `message_id: int`,
-  `message_url: str`, `target: TargetConfig`. `title`, `content` and `author_name` are
-  `field(repr=False)`. Not hashable (it carries `target`): key sets/dicts by `message_id`.
+- `IssueCandidate` (frozen dataclass), nine fields: `type: IssueType`, `title: str`,
+  `body: str`, `content: str`, `author_id: int`, `author_name: str`, `message_id: int`,
+  `message_url: str`, `target: TargetConfig`. `title`, `body`, `content` and `author_name`
+  are `field(repr=False)`. `title` is the message's one-line `Title:` field and `body` its
+  optional multi-line `Body:` field (`""` when absent), both with tags stripped (amended
+  2026-10-17, see *Amendment: structured messages*). Not hashable (it carries `target`): key sets/dicts by `message_id`.
 - `TargetConfig` (frozen): `channel_id`, `channel_name`, `category`, `github_repo`,
   `github_repo_id`, `labels: Mapping[IssueType, str]` (read-only `MappingProxyType`, one
   entry per `IssueType`). `Config` (frozen): `discord_token` (repr-hidden), `guild_id`,
@@ -211,8 +213,28 @@ report):
   `channel_id`.
 - Environment: the nine keys in the Design table, every one required, no code defaults; a
   new `IssueType` adds one required `GITHUB_LABEL_<NAME>` key.
-- `title` and `content` keep raw Discord mention markup (`<@id>`, `<#id>`, `<@&id>`): F2's
-  thread name and F5's issue title and body must clean them.
+- `title`, `body` and `content` keep raw Discord mention markup (`<@id>`, `<#id>`, `<@&id>`):
+  F2's thread name and F5's issue title and body must clean them.
+- A tagged message with no usable `Title:` line yields no candidate; `candidate_from_message`
+  logs `ignored <type> message_id=<id> (<url>): no Title: line` at INFO. F2 replies to it
+  with a format hint.
+
+## Amendment: structured messages (2026-10-17)
+After the push review, the owner required a structured message instead of deriving the
+title from the whole de-tagged text: a recognized tag anywhere, a required one-line
+`Title:` field and an optional `Body:` field that runs to the end of the message (or to a
+later `Title:` line), labels case-insensitive and optionally bolded. A tag wrapped in
+brackets (`[#bug]`) is removed with its brackets; other brackets stay. Lines outside the
+fields are ignored. `parse_tag` returns `ParsedTag(type, title, body)`, `MalformedTag(type)`
+for a tagged message without a usable title, or `None` when untagged. The tag-grammar
+section above still holds; the title rules there (strip every tag, now with only its own brackets,
+trim `TITLE_EDGE`) now apply to the `Title:` value only.
+
+Tag prefix (same day): typing `#fea…` in Discord pops up channel autocomplete, so the tag
+prefix changed from `#` to `!` (`!bug`, `!feature`), which Discord doesn't autocomplete.
+`TAG_PATTERN` is now ``(?<![\w!/`])!(bug|feature)(?![\w`-])``; the grammar above holds
+with `!` in place of `#` (`!!bug`, `foo!bug`, `!bugfix` are not tags), and `#bug` is
+no longer recognized.
 
 ## Steps
 
