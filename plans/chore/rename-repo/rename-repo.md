@@ -200,9 +200,9 @@ straight to Phase C.
 Run the full test suites to confirm nothing is broken:
 
 **To-do:**
-- [ ] Run `.venv/bin/pytest` and confirm the full suite passes (this project has no separate
+- [x] Run `.venv/bin/pytest` and confirm the full suite passes (this project has no separate
   UI suite; this one run covers integration and functional tests)
-- [ ] Investigate and fix any failures before marking the plan finished
+- [x] Investigate and fix any failures before marking the plan finished (none to fix)
 
 ## Owner checklist (not for executors; the owner runs each check before the fold-back)
 
@@ -288,5 +288,9 @@ order, then F9 is folded back from a session in the renamed folder. When re-runn
   rename item's from-name and revert note, and the absence checks (folder, history,
   skill-config, stronghold META-PLAN); every other check names `discord-github-issue-bot`.
 
+**Step 5 (2026-10-18), full suite on `chore/rename-repo`:**
+- `.venv/bin/pytest` from the repo root: 153 passed, 0 failed, 0 skipped. Only warning:
+  discord.py's `audioop` deprecation (pre-existing, not from this plan). No fixes needed.
+
 ## Status
-finished: false
+finished: true
