@@ -585,29 +585,31 @@ greps.
 Run the full suite and the Expected-end-state checks from META-PLAN § F1.
 
 **To-do:**
-- [ ] Run `.venv/bin/pytest` and confirm all tests pass (skill-config's `test_run_cmd` and
+- [x] Run `.venv/bin/pytest` and confirm all tests pass (skill-config's `test_run_cmd` and
   `integration_runner_cmd` both name this same command; `ui_runner_cmd` is intentionally
   blank, per the Prerequisites note to the `/run-plan` orchestrator).
-- [ ] Run the Design's portability gate:
+- [x] Run the Design's portability gate:
   `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues|\bC4I\b|4[Ii][Rr][Ll]' --include='*.py' --include='Dockerfile' --include='pyproject.toml' --exclude-dir=.venv --exclude-dir=tests .; echo "exit=$?"`
   prints only `exit=1`, and `grep -rn 'DEFAULT_' issue_bot/; echo "exit=$?"` prints only
   `exit=1`. Confirm the gate is not vacuous: `ls issue_bot/*.py` lists `__init__.py`,
   `__main__.py`, `bot.py`, `config.py`, `handler.py`, `tags.py`.
-- [ ] Confirm `grep -nE '(DISCORD|GITHUB)_[A-Z_]+=' README.md || true`
+- [x] Confirm `grep -nE '(DISCORD|GITHUB)_[A-Z_]+=' README.md || true`
   prints nothing (keys by name only), and
   `grep -nE '1137236302358659185|969373970' README.md; echo "exit=$?"` prints only `exit=1`
   (no ID values in the README), `git ls-files example.env` prints `example.env`
   after the Step 6 commit, `grep -n 'example.env' .dockerignore` prints the exclusion line, `grep -nF '| Verification | `.venv/bin/pytest` |' plans/META-PLAN.md`
   prints the Project-facts row, and `grep -n 'Test: `.venv/bin/pytest`' CLAUDE.md` prints the
   Commands line.
-- [ ] Copy the *Contract for later features* section verbatim into this step's final report
+- [x] Copy the *Contract for later features* section verbatim into this step's final report
   for the `/run-plan` orchestrator; the durable carrier for `/run-feature` Phase C is this
   section of the plan file, which merges to main with the PR. Phase C's rule
   reads "If a *remaining* feature still targets this one's implemented contract, add/update
   it under 'COMPLETED-FEATURE CONTRACTS STILL IN FORCE'" (F2 and F5 depend on F1). Tick once
   copied.
-- [ ] Investigate and fix any failures before marking the plan finished. If every check above
-  passed, tick this box with `— N/A: no failures`.
+- [x] Investigate and fix any failures before marking the plan finished. If every check above
+  passed, tick this box with `— N/A: no failures`. — N/A: no failures
+
+Done 2026-10-17: `.venv/bin/pytest` → 93 passed (1 third-party DeprecationWarning: discord.py imports `audioop`). Portability gate → `exit=1`; `DEFAULT_` grep → `exit=1`; `issue_bot/` lists all six modules. README has no `DISCORD_*=`/`GITHUB_*=` lines and no ID values (`exit=1`); `git ls-files example.env` → `example.env`; `.dockerignore` line 5 excludes `example.env`; META-PLAN Verification row (line 35) and CLAUDE.md Test line (line 28) present. Contract section copied into the final report.
 
 ## Status
-finished: false
+finished: true
