@@ -409,7 +409,7 @@ Wire the handler into a `discord.Client` with the Message Content intent; check 
 configured channel at startup.
 
 **To-do:**
-- [ ] Red: create `tests/test_bot.py`:
+- [x] Red: create `tests/test_bot.py`:
   - `test_intents`: `build_intents().message_content is True`, `.guild_messages is True`,
     `.guilds is True`, `.members is False`, `.presences is False`.
   - `channel_problems` tests with `SimpleNamespace` channels
@@ -460,7 +460,7 @@ configured channel at startup.
     records its `config` argument and whose `run(self, token, **kw)` records `token` and
     `kw`; `main()` returns; the stub got a `Config` with `guild_id == 111`, `run` got
     `"test-token"` and `kw == {"log_handler": None}`.
-- [ ] Green: create `issue_bot/bot.py` with `logger = logging.getLogger(__name__)`:
+- [x] Green: create `issue_bot/bot.py` with `logger = logging.getLogger(__name__)`:
   - `build_intents() -> discord.Intents`: `discord.Intents.none()`, then set
     `guilds = True`, `guild_messages = True`, `message_content = True` (least privilege).
   - `channel_problems(channel, config: Config) -> list[str]`: compares against
@@ -493,7 +493,7 @@ configured channel at startup.
     `bot._run_event(bot.on_message, "on_message", msg)` and through `bot.dispatch("message", msg)`,
     left only `unhandled RuntimeError in on_message` and no record containing the text). No
     `on_message_edit` handler (edits ignored by design).
-- [ ] Green: create `issue_bot/__main__.py` importing `IssueBot` at module level
+- [x] Green: create `issue_bot/__main__.py` importing `IssueBot` at module level
   (`from issue_bot.bot import IssueBot`, so the test can monkeypatch
   `issue_bot.__main__.IssueBot`) and a module `logger = logging.getLogger(__name__)`, with
   `main() -> None`:
@@ -503,11 +503,13 @@ configured channel at startup.
   (no `exc_info`, so no traceback and no config value reaches the log);
   then `IssueBot(config).run(config.discord_token, log_handler=None)` (logging already
   configured). Guard with `if __name__ == "__main__": main()`.
-- [ ] Tests construct `IssueBot(config, ...)` directly (verified at pass-1 review: discord.py
+- [x] Tests construct `IssueBot(config, ...)` directly (verified at pass-1 review: discord.py
   2.7.1's `Client.__init__` needs no running loop; the PyNaCl/davey WARNING log records on
   first construction are expected) and never call `run`/`start`/`login`, so no test reaches
   the network. Tick once the suite is green.
-- [ ] Refactor; `.venv/bin/pytest` green.
+- [x] Refactor; `.venv/bin/pytest` green.
+
+- Review fixes (2026-10-17): `channel_problems` reports `"channel N is not in a guild, expected guild G"` for a channel without a `guild` (DM/private) instead of raising; `on_error` logs `unhandled unknown error in <event>` when called with no active exception. Tests `test_channel_without_guild` and `test_on_error_without_active_exception` cover both. Suite: 93 passed.
 
 **Verify:** `.venv/bin/pytest` green.
 
