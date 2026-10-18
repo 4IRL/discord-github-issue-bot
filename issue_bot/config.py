@@ -9,7 +9,12 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from types import MappingProxyType
+
+from cryptography.exceptions import UnsupportedAlgorithm
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
 from issue_bot.tags import IssueType
 
@@ -44,6 +49,19 @@ def _positive_int(env: Mapping[str, str], key: str) -> int:
     if number <= 0:
         raise ConfigError(f"{key} must be a positive integer")
     return number
+
+
+def _rsa_private_key(env: Mapping[str, str], key: str) -> RSAPrivateKey:
+    path = _required(env, key)
+    # The error names the key only: no path, no file contents, no library text.
+    error_message = f"{key} must name a readable RSA private key"
+    try:
+        private_key = serialization.load_pem_private_key(Path(path).read_bytes(), password=None)
+    except (OSError, ValueError, TypeError, UnsupportedAlgorithm):
+        raise ConfigError(error_message) from None
+    if not isinstance(private_key, RSAPrivateKey):
+        raise ConfigError(error_message)
+    return private_key
 
 
 @dataclass(frozen=True)
@@ -94,6 +112,9 @@ class Config:
 
     discord_token: str = field(repr=False)
     guild_id: int
+    github_app_id: int
+    github_installation_id: int
+    github_private_key: RSAPrivateKey = field(repr=False)
     target: TargetConfig
 
     @classmethod
@@ -101,5 +122,8 @@ class Config:
         return cls(
             discord_token=_required(env, "DISCORD_TOKEN"),
             guild_id=_positive_int(env, "DISCORD_GUILD_ID"),
+            github_app_id=_positive_int(env, "GITHUB_APP_ID"),
+            github_installation_id=_positive_int(env, "GITHUB_APP_INSTALLATION_ID"),
+            github_private_key=_rsa_private_key(env, "GITHUB_APP_PRIVATE_KEY_PATH"),
             target=TargetConfig.from_env(env),
         )
