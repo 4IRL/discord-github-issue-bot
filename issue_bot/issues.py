@@ -1,5 +1,6 @@
 """Turns a candidate into the GitHub issue's title, body and labels; the only place an issue body is formatted."""
 
+from issue_bot.github import FiledIssue, GitHubClient
 from issue_bot.handler import IssueCandidate
 
 ISSUE_TITLE_LIMIT = 256  # GitHub's maximum issue-title length.
@@ -27,3 +28,10 @@ def issue_body(candidate: IssueCandidate) -> str:
 def issue_labels(candidate: IssueCandidate) -> list[str]:
     """Return the target repo's label for the candidate's issue type."""
     return [candidate.target.labels[candidate.type]]
+
+
+async def file_candidate(github: GitHubClient, candidate: IssueCandidate) -> FiledIssue:
+    """File the candidate as an issue in its target repo and return the created issue."""
+    return await github.create_issue(
+        candidate.target, issue_title(candidate), issue_body(candidate), issue_labels(candidate)
+    )

@@ -1,8 +1,18 @@
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
 import pytest
 
 from issue_bot.config import Config
+from issue_bot.github import FiledIssue
 from issue_bot.handler import IssueCandidate, candidate_from_message
-from issue_bot.issues import ISSUE_TITLE_LIMIT, issue_body, issue_labels, issue_title
+from issue_bot.issues import (
+    ISSUE_TITLE_LIMIT,
+    file_candidate,
+    issue_body,
+    issue_labels,
+    issue_title,
+)
 from tests.conftest import MessageFactory
 
 
@@ -70,3 +80,18 @@ def test_issue_labels_use_target_mapping(
     custom_config = Config.from_env({**test_env, "GITHUB_LABEL_FEATURE": "idea"})
     candidate = make_candidate(make_message, custom_config, "!feature\nTitle: T")
     assert issue_labels(candidate) == ["idea"]
+
+
+async def test_file_candidate_passes_title_body_labels(
+    config: Config, make_message: MessageFactory
+) -> None:
+    candidate = make_candidate(make_message, config, "!bug\nTitle: T\nBody: Steps here")
+    filed = FiledIssue(7, "u")
+    github = SimpleNamespace(create_issue=AsyncMock(return_value=filed))
+
+    result = await file_candidate(github, candidate)  # type: ignore[arg-type]
+
+    assert result is filed
+    github.create_issue.assert_awaited_once_with(
+        candidate.target, issue_title(candidate), issue_body(candidate), ["bug"]
+    )

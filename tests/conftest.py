@@ -11,6 +11,15 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from issue_bot.config import Config
 
 
+@pytest.fixture(autouse=True)
+def no_live_github(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail loudly if any client built without an explicit transport would reach api.github.com."""
+    monkeypatch.setattr(
+        "issue_bot.github.aiohttp_transport",
+        AsyncMock(side_effect=AssertionError("live GitHub call in a test")),
+    )
+
+
 @pytest.fixture(scope="session")
 def github_private_key_pem(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """A throwaway RSA key generated in memory, written as PEM under a neutral name.
