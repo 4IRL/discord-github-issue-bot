@@ -279,11 +279,11 @@ Document GitHub App setup, the new keys, the key mount and the logging rule.
 Run the full test suite to confirm nothing is broken.
 
 **To-do:**
-- [ ] Run `.venv/bin/pytest` and confirm all tests pass.
-- [ ] UI runner: none configured for this project (`ui_runner_cmd` is empty); nothing to run.
-- [ ] Run Standing invariant 1: `! grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot` exits 0 and prints nothing; also `! grep -rni "4irl" --include='*.py' issue_bot` exits 0 and prints nothing.
-- [ ] Copy the **Manual checks** section below verbatim into your final report.
-- [ ] Investigate and fix any failures before marking the plan finished. If every check above passed, tick this box with "(none to fix)".
+- [x] Run `.venv/bin/pytest` and confirm all tests pass. — Verified 2026-10-18: 244 passed, 0 failed (1 DeprecationWarning from discord.py's own `audioop` import).
+- [x] UI runner: none configured for this project (`ui_runner_cmd` is empty); nothing to run.
+- [x] Run Standing invariant 1: `! grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot` exits 0 and prints nothing; also `! grep -rni "4irl" --include='*.py' issue_bot` exits 0 and prints nothing. — Verified 2026-10-18: both exit 0, no output.
+- [x] Copy the **Manual checks** section below verbatim into your final report.
+- [x] Investigate and fix any failures before marking the plan finished. If every check above passed, tick this box with "(none to fix)". (none to fix)
 
 ## Manual checks (owner only, never automated)
 - Create and install the GitHub App per the README's new section; put the three `GITHUB_APP_*` values in `.env` and mount the key.
@@ -302,4 +302,4 @@ Run the full test suite to confirm nothing is broken.
   - Afterwards: remove the scratch repo from the installation's repository selection (org Settings → GitHub Apps → Configure), then delete the scratch repo, and restore `.env` (target repo, intake channel and key path) to its values from before the test. Delete the smoke-test threads in the test channel, or leave them if the channel is private to the owner.
 
 ## Status
-finished: false
+finished: true
