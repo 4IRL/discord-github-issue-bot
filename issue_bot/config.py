@@ -34,9 +34,10 @@ def _required(env: Mapping[str, str], key: str) -> str:
 
 def _positive_int(env: Mapping[str, str], key: str) -> int:
     raw_value = _required(env, key)
-    if not ASCII_INTEGER_PATTERN.fullmatch(raw_value):
-        raise ConfigError(f"{key} must be an integer")
+    # int() also raises ValueError past Python's int digit limit.
     try:
+        if not ASCII_INTEGER_PATTERN.fullmatch(raw_value):
+            raise ValueError
         number = int(raw_value)
     except ValueError:
         raise ConfigError(f"{key} must be an integer") from None

@@ -53,7 +53,7 @@ def test_blank_value_counts_as_missing(test_env: dict[str, str]) -> None:
     assert str(excinfo.value) == "DISCORD_CHANNEL_NAME is required"
 
 
-@pytest.mark.parametrize("value", ["abc", "١٢٣", "+5", "1_000"])
+@pytest.mark.parametrize("value", ["abc", "١٢٣", "+5", "1_000", "9" * 5000])
 @pytest.mark.parametrize("key", ID_KEYS)
 def test_non_integer_id_raises(test_env: dict[str, str], key: str, value: str) -> None:
     test_env[key] = value
