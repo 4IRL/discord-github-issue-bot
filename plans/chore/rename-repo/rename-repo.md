@@ -81,29 +81,29 @@ Update the ROADMAP's title, End state and rename bullet, and record why the rena
 first.
 
 **To-do:**
-- [ ] `plans/ROADMAP.md` title: `# discord-github-issue-bot Roadmap — Current State to End State`.
-- [ ] *End state* first paragraph: lead with the portable function, using the exact phrase
+- [x] `plans/ROADMAP.md` title: `# discord-github-issue-bot Roadmap — Current State to End State`.
+- [x] *End state* first paragraph: lead with the portable function, using the exact phrase
   `configured intake channels` on one line (Step 4 greps for it). The bot watches
   configured intake channels in the 4irl Discord server and turns members' tagged ideas into
   well-formed issues in configured repos of the 4IRL GitHub org and their roadmaps. Its first
   target is `#c4i-github-issues` in the `C4I` category (guild `1137236302358659185`) →
   `4IRL/chores4irl` (repo id `969373970`). Keep the rest of the paragraph (the example
   message, ignoring untagged chatter, the thread → questions → rating → file → link flow).
-- [ ] *End state* second paragraph: drop the closing sentence "The project is to be renamed
+- [x] *End state* second paragraph: drop the closing sentence "The project is to be renamed
   `discord-github-issue-management-bot` to match." (the rename is now done in-repo) and keep
   the portability description.
-- [ ] Phase 1.5: change the bullet "The repo, local folder, docs and image are renamed to
+- [x] Phase 1.5: change the bullet "The repo, local folder, docs and image are renamed to
   `discord-github-issue-management-bot`." to name `discord-github-issue-bot`. Leave the
   phase's status (`planned`), goal, other bullets and exit criteria unchanged: F8 is still
   open, so the phase isn't finished.
-- [ ] *Sequencing rationale*: append one sentence, containing the exact phrase
+- [x] *Sequencing rationale*: append one sentence, containing the exact phrase
   `ahead of the rest of Phase 1` kept on one line (Step 4 greps for it; ROADMAP hard-wraps,
   so wrap before or after the phrase, never inside it), saying that the Phase 1.5 rename went
   ahead of the rest of Phase 1 (owner's choice, 2026-10-17), so the stronghold index lists
   the project under its portable name early and later work never has to rename files. Do not
   name F-IDs (the ROADMAP never lists them).
-- [ ] Don't change capabilities, other phases, Current state or *Maintaining this file*.
-- [ ] Verify: `git grep -n 'c4i-issue-bot\|issue-management-bot' -- plans/ROADMAP.md`
+- [x] Don't change capabilities, other phases, Current state or *Maintaining this file*.
+- [x] Verify: `git grep -n 'c4i-issue-bot\|issue-management-bot' -- plans/ROADMAP.md`
   prints nothing (exit status 1 is the expected, passing result).
 
 ### 3. META-PLAN title, PR link form and owner pointer

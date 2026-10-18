@@ -1,4 +1,4 @@
-# c4i-issue-bot Roadmap — Current State to End State
+# discord-github-issue-bot Roadmap — Current State to End State
 
 > **What this file owns.** The project's *intent*: the end state it is driving toward, the
 > capabilities that define "done", the coarse phases that get there and why they are
@@ -18,9 +18,11 @@
 
 ## End state (the north star)
 
-c4i-issue-bot is a Discord bot in the 4irl server (guild `1137236302358659185`). It watches
-the `#c4i-github-issues` channel in the `C4I` category and turns members' ideas into
-well-formed issues on the `4IRL/chores4irl` GitHub repo (repo id `969373970`) and its roadmap.
+discord-github-issue-bot is a Discord bot that watches
+configured intake channels in the 4irl Discord server and turns members' tagged ideas into
+well-formed issues in configured repos of the 4IRL GitHub org and their roadmaps. Its first
+target is `#c4i-github-issues` in the `C4I` category (guild `1137236302358659185`) →
+`4IRL/chores4irl` (repo id `969373970`).
 Any member posts an idea as a type tag plus a `Title:` line and an optional `Body:`, such as
 "!bug / Title: Chore bars turn red on the due date" (one field per line). The bot ignores
 untagged chatter. For a tagged message it opens
@@ -31,8 +33,7 @@ thread. Capture, triage and filing happen without anyone leaving Discord.
 chores4irl is the first target, not the only one. The bot is portable: which channel it
 listens to and which repo it files into are settings, and one deployment (or several
 instances of the same image) can route different channels in the 4irl server to different
-repos in the 4IRL GitHub org. The project is to be renamed
-`discord-github-issue-management-bot` to match.
+repos in the 4IRL GitHub org.
 
 ### Capabilities
 
@@ -167,8 +168,7 @@ project carries a name that matches. **Advances capabilities:** 6.
   repo, and unrouted channels are ignored.
 - The same image runs as one process with several routes or as several containers, each
   with its own route file; the deployment docs show both.
-- The repo, local folder, docs and image are renamed to
-  `discord-github-issue-management-bot`.
+- The repo, local folder, docs and image are renamed to `discord-github-issue-bot`.
 
 **Exit criteria.** With two routes pointing two test channels at two test repos, a tagged
 message in each channel files in its own repo and posts its link back, both from one
@@ -253,7 +253,9 @@ and deploy work depends only on Phase 1; putting it last is a preference. If the
 wants the bot live sooner, its deploy features can be pulled forward after Phase 1 or 2
 without reordering the phases. Phase 3's roadmap placement depends only on Phase 1 and
 could run alongside Phase 2; it stays with the rating so the Projects fields and labels
-are designed once.
+are designed once. The Phase 1.5 rename went
+ahead of the rest of Phase 1 (owner's choice, 2026-10-17), so the stronghold index lists
+the project under its portable name early and later work never has to rename files.
 
 ## Maintaining this file
 
