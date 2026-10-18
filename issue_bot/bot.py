@@ -46,7 +46,7 @@ def channel_problems(channel: Any, config: Config) -> list[str]:
     return problems
 
 
-async def log_candidate(message: discord.Message, candidate: IssueCandidate) -> None:
+async def log_candidate(_message: discord.Message, candidate: IssueCandidate) -> None:
     """Default hook: log ids and the message URL only, never member text or names."""
     logger.info(
         "captured %s message_id=%s (%s)",
