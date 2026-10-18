@@ -3,10 +3,21 @@
     "enabled": true,
     "allowUnsandboxedCommands": true,
     "network": {
-      "allowedDomains": ["discord.com", "gateway.discord.gg", "api.github.com", "github.com", "pypi.org", "files.pythonhosted.org"]
+      "allowedDomains": [
+        "discord.com",
+        "gateway.discord.gg",
+        "api.github.com",
+        "github.com",
+        "pypi.org",
+        "files.pythonhosted.org"
+      ]
     },
     "filesystem": {
-      "allowWrite": ["/home/rmila/Code/c4i-issue-bot", "/tmp"]
+      "allowWrite": [
+        "/home/rmila/Code/c4i-issue-bot",
+        "/home/rmila/Code/discord-github-issue-bot",
+        "/tmp"
+      ]
     }
   }
 }
