@@ -79,11 +79,11 @@ Research was done inline: the codebase is one small layer (`issue_bot/` + `tests
 
 ## Steps
 
-### 1. Thread helpers module (TDD)
+### 1. Thread helpers module (TDD) - COMPLETE (2026-10-18)
 Widen the CLAUDE.md logging rule, then add `issue_bot/threads.py` with pure name/hint helpers and the thread opener with its duplicate guard. Both new files (`issue_bot/threads.py`, `tests/test_threads.py`) are untracked until the step's commit, so name them to the review subagents explicitly (`git diff --name-only` omits them).
 
 **To-do:**
-- [ ] In the project `CLAUDE.md` § Project rules, replace the start of the logging bullet,
+- [x] In the project `CLAUDE.md` § Project rules, replace the start of the logging bullet,
   currently "**Logs never contain members' message text or names.** Log the issue type,
   message id and message URL only; message content stays in Discord and the filed issue.",
   with "**Logs never contain members' message text or names.** Log the issue type, ids
@@ -97,14 +97,14 @@ Widen the CLAUDE.md logging rule, then add `issue_bot/threads.py` with pure name
   `grep -n 'Never run the .discord. loggers at DEBUG' CLAUDE.md` and confirm each prints one
   line, and run `grep -n 'message id and message URL only' CLAUDE.md || true` and confirm it
   prints nothing.
-- [ ] Extend `make_message` in `tests/conftest.py` with keyword args `thread: object | None = None`
+- [x] Extend `make_message` in `tests/conftest.py` with keyword args `thread: object | None = None`
   and `created_thread_id: int = 1234`. The returned namespace gains
   `thread=thread`, `create_thread=AsyncMock(return_value=SimpleNamespace(id=created_thread_id,
   send=AsyncMock()))` and `fetch_thread=AsyncMock(return_value=SimpleNamespace(id=message_id,
   send=AsyncMock()))` (no `guild` attribute: nothing in `issue_bot/` or the tests reads
   `message.guild`). Import `AsyncMock` from `unittest.mock`. Run `.venv/bin/pytest` and
   confirm the whole suite still passes.
-- [ ] **Red:** create `tests/test_threads.py` with:
+- [x] **Red:** create `tests/test_threads.py` with:
   - Imports, in the stdlib / third-party / project grouping of `tests/test_handler.py`:
     `import logging`, `from types import SimpleNamespace`; `import discord`, `import pytest`;
     `from issue_bot.tags import IssueType`, `from issue_bot.threads import THREAD_NAME_LIMIT,
@@ -145,7 +145,7 @@ Widen the CLAUDE.md logging rule, then add `issue_bot/threads.py` with pure name
     `message.fetch_thread.assert_not_awaited()`.
   Run `.venv/bin/pytest tests/test_threads.py` and confirm the failures are `ImportError`/
   `ModuleNotFoundError` for `issue_bot.threads`.
-- [ ] **Green:** create `issue_bot/threads.py` (module docstring, `logger =
+- [x] **Green:** create `issue_bot/threads.py` (module docstring, `logger =
   logging.getLogger(__name__)`) with:
   - `THREAD_NAME_LIMIT = 100` (Discord's thread-name limit) and `THREAD_ALREADY_CREATED = 160004`.
   - `def thread_name(title: str) -> str` per the Thread name decision.
@@ -167,7 +167,7 @@ Widen the CLAUDE.md logging rule, then add `issue_bot/threads.py` with pure name
     `message.id, type(fetch_exc).__name__, fetch_exc.status, fetch_exc.code` (never the error
     text) and returns `None`.
   Run `.venv/bin/pytest tests/test_threads.py` and confirm it passes.
-- [ ] **Refactor:** check that no log call in `issue_bot/threads.py` passes `name`, the title,
+- [x] **Refactor:** check that no log call in `issue_bot/threads.py` passes `name`, the title,
   `exc.text`, `fetch_exc.text`, `str(exc)` or `str(fetch_exc)`. Run `.venv/bin/pytest` (whole
   suite green).
 
