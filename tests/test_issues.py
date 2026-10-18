@@ -42,8 +42,27 @@ def test_issue_title_truncated_to_256(config: Config, make_message: MessageFacto
 def test_issue_body_has_body_author_and_link(config: Config, make_message: MessageFactory) -> None:
     candidate = make_candidate(make_message, config, "!bug\nTitle: T\nBody: Steps here")
     assert issue_body(candidate) == (
-        "Steps here\n\n---\nReported by `Alice` in Discord: https://discord.com/channels/111/555/99"
+        "Reported by `Alice` in Discord: https://discord.com/channels/111/555/99\n\n---\n\nSteps here"
     )
+
+
+def test_issue_body_author_line_comes_before_member_text(
+    config: Config, make_message: MessageFactory
+) -> None:
+    # Member Markdown (an unclosed comment, a fake author line) can only affect what follows it.
+    candidate = make_candidate(
+        make_message, config, "!bug\nTitle: T\nBody: <!--\nReported by `Mallory` in Discord: x"
+    )
+    body = issue_body(candidate)
+    assert body.startswith("Reported by `Alice` in Discord: ")
+    assert body.index("Reported by `Alice`") < body.index("<!--")
+
+
+def test_issue_body_strips_backticks_from_author(
+    config: Config, make_message: MessageFactory
+) -> None:
+    candidate = make_candidate(make_message, config, "!bug\nTitle: T", author_name="Al`ice`")
+    assert issue_body(candidate).startswith("Reported by `Alice` in Discord: ")
 
 
 def test_issue_body_neutralizes_mentions(config: Config, make_message: MessageFactory) -> None:
@@ -61,7 +80,7 @@ def test_issue_body_without_body_uses_placeholder(
     config: Config, make_message: MessageFactory
 ) -> None:
     candidate = make_candidate(make_message, config, "!bug\nTitle: T")
-    assert issue_body(candidate).startswith("_No description given._\n\n---\n")
+    assert issue_body(candidate).endswith("\n\n---\n\n_No description given._")
 
 
 @pytest.mark.parametrize(

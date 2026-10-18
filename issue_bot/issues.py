@@ -19,10 +19,14 @@ def _defang_mentions(text: str) -> str:
 
 
 def issue_body(candidate: IssueCandidate) -> str:
-    """Return the issue body: the member's body (or a placeholder), the author and the message link."""
+    """Return the issue body: the author and message link, then the member's body (or a placeholder).
+
+    The author line comes first so member Markdown (an unclosed comment or fence, a fake author
+    line) can't hide or precede it; backticks are stripped so the name can't close its code span.
+    """
     body = _defang_mentions(candidate.body) or "_No description given._"
-    author = _defang_mentions(candidate.author_name)
-    return f"{body}\n\n---\nReported by `{author}` in Discord: {candidate.message_url}"
+    author = _defang_mentions(candidate.author_name.replace("`", ""))
+    return f"Reported by `{author}` in Discord: {candidate.message_url}\n\n---\n\n{body}"
 
 
 def issue_labels(candidate: IssueCandidate) -> list[str]:
