@@ -43,37 +43,24 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 
 ## Where the work stands
 
-**★FOCUS: `F9` — Rename to discord-github-issue-management-bot** (runnable; branch
-`chore/rename-repo`).
+**★FOCUS: `F2` — Thread per tagged message** (runnable; branch `feature/issue-thread`).
 
-F1's listener and parser are on `main`. F9 is pulled ahead of the rest of Phase 1 (owner's
-choice, 2026-10-17) so the next `/stronghold-sweep` indexes the project under its new name
-and portable function. **F2 and F5 don't start until F9's rename checklist is complete**,
-owner steps and sweep included. F6 is also gated on creating the new chores4irl roadmap Project.
+F1's listener and parser are on `main`, under the project's portable name
+(`4IRL/discord-github-issue-bot`). F2 and F5 are runnable and independent of each other; F7
+needs both. F6 is also gated on creating the new chores4irl roadmap Project.
 
 <!-- Two or three sentences at most: what is runnable today, what is gated and on what.
 Shipped work is git's record (`gh pr list --state merged`), not this file's. -->
 
 ### Shortest path to the focus feature
 
-F9 has no open prerequisites: F1 shipped the package under the generic name `issue_bot`, so
-nothing gets renamed twice.
+F2 has no open prerequisites: F1's `on_candidate` hook is the seam it plugs into.
 
-1. **Run F9** (`/run-feature F9`, effort M). In-repo: docs, titles, *PR link form*, image
-   name, and README/ROADMAP describing the portable function.
-2. **Work through F9's rename checklist**
-   (`plans/chore/rename-repo/rename-repo.md` § Owner checklist, which supersedes the copy in
-   F9's section: each item has a **Check**, and `allowWrite` keeps both paths):
-   the GitHub repo rename, the local folder move, `.claude/skill-config.md` (agent sessions
-   can't write it; the `.claude/settings.json` change already rides F9's PR), the Claude
-   project-history move, and a write-and-commit check from a fresh session in the new folder.
-3. **Run `/stronghold-sweep`** from `~/Code` and confirm the index lists the new name. Then,
-   once every Check in that checklist passes, fold F9 back from the renamed folder
-   (`/run-feature F9`); `/run-feature` has no checklist step of its own.
+1. **Run F2** (`/run-feature F2`, effort S).
 
-After F9's fold-back, the Phase 1 skeleton resumes: F2 and F5 (independent of each other),
-then F7. A live run needs F1's external setup (Discord application, bot token in `.env`,
-Message Content intent, bot invited); F9 doesn't.
+Then F5 (it can also run alongside F2), then F7, which completes the Phase 1 skeleton. A
+live run needs F1's external setup (Discord application, bot token in `.env`, Message
+Content intent, bot invited).
 
 ---
 
@@ -90,7 +77,6 @@ Message Content intent, bot invited); F9 doesn't.
 - [ ] **F6** (added 2026-10-16): Add the created issue to the chores4irl roadmap (split from "create the issue in the 4IRL/chores4irl GitHub repo and add it to its roadmap").
 - [ ] **F7** (added 2026-10-16): Post a direct link to the newly created issue in the same thread.
 - [ ] **F8** (added 2026-10-17): Multiple instances of the bot should be deployable: spool up multiple bots, or have multiple listeners that port issues to different repos based on the bot's instantiation settings/parameters; all channels come from the same Discord server and all issues go to repos in the 4IRL GitHub org (both a route table in one process and multi-container deployment).
-- [ ] **F9** (added 2026-10-17): Rename the repo to reflect its portability: c4i-issue-bot → discord-github-issue-management-bot (GitHub repo, local folder, docs and project facts; the Python package already takes the generic name in F1) (amended 2026-10-17: made ★FOCUS ahead of the rest of Phase 1 so the next `/stronghold-sweep` indexes the project under its new name; scope adds README/ROADMAP describing the portable function.) (amended 2026-10-17: an owner rename checklist (settings write path, skill-config, history/memory move, fresh-session write check, sweep) is part of F9's end state, and F2/F5 wait for it.)
 
 ---
 
@@ -98,14 +84,13 @@ Message Content intent, bot invited); F9 doesn't.
 
 | Order | Feature | Effort | Depends on | Phase |
 |---|---|---|---|---|
-| ★ 1 | **F9** — Rename to discord-github-issue-management-bot **[FOCUS]** | M | F1 | 1.5 |
-| 2 | **F2** — Thread per tagged message | S | F1, F9; cond: F9's owner rename checklist complete | 1 |
-| 3 | **F5** — File the issue in 4IRL/chores4irl | M | F1, F9; cond: F9's owner rename checklist complete | 1 |
-| 4 | **F7** — Post the issue link in the thread | S | F2, F5 | 1 |
-| 5 | **F8** — Multi-target routes and multi-instance deployment | L | F5, F7 | 1.5 |
-| 6 | **F3** — Rule-based clarifying questions | L | F2, F5; soft: F8 | 2 |
-| 7 | **F4** — Complexity triage (S/M/L/XL) | M | F3 | 3 |
-| 8 | **F6** — Add the issue to the chores4irl roadmap Project | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
+| ★ 1 | **F2** — Thread per tagged message **[FOCUS]** | S | F1, F9 | 1 |
+| 2 | **F5** — File the issue in 4IRL/chores4irl | M | F1, F9 | 1 |
+| 3 | **F7** — Post the issue link in the thread | S | F2, F5 | 1 |
+| 4 | **F8** — Multi-target routes and multi-instance deployment | L | F5, F7 | 1.5 |
+| 5 | **F3** — Rule-based clarifying questions | L | F2, F5; soft: F8 | 2 |
+| 6 | **F4** — Complexity triage (S/M/L/XL) | M | F3 | 3 |
+| 7 | **F6** — Add the issue to the chores4irl roadmap Project | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
 
 <!-- *Depends on* holds dependency edges in the grammar of
 /home/rmila/Code/_STRONGHOLD/plans/roadmap.md §3.1 *Dependency edges and `NEXT.md`*, which is
@@ -129,7 +114,7 @@ gate), unsplit like `cond:`; any other text not in the grammar is reported, neve
 superseded row (Feature cell struck through with `~~`, *Depends on* starting `**superseded`)
 holds its supersession note, not edges; readers skip it. -->
 
-**Effort tally (remaining).** 16 pts (S=1 / M=2 / L=3 / XL=5).
+**Effort tally (remaining).** 14 pts (S=1 / M=2 / L=3 / XL=5).
 
 ---
 
@@ -140,21 +125,24 @@ holds its supersession note, not edges; readers skip it. -->
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F2 — Thread per tagged message** | pending | `feature/issue-thread` | — |
+| **F2 — Thread per tagged message** ★FOCUS | pending | `feature/issue-thread` | — |
 | **F3 — Rule-based clarifying questions** | pending | `feature/clarifying-questions` | — |
 | **F4 — Complexity triage (S/M/L/XL)** | pending | `feature/complexity-triage` | — |
 | **F5 — File the issue in 4IRL/chores4irl** | pending | `feature/file-issue` | — |
 | **F6 — Add the issue to the chores4irl roadmap Project** | pending | `feature/roadmap-project` | — |
 | **F7 — Post the issue link in the thread** | pending | `feature/post-issue-link` | — |
 | **F8 — Multi-target routes and multi-instance deployment** | pending | `feature/multi-target` | — |
-| **F9 — Rename to discord-github-issue-management-bot** ★FOCUS | in-review | `chore/rename-repo` | [#5](https://github.com/4IRL/discord-github-issue-bot/pull/5) |
 
 ---
 
-## Baseline: the codebase as it exists today (`main` at PR #2, `dbe9569`)
+## Baseline: the codebase as it exists today (`main` at PR #5, `362d9d0`)
 
 > The Assumed starting state for every remaining feature unless its section says
 > otherwise. Describe what *is*, never what changed.
+
+**Repo.** `4IRL/discord-github-issue-bot`, checked out at
+`~/Code/discord-github-issue-bot`. `.claude/settings.json`'s sandbox `allowWrite` still also
+lists the pre-rename folder path.
 
 **Stack.** Python 3.12 + discord.py (Gateway client), packaged as a Docker image. No GitHub
 client yet. Clarification and triage are planned as rule-based templates.
@@ -167,23 +155,26 @@ author id/name, message id/url, target). Member text and names are `repr=False`.
 
 **Interfaces.** `issue_bot/config.py`: `Config` (instance-wide: `discord_token`, `guild_id`)
 holds one `TargetConfig` (`channel_id`, `channel_name`, `category`, `github_repo`,
-`github_repo_id`, `labels` per `IssueType`), both built by `from_env` with every key required
+`github_repo_id`, `labels`: one per `IssueType`, checked in `__post_init__` and read-only),
+both built by `from_env` with every key required
 and validated (`ConfigError`). The env keys are listed in `example.env`, the only place the
 4irl/chores4irl values appear outside tests. `candidate_from_message(message, config)`
 accepts only new, human, non-webhook default/reply messages in the target channel (thread
 messages are dropped). It logs a malformed tag by ids only and returns `None`.
 
 **Key modules / UI.** `issue_bot/bot.py`: `IssueBot(discord.Client)` with Message Content
-intent. `on_ready` sanity-checks the channel's name and category (warns only).
-`on_message` hands each candidate to an `on_candidate` hook (default: logs the type, message
-id and URL). `on_error` logs the exception type and event name only. `issue_bot/__main__.py`
+intent. `on_ready` sanity-checks the channel once per process (Gateway reconnects refire
+it): a missing channel logs at ERROR, a name/category mismatch at WARNING; neither stops the
+bot. `on_message` hands each candidate to an `on_candidate` hook (default: logs the type,
+message id and URL). `on_error` logs the exception type and event name, plus the message id
+for `on_message`. `issue_bot/__main__.py`
 runs at INFO with `log_handler=None` (discord loggers never at DEBUG).
 
-**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 109 tests across
+**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 153 tests across
 `tests/test_{tags,handler,config,bot,smoke}.py`, with Discord fully mocked. No CI workflow.
 
 **Deployment.** `Dockerfile` (`python:3.12.11-slim`, non-root user, `STOPSIGNAL SIGINT`,
-`python -m issue_bot`). The env comes from `.env` (gitignored; `example.env` is the template).
+`python -m issue_bot`), built and run as image `discord-github-issue-bot` (README). The env comes from `.env` (gitignored; `example.env` is the template).
 Not deployed anywhere yet.
 
 ### Standing invariants (must not regress)
@@ -194,7 +185,8 @@ Not deployed anywhere yet.
    `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot`
    prints nothing (F1).
 2. Logs and `repr`s never carry member message text or names: ids, type and message URL
-   only; `on_error` logs the exception type and event name only (F1; CLAUDE.md rule).
+   only; `on_error` logs the exception type, event name and (for `on_message`) the integer
+   message id only (F1, PR #4; CLAUDE.md rule).
 3. Every config key is required and validated at startup; a bad config exits with code 2
    before connecting (F1).
 
@@ -239,15 +231,15 @@ Parallel features: `/worktree <F-ID>...`.
 
 <!-- Promote an item with `/new-feature`. -->
 
-- **F1 push-review polish.** The unticked minor to-dos in
-  `plans/feature/channel-listener/reviews/push-review-feature-channel-listener.md`, Reviews 1
-  to 3 (Review 3's META-PLAN items were resolved by this fold-back): escalate a missing intake channel to ERROR, add the message id to `on_error`,
-  config/tag parser simplifications, extra config and bot tests, the Body-termination
-  wording. None blocks a remaining feature.
-- **`on_ready` reconnect guard.** Discord fires `on_ready` again after every Gateway
-  reconnect, so the channel check and the "connected as" log repeat. A guarded fix with a
-  test exists as uncommitted work (stashed 2026-10-17, "on_ready reconnect guard") and goes
-  out as its own fix PR.
+- **F9 push-review polish.** The unticked minor to-dos in
+  `plans/chore/rename-repo/reviews/push-review-chore-rename-repo.md`, Review 1: restore
+  `.claude/settings.json`'s trailing newline (owner edit), stricter zero-count and `ok`
+  wording in the plan's Owner checks, a one-sentence CLAUDE.md intro, and a ROADMAP
+  Sequencing reflow. The "rename F9's title" item was resolved by this fold-back. None blocks
+  a remaining feature.
+- **Drop the pre-rename `allowWrite` path.** `.claude/settings.json` still lists
+  `/home/rmila/Code/c4i-issue-bot`; removing it is an optional owner edit in its own small
+  PR (agents can't write that file).
 
 ---
 
@@ -258,16 +250,15 @@ Parallel features: `/worktree <F-ID>...`.
 **Goal.** For each parsed candidate, the bot starts a thread on the original message, named
 from the title. All later conversation and the final link go there. Feature-list line F2.
 
-**Rank rationale.** It's the cheapest Phase 1 step, and F3 and F7 both need a thread. It
-waits for F9's rename so its plan and branch live under the new name.
+**Rank rationale.** ★FOCUS: it's the cheapest Phase 1 step, and F3 and F7 both need a
+thread.
 
-**Dependencies.** F1, F9; cond: F9's owner rename checklist complete.
+**Dependencies.** F1, F9.
 
 **Sizing.** unscored (intake estimate S); split check pending.
 
 **Assumed starting state** = **Baseline** and F1's kept contract. Verify:
 - `IssueBot`'s `on_candidate` hook and `candidate_from_message` exist and the suite passes.
-- F9's owner checklist is ticked: the repo, the folder and the index all use the new name.
 - F1's malformed path only logs. The format-hint reply below extends
   `candidate_from_message`/`IssueBot` (see F1's kept contract).
 
@@ -363,15 +354,13 @@ the Discord author and a link to the message; the type label is `bug` or `enhanc
 Feature-list line F5.
 
 **Rank rationale.** It's the core of the Phase 1 skeleton and proves GitHub auth early. It
-needs only F1 and the completed F9 rename (owner checklist included), so it can run
-alongside F2.
+needs only F1 (and the rename, done), so it can run alongside F2.
 
-**Dependencies.** F1, F9; cond: F9's owner rename checklist complete.
+**Dependencies.** F1, F9.
 
 **Sizing.** unscored (intake estimate M); split check pending.
 
 **Assumed starting state** = **Baseline** and F1's kept contract (`candidate.target`). Verify:
-- F9's owner checklist is ticked: the repo, the folder and the index all use the new name.
 - `gh api repos/4IRL/chores4irl/labels/bug` and `.../labels/enhancement` both return 200
   (Assumption 1).
 
@@ -510,78 +499,12 @@ contract those features build on. (d) Hot reload of the route file: recommend re
 **Session.** `/run-feature F8` on branch `feature/multi-target`; plan at
 `plans/feature/multi-target/multi-target.md`.
 
-## F9 — Rename to discord-github-issue-management-bot · Phase 1.5 · Effort M · ★FOCUS · (added 2026-10-17)
-
-**Goal.** The project's name matches its portable scope: the GitHub repo
-`4IRL/c4i-issue-bot` becomes `4IRL/discord-github-issue-management-bot` (or the name the
-owner settles on at planning), along with the local folder, README/CLAUDE.md, ROADMAP
-title, META-PLAN title and *PR link form*, and the Docker image name. The Python package
-already has the generic name from F1. Feature-list line F9.
-
-**Rank rationale.** ★FOCUS (owner's choice, 2026-10-17): pulled ahead of F2, F5 and F7 so
-the next `/stronghold-sweep` indexes the project under its new name and portable function.
-It needs only F1 (the generic package name), not the rest of Phase 1, and the earlier it
-lands, the fewer files mention the old name. Independent of F8.
-
-**Dependencies.** F1.
-
-**Sizing.** unscored (intake estimate M); split check pending.
-
-**Assumed starting state** = **Baseline** (package `issue_bot`). Verify:
-- No open PR is mid-review (renaming the repo while a PR is open is safe because GitHub
-  redirects, but confirm at planning).
-- `git stash list` is empty or its entries are accounted for. Stashes survive the folder
-  move, but they are easy to forget across it.
-
-**Expected end state** (repo-checkable):
-- `gh repo view 4IRL/<new-name>` succeeds and `git remote get-url origin` points at it.
-- `grep -rn 'c4i-issue-bot\|c4i_issue_bot' --exclude-dir=.git --exclude-dir=plans .` prints
-  nothing (plan, review and META-PLAN history may keep the old name).
-- META-PLAN's *PR link form* uses the new repo URL.
-- The README's opening and the ROADMAP's end state describe the portable function (any
-  channel in the server → any repo in the 4IRL org), with chores4irl as the first, example
-  target. The next sweep reads that description. The ROADMAP's sequencing rationale notes
-  that the rename went ahead of the rest of Phase 1.
-- All suites green; Standing invariants untouched.
-- **Owner checklist** (outside an agent's reach; copy it into the plan as tick-boxes,
-  re-checked at F9's fold-back, and F2/F5 don't start until every box is ticked):
-  - [ ] GitHub repo renamed, and `origin` points at the new URL.
-  - [ ] Local folder moved to `~/Code/<new-name>` between sessions (close the old session
-        first).
-  - [ ] `.claude/settings.json` sandbox `allowWrite` names the new absolute path, not
-        `/home/rmila/Code/c4i-issue-bot`.
-  - [ ] `.claude/skill-config.md`: `project_name` and `repo` use the new name.
-  - [ ] Claude project history and memory moved from
-        `~/.claude/projects/-home-rmila-Code-c4i-issue-bot/` to the new folder's slug.
-  - [ ] A fresh session in the new folder can edit a file and commit: the sandbox write
-        check.
-  - [ ] `/stronghold-sweep` run from `~/Code`; `_STRONGHOLD/docs/PROJECTS.md` and the
-        project summary list the new name and the portable function.
-
-**Test-suite deltas.** None beyond the full suite passing after the rename.
-
-**Open risks / decisions.** (a) The GitHub rename is an outward-facing owner action (needs
-repo admin) and gets the owner's go-ahead at the time. (b) Renaming the local folder moves
-Claude Code's per-project history and memory directory
-(`~/.claude/projects/-home-rmila-Code-c4i-issue-bot/`) and the stronghold's index entries.
-The index is rewritten only by `/stronghold-sweep`, so run a sweep afterwards; the history
-move is an owner step outside this repo. (c) Whether the Discord bot's display name and
-`#c4i-github-issues` channel change too is out of this repo's scope; the channel name is
-config after F1. (d) `.claude/settings.json` and the gitignored `.claude/skill-config.md` are
-write-denied to agent sessions, so the owner edits them (Owner checklist). (e) Order: F9's
-PR merges first, then the owner works through the checklist, then F9 is folded back from a
-session in the renamed folder, which is that session's own write check.
-
-**Session.** `/run-feature F9` on branch `chore/rename-repo`; plan at
-`plans/chore/rename-repo/rename-repo.md`.
-
 ---
 
 ## Dependencies & couplings (remaining work)
 
 ```
-Focus:      ★ F9 (rename + owner checklist) ──► gates F2, F5   (F1 shipped, #2)
-Phase 1:    F2 ──────┐
+Phase 1:    ★ F2 ────┐       (F1 shipped #2; F9 rename shipped #5)
             F5 ──────┴──► F7
 Phase 1.5:  {F5, F7} ──► F8
 Phase 2:    {F2, F5} ──► F3        (soft: after F8)
@@ -589,8 +512,8 @@ Phase 3:    F3 ──► F4
             F5 ──► F6   [cond: new roadmap Project] (couples F4; soft: after F8)
 ```
 
-- **Hard chains:** F9 (+ its owner checklist) → F2, F9 → F5, {F2, F5} → F7, {F5, F7} → F8,
-  {F2, F5} → F3 → F4, F5 → F6. F1 has shipped; refs to it stay valid.
+- **Hard chains:** {F2, F5} → F7, {F5, F7} → F8, {F2, F5} → F3 → F4, F5 → F6. F1 and F9
+  have shipped; refs to them stay valid.
 - **Soft preferences:** F7 before F3, so the skeleton is end-to-end usable before the
   conversation work; F3 doesn't need F7. F8 before F3 and F6, so conversation state and
   Project config are per-target from the start. F6 could start any time after F5 once its Project
