@@ -32,7 +32,7 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 
 | Fact | Value |
 |---|---|
-| Verification | `pending — set by F1` |
+| Verification | `.venv/bin/pytest` |
 | PR link form | `[#N](https://github.com/4IRL/c4i-issue-bot/pull/N)` |
 | Merge strategy | `squash` |
 | Worktree prefix | `none` |
@@ -43,20 +43,32 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 
 ## Where the work stands
 
-**★FOCUS: `F1` — Channel listener and tag parsing** (runnable; branch `feature/channel-listener`).
+**★FOCUS: `F9` — Rename to discord-github-issue-management-bot** (blocked on F1's merge;
+branch `chore/rename-repo`).
 
-Nothing is built yet. F1 is the only feature with no prerequisites, and every other feature
-builds on it. F6 is additionally gated on creating the new chores4irl roadmap Project.
+F1 is built and in review ([#2](https://github.com/4IRL/c4i-issue-bot/pull/2)); `main` is
+still the scaffold. F9 is pulled ahead of the rest of Phase 1 (owner's choice, 2026-10-17) so
+the next `/stronghold-sweep` indexes the project under its new name and portable function.
+F6 is additionally gated on creating the new chores4irl roadmap Project.
 
 <!-- Two or three sentences at most: what is runnable today, what is gated and on what.
 Shipped work is git's record (`gh pr list --state merged`), not this file's. -->
 
 ### Shortest path to the focus feature
 
-F1 has no prerequisites. It needs a Discord application with a bot token, the Message
-Content intent enabled, and the bot invited to the 4irl server with permission to read the
-channel. The owner sets that up; the token goes in `.env`. After F1, the Phase 1 skeleton
-runs F2 and F5 (independent of each other), then F7.
+1. **Merge F1** ([#2](https://github.com/4IRL/c4i-issue-bot/pull/2)) and fold it back
+   (`/run-feature F1`). That is F9's only hard prerequisite; F1 already created the package
+   under the generic name `issue_bot`, so nothing gets renamed twice.
+2. **Run F9** (`/run-feature F9`, effort M). In-repo: docs, titles, *PR link form*, image
+   name, and README/ROADMAP describing the portable function. Owner steps: the GitHub repo
+   rename, the local folder move, `.claude/settings.json` and `.claude/skill-config.md`
+   (agent sessions can't write these), and the Claude project-history directory move.
+3. **Then run `/stronghold-sweep`** from `~/Code`, which re-indexes the project under the new
+   name.
+
+After F9, the Phase 1 skeleton resumes: F2 and F5 (independent of each other), then F7. F1's
+external setup (Discord application, bot token in `.env`, Message Content intent, bot
+invited) is only needed for a live run, not for F9.
 
 ---
 
@@ -64,15 +76,17 @@ runs F2 and F5 (independent of each other), then F7.
 
 > Written only by `/new-feature`; `/run-feature` removes a line at fold-back.
 
-**Next F-ID:** `F8`
+**Next F-ID:** `F10`
 
-- [ ] **F1** (added 2026-10-16): Listen to the 'c4i-github-issues' channel in the 'C4I' category of the 4irl server and parse messages from any member for a type tag such as #feature or #bug, ignoring untagged messages.
+- [ ] **F1** (added 2026-10-16): Listen to the 'c4i-github-issues' channel in the 'C4I' category of the 4irl server and parse messages from any member for a type tag such as #feature or #bug, ignoring untagged messages. (amended 2026-10-17: portability, "the resulting Discord bot should have readily tunable parameters to easily adjust its pointed intake Discord channel and its pointed output GitHub repo … able to plug into different endpoints, not just the currently planned for chores4irl"; per-target values live in one target config object with no chores4irl defaults in code, and the package takes the new generic name.) (amended 2026-10-17: structured messages, "require users structure their message for easier parsing by the bot … a diff block for issue title and body"; a tagged message carries a required one-line `Title:` and an optional multi-line `Body:`, and one without a usable `Title:` is dropped with an ids-only log line.) (amended 2026-10-17: the tag prefix is `!` (`!bug`, `!feature`), not `#`, because `#` triggers Discord's channel autocomplete.)
 - [ ] **F2** (added 2026-10-16): For each tagged message, create a thread for the issue.
 - [ ] **F3** (added 2026-10-16): In the thread, ask the clarifying questions needed to flesh out the idea (rule-based, per tag).
 - [ ] **F4** (added 2026-10-16): Evaluate the issue's complexity (triage).
 - [ ] **F5** (added 2026-10-16): Create the issue in the 4IRL/chores4irl GitHub repo (split from "create the issue in the 4IRL/chores4irl GitHub repo and add it to its roadmap").
 - [ ] **F6** (added 2026-10-16): Add the created issue to the chores4irl roadmap (split from "create the issue in the 4IRL/chores4irl GitHub repo and add it to its roadmap").
 - [ ] **F7** (added 2026-10-16): Post a direct link to the newly created issue in the same thread.
+- [ ] **F8** (added 2026-10-17): Multiple instances of the bot should be deployable: spool up multiple bots, or have multiple listeners that port issues to different repos based on the bot's instantiation settings/parameters; all channels come from the same Discord server and all issues go to repos in the 4IRL GitHub org (both a route table in one process and multi-container deployment).
+- [ ] **F9** (added 2026-10-17): Rename the repo to reflect its portability: c4i-issue-bot → discord-github-issue-management-bot (GitHub repo, local folder, docs and project facts; the Python package already takes the generic name in F1) (amended 2026-10-17: made ★FOCUS ahead of the rest of Phase 1 so the next `/stronghold-sweep` indexes the project under its new name; scope adds README/ROADMAP describing the portable function.)
 
 ---
 
@@ -80,13 +94,15 @@ runs F2 and F5 (independent of each other), then F7.
 
 | Order | Feature | Effort | Depends on | Phase |
 |---|---|---|---|---|
-| ★ 1 | **F1** — Channel listener and tag parsing **[FOCUS]** | L | — | 1 |
-| 2 | **F2** — Thread per tagged message | S | F1 | 1 |
-| 3 | **F5** — File the issue in 4IRL/chores4irl | M | F1 | 1 |
-| 4 | **F7** — Post the issue link in the thread | S | F2, F5 | 1 |
-| 5 | **F3** — Rule-based clarifying questions | L | F2, F5 | 2 |
-| 6 | **F4** — Complexity triage (S/M/L/XL) | M | F3 | 3 |
-| 7 | **F6** — Add the issue to the chores4irl roadmap Project | M | F5; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
+| 1 | **F1** — Channel listener and tag parsing (in review) | L | — | 1 |
+| ★ 2 | **F9** — Rename to discord-github-issue-management-bot **[FOCUS]** | M | F1 | 1.5 |
+| 3 | **F2** — Thread per tagged message | S | F1 | 1 |
+| 4 | **F5** — File the issue in 4IRL/chores4irl | M | F1 | 1 |
+| 5 | **F7** — Post the issue link in the thread | S | F2, F5 | 1 |
+| 6 | **F8** — Multi-target routes and multi-instance deployment | L | F5, F7 | 1.5 |
+| 7 | **F3** — Rule-based clarifying questions | L | F2, F5; soft: F8 | 2 |
+| 8 | **F4** — Complexity triage (S/M/L/XL) | M | F3 | 3 |
+| 9 | **F6** — Add the issue to the chores4irl roadmap Project | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
 
 <!-- *Depends on* holds dependency edges in the grammar of
 /home/rmila/Code/_STRONGHOLD/plans/roadmap.md §3.1 *Dependency edges and `NEXT.md`*, which is
@@ -110,7 +126,7 @@ gate), unsplit like `cond:`; any other text not in the grammar is reported, neve
 superseded row (Feature cell struck through with `~~`, *Depends on* starting `**superseded`)
 holds its supersession note, not edges; readers skip it. -->
 
-**Effort tally (remaining).** 14 pts (S=1 / M=2 / L=3 / XL=5).
+**Effort tally (remaining).** 19 pts (S=1 / M=2 / L=3 / XL=5).
 
 ---
 
@@ -121,13 +137,15 @@ holds its supersession note, not edges; readers skip it. -->
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F1 — Channel listener and tag parsing** ★FOCUS | pending | `feature/channel-listener` | — |
+| **F1 — Channel listener and tag parsing** | in-review | `feature/channel-listener` | [#2](https://github.com/4IRL/c4i-issue-bot/pull/2) |
 | **F2 — Thread per tagged message** | pending | `feature/issue-thread` | — |
 | **F3 — Rule-based clarifying questions** | pending | `feature/clarifying-questions` | — |
 | **F4 — Complexity triage (S/M/L/XL)** | pending | `feature/complexity-triage` | — |
 | **F5 — File the issue in 4IRL/chores4irl** | pending | `feature/file-issue` | — |
 | **F6 — Add the issue to the chores4irl roadmap Project** | pending | `feature/roadmap-project` | — |
 | **F7 — Post the issue link in the thread** | pending | `feature/post-issue-link` | — |
+| **F8 — Multi-target routes and multi-instance deployment** | pending | `feature/multi-target` | — |
+| **F9 — Rename to discord-github-issue-management-bot** ★FOCUS | pending | `chore/rename-repo` | — |
 
 ---
 
@@ -157,7 +175,7 @@ None yet.
 
 ### Assumptions to revisit at planning time
 
-1. `#bug` maps to chores4irl's existing `bug` label and `#feature` to its existing
+1. `!bug` maps to chores4irl's existing `bug` label and `!feature` to its existing
    `enhancement` label (owner's choice, 2026-10-16); F5 verifies both still exist.
 2. The roadmap is a **new** chores4irl roadmap Project, not the existing org Project #2
    "chores4irl fold" (owner's choice, 2026-10-16). F6 verifies the new Project exists.
@@ -190,15 +208,19 @@ None yet.
 
 # REMAINING FEATURES
 
-## F1 — Channel listener and tag parsing · Phase 1 · Effort L · ★FOCUS · (added 2026-10-16)
+## F1 — Channel listener and tag parsing · Phase 1 · Effort L · (added 2026-10-16)
 
 **Goal.** The bot runs, connects to the Discord Gateway, listens only to the configured
 channel, and turns a tagged message into a parsed issue candidate (type, title, author,
-message link); untagged, bot and other-channel messages are ignored. Feature-list line F1.
+message link); untagged, bot and other-channel messages are ignored. Everything that names
+an intake channel or output repo is configuration, so the same code can point at any
+channel in the server and any repo in the 4IRL org (amended 2026-10-17, portability).
+Feature-list line F1.
 
 **Rank rationale.** Every other feature consumes its parsed candidate and runtime, so it goes
 first. It also stands up the project's code skeleton: package layout, config, Docker image
-and the pytest harness that sets META-PLAN's Verification.
+and the pytest harness that sets META-PLAN's Verification. Portability is folded in here
+because the config shape and package name are cheapest to get right before any code exists.
 
 **Dependencies.** —
 
@@ -208,11 +230,22 @@ and the pytest harness that sets META-PLAN's Verification.
 - `git ls-files` lists only the scaffold files (no `*.py`, no `Dockerfile`).
 
 **Expected end state** (repo-checkable):
-- The guild ID, category, channel and target repo are read from config/env, not hardcoded
-  (`grep -rn 1137236302358659185 --include='*.py'` hits only config defaults or tests).
-- A pure tag parser recognizes `#bug` and `#feature` (case-insensitive, anywhere in the
-  text). It returns the type and the title with the tag stripped, or nothing for untagged
-  text. Unit tests use the ROADMAP's two acceptance examples.
+- The guild ID, category, channel and target repo are read from config/env, not hardcoded.
+  Per-target values (intake channel ID, channel name/category for the sanity check, target
+  repo, repo ID, tag → label map) sit in one target config object, separate from
+  instance-wide values (guild, token), so F8 can turn one target into a list. No
+  chores4irl- or 4irl-specific literal is a code default:
+  `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' .`
+  outside `tests/` prints nothing; the chores4irl values appear only in a documented example
+  config (e.g. `.env.example` key names plus a non-secret example target file) and test
+  fixtures.
+- The Python package has the new generic name (chosen at planning to match F9's repo name,
+  e.g. `issue_bot`), not `c4i_issue_bot`.
+- A pure tag parser recognizes `!bug` and `!feature` (case-insensitive, anywhere in the
+  text). It returns the type with the `Title:` (required, one line) and `Body:` (optional,
+  multi-line) fields, tags stripped; a malformed result for a tagged message with no usable
+  `Title:`; or nothing for untagged text (amended 2026-10-17). Unit tests use the
+  ROADMAP's two acceptance examples.
 - A `Dockerfile` builds an image that starts the bot. `README.md` documents the `.env` keys
   by name only.
 - `.venv/bin/pytest` is green. META-PLAN's Verification row and CLAUDE.md's Test command
@@ -226,7 +259,10 @@ Discord client (channel filter, bot-author filter, untagged message ignored).
 from config, with name/category used only in a startup sanity check. (b) Tag parsing:
 recommend a recognized tag anywhere in the message, with the first tag winning if there are
 several; confirm at planning. (c) Edited messages: recommend ignoring them (only new
-messages are captured). (d) Requires the privileged Message Content intent.
+messages are captured). (d) Requires the privileged Message Content intent. (e) The F1 plan
+on `feature/channel-listener` (written before the 2026-10-17 amendment) uses
+`c4i_issue_bot/` and `DEFAULT_*` chores4irl constants in `config.py`; revise it (package
+name, target object, no target defaults) and re-review before implementing.
 
 **Session.** `/run-feature F1` on branch `feature/channel-listener`; plan at
 `plans/feature/channel-listener/channel-listener.md`.
@@ -249,10 +285,12 @@ from the title. All later conversation and the final link go there. Feature-list
 - A tagged message triggers exactly one `create_thread` on that message (mocked in tests).
   The thread name is the title truncated to Discord's 100-character limit.
 - A message that already has a thread doesn't get a second one.
+- A tagged message that F1 drops as malformed (no usable `Title:` line) gets a thread reply
+  with the expected `!tag` / `Title:` / `Body:` format, and no candidate.
 - All suites green; Standing invariants untouched.
 
-**Test-suite deltas.** Handler tests for thread creation, name truncation and the
-no-duplicate guard.
+**Test-suite deltas.** Handler tests for thread creation, name truncation, the
+no-duplicate guard and the malformed-message format hint.
 
 **Open risks / decisions.** (a) Needs the Create Public Threads and Send Messages in Threads
 permissions. (b) Thread auto-archive duration: recommend the channel default.
@@ -269,7 +307,8 @@ and files on confirmation. Feature-list line F3.
 **Rank rationale.** This is Phase 2's whole scope. It changes the filing path from "file
 immediately" (F5) to "file after the conversation".
 
-**Dependencies.** F2, F5.
+**Dependencies.** F2, F5; soft: F8. Landing after F8 means the question sets and
+conversation state are keyed per target from the start.
 
 **Sizing.** unscored (intake estimate L); split check pending.
 
@@ -327,9 +366,10 @@ issues/metadata write permission on chores4irl.
 
 ## F5 — File the issue in 4IRL/chores4irl · Phase 1 · Effort M · (added 2026-10-16)
 
-**Goal.** The bot creates a GitHub issue in the configured repo (default `4IRL/chores4irl`)
-from the candidate. The title comes from the message; the body holds the original text, the
-Discord author and a link to the message; the type label is `bug` or `enhancement`.
+**Goal.** The bot creates a GitHub issue in the configured target repo (chores4irl in the
+example config; no code default, per F1's 2026-10-17 portability amendment) from the
+candidate. The title is the message's `Title:` field; the body holds its `Body:` field,
+the Discord author and a link to the message; the type label is `bug` or `enhancement`.
 Feature-list line F5.
 
 **Rank rationale.** It's the core of the Phase 1 skeleton and proves GitHub auth early. It
@@ -354,8 +394,9 @@ needs only F1, so it can run alongside F2.
 422), plus label-mapping tests.
 
 **Open risks / decisions.** (a) Auth: a GitHub App installed only on chores4irl
-(recommended: short-lived tokens and a bot identity on issues) or a fine-grained PAT with
-Issues read/write. (b) What the bot does with the message if GitHub rejects the issue;
+(recommended: short-lived tokens and a bot identity on issues, and adding a target repo
+later is one more installation repo, which suits F8) or a fine-grained PAT with Issues
+read/write. The client takes the repo from the target config, never a constant. (b) What the bot does with the message if GitHub rejects the issue;
 full retry is Phase 4, so recommend a visible error reply for now.
 
 **Session.** `/run-feature F5` on branch `feature/file-issue`; plan at
@@ -370,10 +411,11 @@ Feature-list line F6.
 **Rank rationale.** Phase 3. It's blocked by the Project, which doesn't exist yet, and its
 complexity field shares a contract with F4.
 
-**Dependencies.** F5; couples: F4; cond: new chores4irl roadmap Project created
+**Dependencies.** F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created
 (owner-approved). The gate is checked by finding the Project in
 `gh api graphql` `organization(login:"4IRL"){projectsV2}` and recording its number in
-config.
+config. After F8, the Project number and field IDs are per-target config (a target may
+have no Project).
 
 **Sizing.** unscored (intake estimate M); split check pending.
 
@@ -399,9 +441,10 @@ S/M/L/XL) are designed when it is created.
 
 ## F7 — Post the issue link in the thread · Phase 1 · Effort S · (added 2026-10-16)
 
-**Goal.** After F5 files the issue, the bot posts its direct URL
-(`https://github.com/4IRL/chores4irl/issues/<n>`) in the message's thread, which completes
-the Phase 1 skeleton. Feature-list line F7.
+**Goal.** After F5 files the issue, the bot posts its direct URL (the `html_url` GitHub
+returns, e.g. `https://github.com/4IRL/chores4irl/issues/<n>`, never built from a
+hardcoded repo) in the message's thread, which completes the Phase 1 skeleton.
+Feature-list line F7.
 
 **Rank rationale.** It closes the Phase 1 loop and is tiny once F2 and F5 exist.
 
@@ -427,24 +470,128 @@ number and title, not only the bare URL.
 **Session.** `/run-feature F7` on branch `feature/post-issue-link`; plan at
 `plans/feature/post-issue-link/post-issue-link.md`.
 
+## F8 — Multi-target routes and multi-instance deployment · Phase 1.5 · Effort L · (added 2026-10-17)
+
+**Goal.** One bot process serves several targets: a route table in a config file maps each
+intake channel (all in the configured guild) to its target repo in the 4IRL org, with its
+own tag → label map. The same image can also run as several containers, each with its own
+route file, and the deployment docs show both. Feature-list line F8.
+
+**Rank rationale.** It comes right after the Phase 1 skeleton (owner's choice, 2026-10-17)
+so F3, F4 and F6 build per-target state and config from the start instead of being
+refactored later. It needs F5's GitHub client and F7's end-to-end flow to generalize.
+
+**Dependencies.** F5, F7.
+
+**Sizing.** unscored (intake estimate L); split check pending.
+
+**Assumed starting state** = **Baseline** plus Phase 1 (F1, F2, F5, F7) and F1's target
+config object. Verify:
+- F1's config has one target object, separate from instance-wide values, and
+  `grep -rnE 'chores4irl|969373970' --include='*.py' .` outside `tests/` prints nothing.
+
+**Expected end state** (repo-checkable):
+- A route file (format chosen at planning, e.g. YAML or TOML, path from env) lists one or
+  more targets: intake channel ID, target repo and repo ID, tag → label map. Secrets stay in
+  env, never in the route file. The single-target env config of F1 still works, or is
+  migrated with a documented one-route example.
+- The handler dispatches each message by channel ID to its route; a message in an
+  unrouted channel is ignored. Filing, labels and the posted link use that route's repo.
+- Startup validation rejects duplicate channel IDs and a repo outside the configured org,
+  and runs F1's name/category sanity check for every route.
+- A compose file (or documented `docker run` set) runs two instances from the same image
+  with different route files.
+- All suites green; Standing invariants untouched.
+
+**Test-suite deltas.** Route-file loading and validation tests (empty, duplicate channel,
+foreign org), dispatch tests with two mocked routes filing to two mocked repos, and an
+unrouted-channel test.
+
+**Open risks / decisions.** (a) Credentials across targets: one GitHub App installed on
+each target repo (recommended) versus a credential per route; one Discord bot token per
+process. (b) Two containers sharing one bot token both receive every Gateway event; each
+must ignore channels outside its own routes, and the docs must warn against overlapping
+routes (or recommend one Discord application per container). (c) Per-target persistence
+keys for F3's state store, and per-target Project config for F6, are set here as the
+contract those features build on. (d) Hot reload of the route file: recommend restart-only.
+
+**Session.** `/run-feature F8` on branch `feature/multi-target`; plan at
+`plans/feature/multi-target/multi-target.md`.
+
+## F9 — Rename to discord-github-issue-management-bot · Phase 1.5 · Effort M · ★FOCUS · (added 2026-10-17)
+
+**Goal.** The project's name matches its portable scope: the GitHub repo
+`4IRL/c4i-issue-bot` becomes `4IRL/discord-github-issue-management-bot` (or the name the
+owner settles on at planning), along with the local folder, README/CLAUDE.md, ROADMAP
+title, META-PLAN title and *PR link form*, and the Docker image name. The Python package
+already has the generic name from F1. Feature-list line F9.
+
+**Rank rationale.** ★FOCUS (owner's choice, 2026-10-17): pulled ahead of F2, F5 and F7 so
+the next `/stronghold-sweep` indexes the project under its new name and portable function.
+It needs only F1 (the generic package name), not the rest of Phase 1, and the earlier it
+lands, the fewer files mention the old name. Independent of F8.
+
+**Dependencies.** F1.
+
+**Sizing.** unscored (intake estimate M); split check pending.
+
+**Assumed starting state** = **Baseline** plus F1 (generic package name). Verify:
+- No open PR is mid-review (renaming the repo while a PR is open is safe because GitHub
+  redirects, but confirm at planning).
+
+**Expected end state** (repo-checkable):
+- `gh repo view 4IRL/<new-name>` succeeds and `git remote get-url origin` points at it.
+- `grep -rn 'c4i-issue-bot\|c4i_issue_bot' --exclude-dir=.git .` hits only historical
+  plan/review files (or nothing).
+- META-PLAN's *PR link form* uses the new repo URL.
+- The README's opening and the ROADMAP's end state describe the portable function (any
+  channel in the server → any repo in the 4IRL org), with chores4irl as the first, example
+  target. The next sweep reads that description. The ROADMAP's sequencing rationale notes
+  that the rename went ahead of the rest of Phase 1.
+- All suites green; Standing invariants untouched.
+
+**Test-suite deltas.** None beyond the full suite passing after the rename.
+
+**Open risks / decisions.** (a) The GitHub rename is an outward-facing owner action (needs
+repo admin) and gets the owner's go-ahead at the time. (b) Renaming the local folder moves
+Claude Code's per-project history and memory directory
+(`~/.claude/projects/-home-rmila-Code-c4i-issue-bot/`) and the stronghold's index entries.
+The index is rewritten only by `/stronghold-sweep`, so run a sweep afterwards; the history
+move is an owner step outside this repo. (c) Whether the Discord bot's display name and
+`#c4i-github-issues` channel change too is out of this repo's scope; the channel name is
+config after F1. (d) `.claude/settings.json` (sandbox `allowWrite` holds the old absolute
+path) and the gitignored `.claude/skill-config.md` (`project_name`, `repo`) are write-denied
+to agent sessions, so the owner edits them; the plan lists them as owner steps. (e) Rename
+the folder between sessions: close the session in the old folder, move it, and reopen in
+the new one.
+
+**Session.** `/run-feature F9` on branch `chore/rename-repo`; plan at
+`plans/chore/rename-repo/rename-repo.md`.
+
 ---
 
 ## Dependencies & couplings (remaining work)
 
 ```
-Phase 1:  ★ F1 ──► F2 ──────┐
+Focus:      F1 (in review, #2) ──► ★ F9   (pulled ahead of the rest of Phase 1)
+Phase 1:    F1 ──► F2 ──────┐
               └──► F5 ──────┴──► F7
-Phase 2:  {F2, F5} ──► F3
-Phase 3:  F3 ──► F4
-          F5 ──► F6   [cond: new roadmap Project] (couples F4)
+Phase 1.5:  {F5, F7} ──► F8        F1 ──► ★ F9   (independent of each other)
+Phase 2:    {F2, F5} ──► F3        (soft: after F8)
+Phase 3:    F3 ──► F4
+            F5 ──► F6   [cond: new roadmap Project] (couples F4; soft: after F8)
 ```
 
-- **Hard chains:** F1 → F2, F1 → F5, {F2, F5} → F7, {F2, F5} → F3 → F4, F5 → F6.
-- **Soft preferences:** F7 before F3, so the skeleton is end-to-end usable before the
-  conversation work; F3 doesn't need F7. F6 could start any time after F5 once its Project
+- **Hard chains:** F1 → F2, F1 → F5, {F2, F5} → F7, {F5, F7} → F8, F1 → F9,
+  {F2, F5} → F3 → F4, F5 → F6.
+- **Soft preferences:** F9 right after F1, ahead of F2/F5/F7 (owner's ★FOCUS choice,
+  2026-10-17). F7 before F3, so the skeleton is end-to-end usable before the
+  conversation work; F3 doesn't need F7. F8 before F3 and F6, so conversation state and
+  Project config are per-target from the start. F6 could start any time after F5 once its Project
   exists; the ROADMAP keeps it in Phase 3 so the Project fields are designed alongside F4.
 - **Couplings to honor:** F3 ↔ F5: F3 reuses F5's single issue-body builder rather than
-  formatting a second body. F4 ↔ F6: both use the same S/M/L/XL band names, one as a
+  formatting a second body. F1 ↔ F8: F8 turns F1's single target config object into a
+  list; F1 keeps per-target and instance-wide values apart so that is not a rewrite. F4 ↔ F6: both use the same S/M/L/XL band names, one as a
   label and one as a Project field.
 
 ---
