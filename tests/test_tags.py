@@ -182,6 +182,27 @@ def test_title_cleanup(text: str, expected_title: str) -> None:
     assert parsed.title == expected_title
 
 
+@pytest.mark.parametrize(
+    ("text", "expected_body"),
+    [
+        ("!bug\nTitle: x\nBody: one\n!bug\ntwo", "one\ntwo"),
+        ("!bug\nTitle: x\nBody: one\n  [!feature]  \ntwo", "one\ntwo"),
+        ("!bug\nTitle: x\nBody: one\n!bug two", "one\ntwo"),
+        ("!bug\nTitle: x\nBody: one\n  (!bug) two", "one\n  two"),
+        ("Title: x\nBody: one\n!bug\n  two", "one\n  two"),
+    ],
+)
+def test_tag_removal_leaves_no_stray_whitespace(text: str, expected_body: str) -> None:
+    parsed = parse_tag(text)
+    assert isinstance(parsed, ParsedTag)
+    assert parsed.body == expected_body
+
+
+def test_crlf_line_endings() -> None:
+    text = "!bug\r\nTitle: Crash\r\nBody: one\r\n!bug\r\ntwo\r\n"
+    assert parse_tag(text) == ParsedTag(IssueType.BUG, "Crash", "one\ntwo")
+
+
 def test_body_brackets_kept_unless_they_held_a_tag() -> None:
     parsed = parse_tag("!bug\nTitle: x\nBody: call save() fails [!bug]")
     assert isinstance(parsed, ParsedTag)

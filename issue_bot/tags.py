@@ -58,7 +58,8 @@ def parse_tag(text: str) -> ParsedTag | MalformedTag | None:
     """Return the first recognized tag's type with the message's title and body.
 
     Returns ``None`` when the text has no tag, and ``MalformedTag`` when it has a tag but
-    no ``Title:`` line with a letter or digit. Every tag is stripped from both fields.
+    no ``Title:`` line with a letter or digit. Every tag is stripped from both fields; a
+    line that held only a tag is dropped, and a tagged line keeps its original indent.
     """
     match = TAG_PATTERN.search(text)
     if match is None:
@@ -68,6 +69,11 @@ def parse_tag(text: str) -> ParsedTag | MalformedTag | None:
     body_lines: list[str] | None = None
     for raw_line in text.splitlines():
         line = BRACKETED_TAG.sub(" ", raw_line)
+        if line != raw_line:
+            if not line.strip():
+                continue
+            indent = raw_line[: len(raw_line) - len(raw_line.lstrip())]
+            line = indent + line.lstrip()
         label = FIELD_LABEL.match(line)
         name = label.group(1).lower() if label else None
         if label is not None and not _is_filled(name, fields.get(name, [])):
