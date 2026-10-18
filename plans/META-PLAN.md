@@ -350,7 +350,7 @@ the Discord author and a link to the message; the type label is `bug` or `enhanc
 Feature-list line F5.
 
 **Rank rationale.** It's the core of the Phase 1 skeleton and proves GitHub auth early. It
-needs only F1 (and the rename, done), so it can run alongside F2.
+needs only F1 (and the rename, done), and with F2 shipped it is the ★FOCUS.
 
 **Dependencies.** F1, F9.
 
