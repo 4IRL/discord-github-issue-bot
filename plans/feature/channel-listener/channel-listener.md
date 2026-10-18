@@ -271,7 +271,7 @@ A pure function recognizing `#bug` / `#feature` per the Design's tag grammar. It
 config because `TargetConfig.labels` is keyed by `IssueType`.
 
 **To-do:**
-- [ ] Red: create `tests/test_tags.py`:
+- [x] Red: create `tests/test_tags.py`:
   - `test_roadmap_feature_example`: `"Display chore count next to Room tab name in parentheses when each Room tab is active #feature"`
     → `ParsedTag(IssueType.FEATURE, "Display chore count next to Room tab name in parentheses when each Room tab is active")`.
   - `test_roadmap_untagged_example`: `"anyone around tonight?"` → `None`.
@@ -292,13 +292,15 @@ config because `TargetConfig.labels` is keyed by `IssueType`.
     `"Why does it crash?"`.
   - `test_multiline`: `"line one\n#bug\nline two"` → `BUG`, title `"line one line two"`.
   Run `.venv/bin/pytest tests/test_tags.py`; confirm it fails on the missing module.
-- [ ] Green: create `issue_bot/tags.py` with `IssueType(StrEnum)`, `ParsedTag`, module
+- [x] Green: create `issue_bot/tags.py` with `IssueType(StrEnum)`, `ParsedTag`, module
   constants `TAG_PATTERN`, `EMPTY_BRACKETS` and `TITLE_EDGE` exactly as in the Design's tag
   grammar, and `parse_tag(text: str) -> ParsedTag | None`: the first `TAG_PATTERN.search`
   gives `IssueType(match.group(1).lower())` (no match → `None`); the title is
   `" ".join(EMPTY_BRACKETS.sub(" ", TAG_PATTERN.sub(" ", text)).split()).strip(TITLE_EDGE)`;
   a title with no alphanumeric character → `None`.
-- [ ] Refactor; `.venv/bin/pytest` green.
+- [x] Refactor; `.venv/bin/pytest` green.
+
+Done 2026-10-17: red confirmed (`ModuleNotFoundError: issue_bot.tags`), then `.venv/bin/pytest` → 27 passed.
 
 **Verify:** `.venv/bin/pytest tests/test_tags.py` green.
 
