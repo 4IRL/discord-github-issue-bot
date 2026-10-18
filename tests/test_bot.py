@@ -256,6 +256,26 @@ async def test_on_error_adds_message_id_for_on_message(
         assert "Alice" not in text
 
 
+async def test_raising_hook_dispatched_by_discord_logs_type_and_id_only(
+    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    hook = AsyncMock(side_effect=RuntimeError("Secret exception words"))
+    bot = IssueBot(config, on_candidate=hook)
+    message = make_message("!bug\nTitle: Secret title words", message_id=4242)
+    with caplog.at_level(logging.INFO):
+        # discord.py's own dispatch path: it catches the error and calls on_error.
+        await bot._run_event(bot.on_message, "on_message", message)
+    hook.assert_awaited_once()
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert errors == ["unhandled RuntimeError in on_message message_id=4242"]
+    for text in record_texts(caplog):
+        assert "Secret exception words" not in text
+        assert "Secret title words" not in text
+        assert "Alice" not in text
+
+
 @pytest.mark.parametrize(
     ("event_method", "arguments"),
     [
