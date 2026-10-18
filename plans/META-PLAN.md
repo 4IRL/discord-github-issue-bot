@@ -238,7 +238,7 @@ Parallel features: `/worktree <F-ID>...`.
 
 - **F1 push-review polish.** The unticked minor to-dos in
   `plans/feature/channel-listener/reviews/push-review-feature-channel-listener.md`, Reviews 1
-  and 2: escalate a missing intake channel to ERROR, add the message id to `on_error`,
+  to 3 (Review 3's META-PLAN items were resolved by this fold-back): escalate a missing intake channel to ERROR, add the message id to `on_error`,
   config/tag parser simplifications, extra config and bot tests, the Body-termination
   wording. None blocks a remaining feature.
 - **`on_ready` reconnect guard.** Discord fires `on_ready` again after every Gateway
@@ -255,7 +255,7 @@ Parallel features: `/worktree <F-ID>...`.
 **Goal.** For each parsed candidate, the bot starts a thread on the original message, named
 from the title. All later conversation and the final link go there. Feature-list line F2.
 
-**Rank rationale.** It's the cheapest step after F1, and F3 and F7 both need a thread. It
+**Rank rationale.** It's the cheapest Phase 1 step, and F3 and F7 both need a thread. It
 waits for F9's rename so its plan and branch live under the new name.
 
 **Dependencies.** F1, F9; cond: F9's owner rename checklist complete.
@@ -354,13 +354,14 @@ issues/metadata write permission on chores4irl.
 ## F5 — File the issue in 4IRL/chores4irl · Phase 1 · Effort M · (added 2026-10-16)
 
 **Goal.** The bot creates a GitHub issue in the configured target repo (chores4irl in the
-example config; no code default, per F1's 2026-10-17 portability amendment) from the
+example config; no code default, per Standing invariant 1) from the
 candidate. The title is the message's `Title:` field; the body holds its `Body:` field,
 the Discord author and a link to the message; the type label is `bug` or `enhancement`.
 Feature-list line F5.
 
 **Rank rationale.** It's the core of the Phase 1 skeleton and proves GitHub auth early. It
-needs only F1 and the F9 rename, so it can run alongside F2.
+needs only F1 and the completed F9 rename (owner checklist included), so it can run
+alongside F2.
 
 **Dependencies.** F1, F9; cond: F9's owner rename checklist complete.
 
@@ -531,8 +532,8 @@ lands, the fewer files mention the old name. Independent of F8.
 
 **Expected end state** (repo-checkable):
 - `gh repo view 4IRL/<new-name>` succeeds and `git remote get-url origin` points at it.
-- `grep -rn 'c4i-issue-bot\|c4i_issue_bot' --exclude-dir=.git .` hits only historical
-  plan/review files (or nothing).
+- `grep -rn 'c4i-issue-bot\|c4i_issue_bot' --exclude-dir=.git --exclude-dir=plans .` prints
+  nothing (plan, review and META-PLAN history may keep the old name).
 - META-PLAN's *PR link form* uses the new repo URL.
 - The README's opening and the ROADMAP's end state describe the portable function (any
   channel in the server → any repo in the 4IRL org), with chores4irl as the first, example
