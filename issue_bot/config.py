@@ -56,6 +56,12 @@ class TargetConfig:
     github_repo_id: int
     labels: Mapping[IssueType, str]
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.labels, Mapping) or set(self.labels) != set(IssueType):
+            raise ConfigError("labels must have one entry per IssueType")
+        # Copy before wrapping, so a caller's dict can't change the labels later.
+        object.__setattr__(self, "labels", MappingProxyType(dict(self.labels)))
+
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> TargetConfig:
         channel_id = _positive_int(env, "DISCORD_CHANNEL_ID")
@@ -67,12 +73,10 @@ class TargetConfig:
         ):
             raise ConfigError("GITHUB_REPO must be owner/name")
         github_repo_id = _positive_int(env, "GITHUB_REPO_ID")
-        labels = MappingProxyType(
-            {
-                issue_type: _required(env, f"GITHUB_LABEL_{issue_type.name}")
-                for issue_type in IssueType
-            }
-        )
+        labels = {
+            issue_type: _required(env, f"GITHUB_LABEL_{issue_type.name}")
+            for issue_type in IssueType
+        }
         return cls(
             channel_id=channel_id,
             channel_name=channel_name,

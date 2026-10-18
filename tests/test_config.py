@@ -96,3 +96,37 @@ def test_token_not_in_repr(test_env: dict[str, str]) -> None:
 def test_labels_read_only(config: Config) -> None:
     with pytest.raises(TypeError):
         config.target.labels[IssueType.BUG] = "x"  # type: ignore[index]
+
+
+def make_target(labels: dict[IssueType, str]) -> TargetConfig:
+    return TargetConfig(
+        channel_id=555,
+        channel_name="intake",
+        category="Intake",
+        github_repo="example-org/example-repo",
+        github_repo_id=222,
+        labels=labels,
+    )
+
+
+@pytest.mark.parametrize(
+    "labels",
+    [
+        {IssueType.BUG: "bug"},
+        {IssueType.BUG: "bug", IssueType.FEATURE: "enhancement", "extra": "x"},
+        [IssueType.BUG, IssueType.FEATURE],
+    ],
+)
+def test_direct_construction_rejects_bad_labels(labels: object) -> None:
+    with pytest.raises(ConfigError) as excinfo:
+        make_target(labels)  # type: ignore[arg-type]
+    assert str(excinfo.value) == "labels must have one entry per IssueType"
+
+
+def test_direct_construction_makes_labels_read_only() -> None:
+    labels = {IssueType.BUG: "bug", IssueType.FEATURE: "enhancement"}
+    target = make_target(labels)
+    labels[IssueType.BUG] = "changed"
+    assert target.labels[IssueType.BUG] == "bug"
+    with pytest.raises(TypeError):
+        target.labels[IssueType.BUG] = "x"  # type: ignore[index]
