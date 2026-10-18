@@ -62,6 +62,12 @@ def test_non_integer_id_raises(test_env: dict[str, str], key: str, value: str) -
     assert str(excinfo.value) == f"{key} must be an integer"
 
 
+def test_padded_id_is_stripped(test_env: dict[str, str]) -> None:
+    test_env["DISCORD_CHANNEL_ID"] = " 555 "
+    config = Config.from_env(test_env)
+    assert config.target.channel_id == 555
+
+
 @pytest.mark.parametrize("value", ["0", "-5"])
 @pytest.mark.parametrize("key", ID_KEYS)
 def test_non_positive_id_raises(test_env: dict[str, str], key: str, value: str) -> None:
@@ -71,7 +77,9 @@ def test_non_positive_id_raises(test_env: dict[str, str], key: str, value: str) 
     assert str(excinfo.value) == f"{key} must be a positive integer"
 
 
-@pytest.mark.parametrize("repo", ["noslash", "a/b/c", "own er/repo", "../..", "./x", "a/.."])
+@pytest.mark.parametrize(
+    "repo", ["noslash", "a/b/c", "own er/repo", "../..", "./x", "a/..", "../x"]
+)
 def test_bad_repo_format(test_env: dict[str, str], repo: str) -> None:
     test_env["GITHUB_REPO"] = repo
     with pytest.raises(ConfigError) as excinfo:
