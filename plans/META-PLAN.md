@@ -1,4 +1,4 @@
-# META-PLAN — c4i-issue-bot feature rollout
+# META-PLAN — discord-github-issue-bot feature rollout
 
 > **What this file is.** The execution manifest: F-IDs, order, ★FOCUS, status, the
 > code-level Baseline, Standing invariants, per-feature contracts and couplings. Each
@@ -33,7 +33,7 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 | Fact | Value |
 |---|---|
 | Verification | `.venv/bin/pytest` |
-| PR link form | `[#N](https://github.com/4IRL/c4i-issue-bot/pull/N)` |
+| PR link form | `[#N](https://github.com/4IRL/discord-github-issue-bot/pull/N)` |
 | Merge strategy | `squash` |
 | Worktree prefix | `none` |
 | Install command | `none` |
@@ -61,12 +61,15 @@ nothing gets renamed twice.
 
 1. **Run F9** (`/run-feature F9`, effort M). In-repo: docs, titles, *PR link form*, image
    name, and README/ROADMAP describing the portable function.
-2. **Work through F9's rename checklist** (its *Expected end state*, "Owner checklist"):
-   the GitHub repo rename, the local folder move, `.claude/settings.json` and
-   `.claude/skill-config.md` (agent sessions can't write these), the Claude
+2. **Work through F9's rename checklist**
+   (`plans/chore/rename-repo/rename-repo.md` § Owner checklist, which supersedes the copy in
+   F9's section: each item has a **Check**, and `allowWrite` keeps both paths):
+   the GitHub repo rename, the local folder move, `.claude/skill-config.md` (agent sessions
+   can't write it; the `.claude/settings.json` change already rides F9's PR), the Claude
    project-history move, and a write-and-commit check from a fresh session in the new folder.
-3. **Run `/stronghold-sweep`** from `~/Code` and confirm the index lists the new name. Then
-   fold F9 back from the renamed folder (`/run-feature F9`), which re-checks the checklist.
+3. **Run `/stronghold-sweep`** from `~/Code` and confirm the index lists the new name. Then,
+   once every Check in that checklist passes, fold F9 back from the renamed folder
+   (`/run-feature F9`); `/run-feature` has no checklist step of its own.
 
 After F9's fold-back, the Phase 1 skeleton resumes: F2 and F5 (independent of each other),
 then F7. A live run needs F1's external setup (Discord application, bot token in `.env`,
@@ -144,7 +147,7 @@ holds its supersession note, not edges; readers skip it. -->
 | **F6 — Add the issue to the chores4irl roadmap Project** | pending | `feature/roadmap-project` | — |
 | **F7 — Post the issue link in the thread** | pending | `feature/post-issue-link` | — |
 | **F8 — Multi-target routes and multi-instance deployment** | pending | `feature/multi-target` | — |
-| **F9 — Rename to discord-github-issue-management-bot** ★FOCUS | pending | `chore/rename-repo` | — |
+| **F9 — Rename to discord-github-issue-management-bot** ★FOCUS | in-review | `chore/rename-repo` | [#5](https://github.com/4IRL/discord-github-issue-bot/pull/5) |
 
 ---
 
