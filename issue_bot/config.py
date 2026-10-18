@@ -65,6 +65,8 @@ class TargetConfig:
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> TargetConfig:
+        # Keys are read in order, so the first bad one is reported; the
+        # values ahead of the repo check stay locals to keep that order.
         channel_id = _positive_int(env, "DISCORD_CHANNEL_ID")
         channel_name = _required(env, "DISCORD_CHANNEL_NAME")
         category = _required(env, "DISCORD_CATEGORY")
@@ -73,18 +75,16 @@ class TargetConfig:
             segment in DOT_SEGMENTS for segment in github_repo.split("/")
         ):
             raise ConfigError("GITHUB_REPO must be owner/name")
-        github_repo_id = _positive_int(env, "GITHUB_REPO_ID")
-        labels = {
-            issue_type: _required(env, f"GITHUB_LABEL_{issue_type.name}")
-            for issue_type in IssueType
-        }
         return cls(
             channel_id=channel_id,
             channel_name=channel_name,
             category=category,
             github_repo=github_repo,
-            github_repo_id=github_repo_id,
-            labels=labels,
+            github_repo_id=_positive_int(env, "GITHUB_REPO_ID"),
+            labels={
+                issue_type: _required(env, f"GITHUB_LABEL_{issue_type.name}")
+                for issue_type in IssueType
+            },
         )
 
 
@@ -98,7 +98,8 @@ class Config:
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> Config:
-        discord_token = _required(env, "DISCORD_TOKEN")
-        guild_id = _positive_int(env, "DISCORD_GUILD_ID")
-        target = TargetConfig.from_env(env)
-        return cls(discord_token=discord_token, guild_id=guild_id, target=target)
+        return cls(
+            discord_token=_required(env, "DISCORD_TOKEN"),
+            guild_id=_positive_int(env, "DISCORD_GUILD_ID"),
+            target=TargetConfig.from_env(env),
+        )

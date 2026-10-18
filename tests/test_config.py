@@ -40,10 +40,15 @@ def test_each_key_required(test_env: dict[str, str], key: str) -> None:
     assert str(excinfo.value) == f"{key} is required"
 
 
-def test_empty_env_names_token_first() -> None:
+@pytest.mark.parametrize("position", range(len(ALL_KEYS)))
+def test_first_missing_key_in_order_is_reported(
+    test_env: dict[str, str], position: int
+) -> None:
+    for later_key in ALL_KEYS[position:]:
+        del test_env[later_key]
     with pytest.raises(ConfigError) as excinfo:
-        Config.from_env({})
-    assert str(excinfo.value) == "DISCORD_TOKEN is required"
+        Config.from_env(test_env)
+    assert str(excinfo.value) == f"{ALL_KEYS[position]} is required"
 
 
 def test_blank_value_counts_as_missing(test_env: dict[str, str]) -> None:
