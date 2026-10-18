@@ -8,6 +8,7 @@ A message files an issue only in the structured form::
 
 ``Title:`` is one line and required; ``Body:`` is optional and runs to the end of the
 message (or to a later ``Title:`` line). Labels are case-insensitive and may be bolded.
+A blank label yields to a later one with the same name; a repeated filled label is text.
 """
 
 import re
@@ -44,6 +45,14 @@ BRACKETED_TAG = re.compile(
 TITLE_EDGE = " .,:;-|/"
 
 
+def _is_filled(name: str, lines: list[str]) -> bool:
+    """Whether a field holds text: for a title, a letter or digit (the usable-title rule)."""
+    text = "".join(lines)
+    if name == "title":
+        return any(char.isalnum() for char in text)
+    return bool(text.strip())
+
+
 def parse_tag(text: str) -> ParsedTag | MalformedTag | None:
     """Return the first recognized tag's type with the message's title and body.
 
@@ -60,7 +69,7 @@ def parse_tag(text: str) -> ParsedTag | MalformedTag | None:
         line = BRACKETED_TAG.sub(" ", raw_line)
         label = FIELD_LABEL.match(line)
         name = label.group(1).lower() if label else None
-        if label is not None and name not in fields:
+        if label is not None and not _is_filled(name, fields.get(name, [])):
             fields[name] = [line[label.end() :]]
             body_lines = fields[name] if name == "body" else None
         elif body_lines is not None:

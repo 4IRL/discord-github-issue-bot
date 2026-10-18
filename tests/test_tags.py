@@ -67,6 +67,32 @@ def test_repeated_label_inside_body_is_text() -> None:
 
 
 @pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("!bug\nTitle:\nTitle: real", ParsedTag(IssueType.BUG, "real")),
+        ("!bug\nTitle:  \nBody: one\nTitle: real", ParsedTag(IssueType.BUG, "real", "one")),
+        ("!bug\nTitle: x\nBody:\n\nBody: real", ParsedTag(IssueType.BUG, "x", "real")),
+        ("!bug\nTitle: -\nTitle: real", ParsedTag(IssueType.BUG, "real")),
+        # A late Title: that fills a blank one ends the body.
+        ("!bug\nTitle:\nBody: one\nTitle: real\nmore", ParsedTag(IssueType.BUG, "real", "one")),
+    ],
+)
+def test_blank_label_yields_to_later_one(text: str, expected: ParsedTag) -> None:
+    assert parse_tag(text) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("!bug\nTitle: x\nTitle: y", ParsedTag(IssueType.BUG, "x")),
+        ("!bug\nTitle: x\nBody:\ntext\nBody: y", ParsedTag(IssueType.BUG, "x", "text\nBody: y")),
+    ],
+)
+def test_filled_label_is_final(text: str, expected: ParsedTag) -> None:
+    assert parse_tag(text) == expected
+
+
+@pytest.mark.parametrize(
     "text",
     [
         "!feature\ntitle: Dark mode\nBODY: please",
