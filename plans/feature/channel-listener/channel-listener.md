@@ -216,7 +216,7 @@ report):
 - `title`, `body` and `content` keep raw Discord mention markup (`<@id>`, `<#id>`, `<@&id>`):
   F2's thread name and F5's issue title and body must clean them.
 - A tagged message with no usable `Title:` line yields no candidate; `candidate_from_message`
-  logs `ignored <type> message_id=<id> (<url>): no Title: line` at INFO. F2 replies to it
+  logs `ignored <type> message_id=<id> (<url>): no usable Title: line` at INFO. F2 replies to it
   with a format hint.
 
 ## Amendment: structured messages (2026-10-17)

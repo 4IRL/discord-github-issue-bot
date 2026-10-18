@@ -70,14 +70,25 @@ def test_untagged_ignored(config: Config, make_message: MessageFactory) -> None:
     assert candidate_from_message(make_message("anyone around tonight?"), config) is None
 
 
+@pytest.mark.parametrize(
+    "content",
+    ["Secret words without fields !feature", "!feature\nTitle: ?!?\nBody: Secret words"],
+)
 def test_malformed_ignored_and_logged_without_text(
-    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+    config: Config,
+    make_message: MessageFactory,
+    caplog: pytest.LogCaptureFixture,
+    content: str,
 ) -> None:
-    message = make_message("Secret words without fields !feature")
+    message = make_message(content)
     with caplog.at_level(logging.INFO, logger="issue_bot"):
         assert candidate_from_message(message, config) is None
     texts = [record.getMessage() for record in caplog.records]
     assert any(
-        "feature" in text and "99" in text and message.jump_url in text for text in texts
+        "feature" in text
+        and "99" in text
+        and message.jump_url in text
+        and "no usable Title: line" in text
+        for text in texts
     )
     assert all("Secret words" not in text for text in texts)
