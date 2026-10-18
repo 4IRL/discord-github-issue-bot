@@ -54,3 +54,62 @@ Greenfield bot with no existing callers. Env keys are documented, dependencies p
 - [ ] **Align module layout** — `issue_bot/tags.py` — Move TAG_PATTERN/EMPTY_BRACKETS/TITLE_EDGE above the classes and add one-line docstrings to IssueType and ParsedTag.
 - [ ] **Signal the unused hook parameter** — `issue_bot/bot.py` log_candidate — Rename `message` to `_message`.
 - [ ] **Refresh META-PLAN's "Nothing is built yet"** — `plans/META-PLAN.md` — Reword "Where the work stands" during the F1 fold-back (Phase C).
+
+## Review 2
+Generated: 2026-10-17 21:31
+Comparison: origin/feature/channel-listener 3b21695d6386fd8fe4fc10d4b46f3b192ecae5ea..e8db4ecf76b91835c15e411fee73fb1fd51935cf
+Verdict: **PUSHED WITH MINOR FINDINGS**
+
+### Results by Reviewer
+
+#### 1. Safety & Security — PASS
+The malformed-message log carries only issue type, message id and URL; `IssueCandidate` keeps title/body/content/author_name repr-hidden; the new regexes are linear on Discord-sized input. No findings.
+
+#### 2. Correctness — PASS
+Parser logic is sound for CRLF, bolded or case-varied labels, `Titles:`/`Body text` non-labels, bracketed and repeated tags.
+- (minor) `issue_bot/tags.py:63` — the first label wins even when empty: `!bug\nTitle:\nTitle: real` is malformed; an empty first `Body:` shadows a later one.
+- (minor) `README.md:46` / `issue_bot/tags.py:6` — "or to a later `Title:` line" is only true when Body comes before Title; after Title, a repeated `Title:` stays body text.
+- (minor) `plans/feature/channel-listener/channel-listener.md:227` — amendment example `[#bug]` is stale; other Design-section `#bug` text too.
+- (minor) `issue_bot/tags.py:71` — a tag removed from the start of a body line leaves a leading space, and a tag-only body line leaves a blank line.
+
+#### 3. Simplicity & Conciseness — PASS
+- (minor) `issue_bot/tags.py:57` — `fields` dict of lists plus the `body_lines` alias is indirection for a one-line title; keep title as a str and body as a list.
+- (minor) `issue_bot/tags.py:62` — `name = ... if label else None` then `label is not None and ...` double-checks.
+- (minor) `issue_bot/tags.py:39` — `BRACKETED_TAG` interpolates `TAG_PATTERN.pattern` four times; one optional-bracket regex would read better.
+
+#### 4. Test Coverage — PASS
+- (minor) `tests/test_bot.py` — no bot-level test that a malformed tagged message never reaches `on_candidate`.
+- (minor) `tests/test_tags.py` — no CRLF case or tag-only line inside a multi-line Body.
+
+#### 5. Completeness & Cleanup — PASS
+- (minor) `plans/feature/channel-listener/channel-listener.md` — `[#bug]` in the amendment; overview (line 6) and env table (95-96) still say `#bug`/`#feature`.
+- (minor) `issue_bot/tags.py:6` — docstring Body-termination wording (see Correctness).
+
+#### 6. Consistency & Style — PASS
+- (minor) `plans/feature/channel-listener/channel-listener.md` — stale `[#bug]` example; the edited Modules and IssueCandidate contract bullets exceed the ~90-column wrap.
+
+#### 7. Integration Risk — PASS
+No code callers broken (handler.py is the only `parse_tag`/`IssueCandidate` consumer); no env or dependency changes.
+- (minor) Contract says F2 replies to malformed messages, but `candidate_from_message` returns `None` and `IssueBot` exposes no malformed hook, so F2 must extend F1's handler/bot API; neither the contract nor META-PLAN F2 says so.
+- (minor) F1 plan Design section is stale against the amended contract: tags.py row (line 77) lists `ParsedTag(type, title)` and `ParsedTag | None`, IssueCandidate list (~142) has eight fields and says F5 uses raw `content` for the body.
+
+#### 8. Error Handling & Silent Failures — PASS
+No swallowed errors; the drop is logged ids-only and its user hint is deferred to F2.
+- (minor) `issue_bot/handler.py` — log says "no Title: line" but also fires for an empty or symbol-only title; say "no usable Title: line".
+
+#### 9. Type Design — PASS
+Frozen DTOs, a union that forces callers to handle the malformed case, title invariant enforced at the only construction site. No findings.
+
+### To-Do: Required Changes
+
+- [ ] **Let an empty first label yield to a later filled one** — `issue_bot/tags.py` `parse_tag` — When the first `Title:` (or `Body:`) is blank, let a later same-named label replace it (or document first-label-wins in README "Message format"); add a test for `!bug\nTitle:\nTitle: real`.
+- [ ] **Fix the Body-termination wording** — `issue_bot/tags.py` module docstring, `README.md` "Message format", plan amendment — Say Body runs to the end of the message, or, when Body comes before Title, to the `Title:` line.
+- [ ] **Trim tag-removal whitespace in Body** — `issue_bot/tags.py` — lstrip a body line only when tag removal changed it, and drop a body line that held only a tag; add CRLF and tag-only-body-line cases to `tests/test_tags.py`.
+- [ ] **Simplify parse_tag's field tracking** — `issue_bot/tags.py` — Keep `title: str | None` and `body_lines: list[str] | None` instead of the `fields` dict and alias; drop the `name = ... else None` double check.
+- [ ] **Simplify BRACKETED_TAG** — `issue_bot/tags.py` — Use one regex with an optional bracket pair around the tag instead of four interpolations.
+- [ ] **Add a bot-level malformed test** — `tests/test_bot.py` — `on_message(make_message("!bug\nBody: x"))` with a recording hook; assert the hook is not awaited.
+- [ ] **Say "no usable Title: line" in the drop log** — `issue_bot/handler.py`, `tests/test_handler.py`, plan contract — Match the MalformedTag docstring.
+- [ ] **Bring the F1 plan's Design section up to date** — `plans/feature/channel-listener/channel-listener.md` — `[#bug]`→`[!bug]` in the amendment; `!bug`/`!feature` in the overview (line 6) and env table (95-96); tags.py row (77) to `ParsedTag(type, title, body)`, `MalformedTag`, `ParsedTag | MalformedTag | None`; IssueCandidate list (~142) to nine fields with F5 using `body`; re-wrap the long contract bullets.
+- [ ] **State that F2 must expose malformed messages** — `plans/feature/channel-listener/channel-listener.md` contract and `plans/META-PLAN.md` F2 section — Note F2 extends `candidate_from_message`/`IssueBot` (e.g. a malformed-message hook) because F1 only logs the drop.
+
+6b: 0 misses (every finding sits in lines this push introduced or in text made stale by it; none existed at Review 1's head).
