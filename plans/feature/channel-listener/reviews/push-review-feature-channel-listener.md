@@ -136,9 +136,9 @@ The re-ranking is consistent across sections. Only minor stale or wording items 
 
 ### To-Do: Required Changes
 
-- [ ] **Mark F1 Open risks (e) resolved** — `plans/META-PLAN.md` F1 section — Say the plan was revised and F1 shipped the `issue_bot` package with no target defaults, or drop the item at F1's fold-back.
-- [ ] **Clarify the diagram's independence note** — `plans/META-PLAN.md` "Dependencies & couplings" diagram — Change "(independent of each other)" to "(F8 and F9 independent of each other)", or drop the duplicate `F1 ──► ★ F9` edge from the Phase 1.5 row.
-- [ ] **Drop "additionally" from the F6 gate sentence** — `plans/META-PLAN.md` "Where the work stands" — "F6 is gated on creating the new chores4irl roadmap Project."
+- [x] **Mark F1 Open risks (e) resolved** — `plans/META-PLAN.md` F1 section — Say the plan was revised and F1 shipped the `issue_bot` package with no target defaults, or drop the item at F1's fold-back.
+- [x] **Clarify the diagram's independence note** — `plans/META-PLAN.md` "Dependencies & couplings" diagram — Change "(independent of each other)" to "(F8 and F9 independent of each other)", or drop the duplicate `F1 ──► ★ F9` edge from the Phase 1.5 row.
+- [x] **Drop "additionally" from the F6 gate sentence** — `plans/META-PLAN.md` "Where the work stands" — "F6 is gated on creating the new chores4irl roadmap Project."
 - [ ] **Refresh the Baseline at F1's fold-back** — `plans/META-PLAN.md` Baseline — Describe `main` with F1's package, config, parser, handler, Dockerfile and tests once PR #2 merges.
 - [ ] **Add the ROADMAP sequencing note during F9** — `plans/ROADMAP.md` Sequencing rationale — Note that the rename (Phase 1.5) went ahead of the rest of Phase 1, as F9's expected end state requires.
 
