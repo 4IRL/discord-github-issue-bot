@@ -290,25 +290,25 @@ Wire the thread helpers into `IssueBot` as the default `on_candidate` and a new 
 - [x] **Refactor:** confirm `issue_bot/bot.py` has no unused imports and no log call passes a
   title, body, author name, thread name, `exc.text` or `str(exc)`. Run `.venv/bin/pytest`.
 
-### 4. README
+### 4. README - COMPLETE (2026-10-18)
 Document the new behaviour and permissions.
 
 **To-do:**
-- [ ] In `README.md` § Status, rewrite the F1 paragraph: it opens "F1 (channel listener and tag
+- [x] In `README.md` § Status, rewrite the F1 paragraph: it opens "F1 (channel listener and tag
   parser) and F2 (thread per tagged message) exist", and the sentence "Until F2 (clarifying
   thread) and F5 (issue filing) land, candidates are only logged, by issue type, message id and
   message URL." becomes: each candidate gets a public thread on its message, named from the
   title (truncated to 100 characters), and is logged by issue type, message id, message URL
   and thread id until F5 files it; a message that already has a thread reuses it.
-- [ ] In § Message format, replace the whole bullet "A tagged message with no usable `Title:`
+- [x] In § Message format, replace the whole bullet "A tagged message with no usable `Title:`
   line is dropped, and the drop is logged by issue type, message id and message URL. F2 will
   reply in the thread with a format hint." with "A tagged message with no usable `Title:` line
   files no issue: the bot opens a `Format help: !<tag>` thread on it, replies with the expected
   format, and logs it by issue type, message id, message URL and thread id."
-- [ ] In § Discord setup step 3, add **Create Public Threads** and **Send Messages in Threads**
+- [x] In § Discord setup step 3, add **Create Public Threads** and **Send Messages in Threads**
   to the listed permissions and drop "(F2 will add the thread permissions.)". Note that
   threads use the channel's default auto-archive duration.
-- [ ] Run `grep -nE 'F2 will (reply|add)' README.md || true` and
+- [x] Run `grep -nE 'F2 will (reply|add)' README.md || true` and
   `grep -n 'is dropped' README.md || true` and `grep -n 'Until F2' README.md || true` and
   confirm each prints nothing; run
   `grep -n 'Create Public Threads' README.md` and `grep -n 'Send Messages in Threads' README.md`
