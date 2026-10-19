@@ -63,6 +63,7 @@ F10 has no open prerequisites: F1's `on_candidate` seam, F2's `open_thread` and 
 
 A live run needs F1's external setup (Discord application, bot token in `.env`, bot invited;
 F10 adds the `applications.commands` invite scope and drops the Message Content intent),
+F10's Send Messages on the intake channel (for the public summary),
 F2's thread permissions (Create Public Threads, Send Messages in Threads) and F5's GitHub
 App (README § GitHub App setup; runbook `docs/SMOKE-TEST.md`).
 
@@ -592,7 +593,13 @@ is posted. (c) Command sync runs once per process (`setup_hook`), not on every `
 (d) `plans/ROADMAP.md` capabilities 1–2 and Phases 1, 1.5 and 2 still describe the
 `!tag`/`Title:` intake and a thread conversation; update them (owner-approved) with or
 before F10. (e) A five-field modal cap leaves four fields for F3's per-tag questions;
-F10's Description field is the slot F3 replaces.
+F10's Description field is the slot F3 replaces. (f) The public summary needs Send Messages
+in the intake channel (see the ★FOCUS live-run note); if posting it fails, send a fixed
+private follow-up and file nothing. The owner posts a cutover notice in the channel when the
+`!bug`/`!feature` tags stop working (a tag then gets no reply; agents never post live). Cap
+the Title with `max_length` 100 (`THREAD_NAME_LIMIT`) so `thread_name()` never truncates it,
+or allow 256 (`ISSUE_TITLE_LIMIT`) and keep the cut. Optionally scope who may run the
+commands (`default_member_permissions`, or the server's Integrations settings).
 
 **Session.** `/run-feature F10` on branch `feature/slash-command-intake`; plan at
 `plans/feature/slash-command-intake/slash-command-intake.md`.
