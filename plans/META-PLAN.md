@@ -497,7 +497,7 @@ own tag → label map. The same image can also run as several containers, each w
 route file, and the deployment docs show both. Feature-list line F8.
 
 **Rank rationale.** It comes right after the Phase 1 skeleton (owner's choice, 2026-10-17)
-so F3, F4 and F6 build per-target state and config from the start instead of being
+so F3, F4 and F6 build per-target question sets and config from the start instead of being
 refactored later. It needs F5's GitHub client, F7's end-to-end flow and F10's
 interaction intake to generalize (F10 first, so routes dispatch slash commands from the
 start; owner's choice, 2026-10-18).
@@ -534,9 +534,10 @@ unrouted-channel test.
 each target repo (recommended) versus a credential per route; one Discord bot token per
 process. (b) Two containers sharing one bot token both receive every Gateway event; each
 must ignore channels outside its own routes, and the docs must warn against overlapping
-routes (or recommend one Discord application per container). (c) Per-target persistence
-keys for F3's state store, and per-target Project config for F6, are set here as the
-contract those features build on. (d) Hot reload of the route file: recommend restart-only.
+routes (or recommend one Discord application per container). (c) Per-target question-set
+keys for F3 (no persisted state; F3's risk (a) drops its `data/` store), and per-target
+Project config for F6, are set here as the contract those features build on. (d) Hot
+reload of the route file: recommend restart-only.
 
 **Session.** `/run-feature F8` on branch `feature/multi-target`; plan at
 `plans/feature/multi-target/multi-target.md`.
