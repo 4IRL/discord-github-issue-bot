@@ -577,6 +577,10 @@ the intake swap out of F3, which keeps the per-tag questions.
   longer requested; `grep -rnE '!bug|!feature' --include='*.py' issue_bot` prints nothing.
 - README's setup covers the `applications.commands` invite scope and drops the Message
   Content intent.
+- The repo `CLAUDE.md` intro and `plans/ROADMAP.md` capabilities 1–2 and Phases 1, 1.5 and 2
+  describe the `/bug`/`/feature` modal intake, not `!bug`/`!feature` tags or a thread
+  conversation (risk (d)); `grep -nE '!bug|!feature' CLAUDE.md plans/ROADMAP.md` prints
+  nothing, or only lines naming the removed tags as history.
 - All suites green; Standing invariants untouched (invariant 2 covers modal text and
   interaction payloads as member text).
 
