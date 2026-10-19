@@ -113,7 +113,9 @@ README. Keep each item to one or two sentences. -->
 - **External dependencies.** The bot relies on the Discord Gateway and the GitHub REST and
   GraphQL APIs, and files nothing while either is unavailable. A GitHub failure is reported
   in the thread rather than silently dropped (retry added in Phase 4), and messages posted
-  while Discord was unreachable are picked up on restart (Phase 4).
+  while Discord was unreachable are picked up on restart (Phase 4). It runs on `c4i`
+  (Phase 4): while that Pi is down the bot is offline, and the restart catch-up covers
+  the gap.
 
 ## Phases
 
@@ -224,8 +226,12 @@ Projects (GraphQL) access, a separate permission best added once filing is prove
 **Goal.** The bot runs unattended for the 4irl server and recovers from failures without
 losing ideas. **Advances capabilities:** 1–5 (reliability).
 
-- The bot is deployed on an always-on host with automatic restart, a health check and
-  logs an operator can read; deploying a new version is one documented command.
+- The bot is deployed on `c4i`, the household's always-on Raspberry Pi 4 (arm64), as a
+  container with automatic restart, a memory limit, a health check and logs an operator
+  can read; deploying a new version is one documented command run over `ssh c4i`. This
+  repo owns the image, its config and that command. The host side (Docker, the memory
+  ceiling, root-only files for the token and App key) is homelab's: its
+  `plans/HOST-ROLES.md` and ROADMAP Phase 3.
 - GitHub or Discord errors are reported in the thread with a retry, never silently
   dropped, and rate limits are respected.
 - Messages posted while the bot was down are picked up on start, and a message is never
@@ -249,7 +255,8 @@ skeleton). Phases 2 and 3 depend on Phase 1.5 only softly: they could run withou
 would then need refactoring to become per-target. Phase 2 depends on Phase 1 hard (it
 extends the thread and filing path), and Phase 3 depends on Phase 2 hard (the rating reads
 the answers). Phase 4's hosting
-and deploy work depends only on Phase 1; putting it last is a preference. If the server
+and deploy work depends only on Phase 1 here, plus homelab's `c4i` Docker stage (homelab
+Phase 3, which needs only homelab's Phase 1); putting it last is a preference. If the server
 wants the bot live sooner, its deploy features can be pulled forward after Phase 1 or 2
 without reordering the phases. Phase 3's roadmap placement depends only on Phase 1 and
 could run alongside Phase 2; it stays with the rating so the Projects fields and labels
