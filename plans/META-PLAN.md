@@ -203,7 +203,8 @@ GitHub transport fully mocked. No CI workflow.
 `python -m issue_bot`), built and run as image `discord-github-issue-bot` (README). The env comes from `.env` (gitignored; `example.env` is the template).
 The App private key is mounted read-only at `GITHUB_APP_PRIVATE_KEY_PATH`
 (`/run/secrets/github-app-key.pem` in the container). The owner's live smoke-test runbook is
-`docs/SMOKE-TEST.md`; it was run once against a private scratch repo before PR #9 merged.
+`docs/SMOKE-TEST.md`. Before PR #9 merged, the owner's run filed issues #1 and #2 in a private
+scratch repo, torn down on 2026-10-18 (recorded in PR #9's description).
 Not deployed anywhere yet.
 
 ### Standing invariants (must not regress)
@@ -312,7 +313,8 @@ Parallel features: `/worktree <F-ID>...`.
   owner decision on replying to unexpected (non-`GitHubError`) filing errors, which a test
   currently pins as reaching `on_error`; a message-reply fallback when filing fails and no
   thread opened; title-boundary (256/257) and non-201 2xx tests; a `Literal` stage type and a
-  named token-cache entry; an empty-author placeholder and a separator assertion in
+  named token-cache entry; whether to keep the redundant `from None` and the `issue_labels`
+  wrapper; an empty-author placeholder and a separator assertion in
   `issue_body`'s tests; `example.env`, `FILING_ERROR_REPLY` and `.dockerignore` tidies; and
   `docs/SMOKE-TEST.md` / README runbook tidies (one home for the container-key command, more
   troubleshooting rows). The plan's § Manual checks can be cut to a link to the runbook. None
@@ -448,7 +450,7 @@ Verify:
 
 **Expected end state** (repo-checkable):
 - The handler test shows one thread message containing the mocked issue URL. A failed
-  filing posts an error message instead of a link.
+  filing still posts F5's `FILING_ERROR_REPLY` and no link.
 - All suites green; Standing invariants untouched.
 
 **Test-suite deltas.** End-to-end handler test (message → thread → mocked issue → link
