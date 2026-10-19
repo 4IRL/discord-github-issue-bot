@@ -62,9 +62,9 @@ F10 has no open prerequisites: F1's `on_candidate` seam, F2's `open_thread` and 
 2. **Run F7** (effort S) on F10's intake. It completes the Phase 1 skeleton.
 
 A live run needs F1's external setup (Discord application, bot token in `.env`, bot invited;
-F10 swaps the Message Content intent for the `applications.commands` scope), F2's thread
-permissions (Create Public Threads, Send Messages in Threads) and F5's GitHub App (README
-§ GitHub App setup; runbook `docs/SMOKE-TEST.md`).
+F10 adds the `applications.commands` invite scope and drops the Message Content intent),
+F2's thread permissions (Create Public Threads, Send Messages in Threads) and F5's GitHub
+App (README § GitHub App setup; runbook `docs/SMOKE-TEST.md`).
 
 ---
 
