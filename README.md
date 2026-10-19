@@ -83,7 +83,7 @@ Then set the bot token, the intake channel's ID (enable Developer Mode in Discor
 | `GITHUB_LABEL_BUG` | target | string | Label for `!bug` |
 | `GITHUB_LABEL_FEATURE` | target | string | Label for `!feature` |
 
-Each `GITHUB_LABEL_*` label must already exist in the target repo: a label an App requests that doesn't exist may be dropped or auto-created depending on its permissions _(unverified)_. The scratch-repo smoke test in the F5 plan's **Manual checks** confirms the label was applied.
+Each `GITHUB_LABEL_*` label must already exist in the target repo: a label an App requests that doesn't exist may be dropped or auto-created depending on its permissions _(unverified)_. The scratch-repo [smoke test](docs/SMOKE-TEST.md) confirms the label was applied.
 
 Pointing the bot at another channel or repo (for example a test channel) means changing only `.env`.
 
@@ -105,7 +105,9 @@ docker build -t discord-github-issue-bot .
 docker run --rm --env-file .env -v /path/to/key.pem:/run/secrets/github-app-key.pem:ro discord-github-issue-bot
 ```
 
-The container runs as uid 10001, so the host key file must be readable by that uid: prefer `sudo chown 10001 key.pem && chmod 0400 key.pem`; use `chmod 0444` only on a file inside a `0700` directory you own.
+The container runs as uid 10001, so the mounted key must be readable by that uid. Mount a copy owned by it (`sudo install -o 10001 -m 0400 key.pem key.container.pem`) rather than `chown`ing your own key, which would stop local runs from reading it. In `.env`, set `GITHUB_APP_PRIVATE_KEY_PATH=/run/secrets/github-app-key.pem` for the container run.
+
+Before going live, run the owner-only [smoke test](docs/SMOKE-TEST.md) against a private scratch repo.
 
 The image contains only the code and its pinned dependencies; no credentials or target config are baked in.
 
