@@ -53,6 +53,6 @@ All 7 To-Do items addressed and ticked consistently; no placeholders, broken ref
 ### To-Do: Required Changes
 
 - [x] **Mark the CLAUDE.md intro item as moved to F10** — `plans/META-PLAN.md` (Deferred "F9 push-review polish" entry, ~line 309) — Annotate the one-sentence CLAUDE.md intro item "(folded into F10 risk (d))" or drop it, so it has one owner.
-- [ ] **Reflow the live-run note and add View Channel** — `plans/META-PLAN.md` (~line 65) — Reflow the paragraph at ~95 columns, removing the orphan line, and say "Send Messages and View Channel on the intake channel".
+- [x] **Reflow the live-run note and add View Channel** — `plans/META-PLAN.md` (~line 65) — Reflow the paragraph at ~95 columns, removing the orphan line, and say "Send Messages and View Channel on the intake channel".
 
 6b: 0 misses (both findings concern text introduced by this push's commits; neither existed at Review 1's head `850bfd9`).
