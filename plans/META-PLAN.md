@@ -506,10 +506,12 @@ start; owner's choice, 2026-10-18).
 
 **Sizing.** unscored (intake estimate L); split check pending.
 
-**Assumed starting state** = **Baseline** plus Phase 1 (F1, F2, F5, F7) and F1's target
-config object. Verify:
+**Assumed starting state** = **Baseline** plus Phase 1 (F1, F2, F5, F7, F10) and F1's
+target config object. Verify:
 - F1's config has one target object, separate from instance-wide values, and
   `grep -rnE 'chores4irl|969373970' --include='*.py' .` outside `tests/` prints nothing.
+- F10's `/bug` and `/feature` interaction intake exists: the commands open their modals,
+  and a submit reaches `filing_hook` through `on_candidate`.
 
 **Expected end state** (repo-checkable):
 - A route file (format chosen at planning, e.g. YAML or TOML, path from env) lists one or
