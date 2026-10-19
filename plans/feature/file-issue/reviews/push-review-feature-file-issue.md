@@ -97,3 +97,54 @@ The blank line before `---` avoids a setext heading. The placeholder and the men
 - [ ] **Assert the separator in the hostile-body test** — `tests/test_issues.py` `test_issue_body_author_line_comes_before_member_text` — Assert `body.split("\n\n---\n\n", 1)[1]` equals the member text.
 
 6b: 0 misses (Review 1 never examined the new hunks; they were written after it).
+
+## Review 3
+Generated: 2026-10-18 21:12
+Comparison: origin/feature/file-issue 2aea35ef4a6b90f6366bf19a3c6279582a6b9fb8..194f9610
+Verdict: **BLOCKED**
+
+Scope: `docs/SMOKE-TEST.md` (new) and the README's container-key advice. Docs only; Type Design was not launched.
+
+### Results by Reviewer
+
+#### 1. Safety & Security — PASS
+- (minor) Teardown never deletes the container copy of the key.
+- (minor) The probe puts the JWT in curl's argv. It is short-lived; accepted.
+- (minor) The runbook says `.env` is literal, but the local commands source it with the shell.
+
+#### 2. Correctness — PASS
+Every claim was checked against the code.
+- (minor) The `.env` block omits the other required keys. Say it overrides a `.env` copied from `example.env`.
+
+#### 3. Simplicity & Conciseness — PASS
+- (minor) Section 0's App steps and section 4's container commands repeat the README.
+
+#### 4. Test Coverage — PASS (docs only)
+
+#### 5. Completeness & Cleanup — PASS
+- (minor) The plan's frozen Manual checks section and old `chown` advice predate the runbook. Add a pointer.
+
+#### 6. Consistency & Style — PASS
+- (minor) The README and the runbook both hold the App setup and container steps (CLAUDE.md's "one home" rule).
+
+#### 7. Integration Risk — PASS
+- (minor) `docs/` is not in `.dockerignore`. It is harmless, because the Dockerfile copies only `issue_bot/` and `requirements.txt`.
+
+#### 8. Error Handling & Silent Failures — FAIL
+- (major) The readability check sources `.env` with the shell, so it hides the quote, comment and `~` traps it lists. Those traps apply only to Docker's literal `--env-file`. The check and the trap list contradict each other.
+- (minor) An empty `$JWT` from a failed key load turns into a misleading 401.
+- (minor) The troubleshooting table lacks the silent Discord-side failure (no thread, no log) and probe 400/403.
+- (minor) Add an `ls -ld` check to tell a Docker-created directory from a key file.
+
+### To-Do: Required Changes
+
+- [x] **Separate local and container `.env` rules** — `docs/SMOKE-TEST.md` § 0 `.env` — State that the local run sources `.env` through the shell (quotes stripped, `~` expanded), so the `test -r` check matches what the bot sees. State that Docker's `--env-file` is literal, so the container needs a bare `/run/secrets/github-app-key.pem`. Add a literal `grep` check and an in-container `test -r` check for the container.
+- [x] **Catch a failed JWT** — `docs/SMOKE-TEST.md` § 1 — Add `test -n "$JWT"` after generating it, and mention it in the 401 row.
+- [x] **Delete the container key copy at teardown** — `docs/SMOKE-TEST.md` § 5.
+- [x] **Say the `.env` block overrides an `example.env` copy** — `docs/SMOKE-TEST.md` § 0.
+- [x] **Add troubleshooting rows** — `docs/SMOKE-TEST.md` — Cover no thread and no log, probe 400/403, and `ls -ld` for a Docker-created directory.
+- [x] **Keep one home for App setup** — `docs/SMOKE-TEST.md` § 0 — Link the README for App creation; keep only the key-storage steps.
+- [x] **Point the plan at the runbook** — `plans/feature/file-issue/file-issue.md` § Manual checks — Add a one-line note that `docs/SMOKE-TEST.md` supersedes it.
+- [ ] **(Optional) Add `docs/` to `.dockerignore`.** _(Not done: the Dockerfile copies only `issue_bot/` and `requirements.txt`.)_
+
+6b: 0 misses (Review 2 never saw these files).

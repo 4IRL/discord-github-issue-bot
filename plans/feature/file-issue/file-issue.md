@@ -287,6 +287,8 @@ Run the full test suite to confirm nothing is broken.
 - [x] Investigate and fix any failures before marking the plan finished. If every check above passed, tick this box with "(none to fix)". (none to fix)
 
 ## Manual checks (owner only, never automated)
+
+_Superseded for use by [`docs/SMOKE-TEST.md`](../../../docs/SMOKE-TEST.md), the maintained runbook (2026-10-18). The text below is kept as the plan's record, and its `chown 10001` advice is replaced there by a 10001-owned key copy._
 - Create and install the GitHub App per the README's new section; put the three `GITHUB_APP_*` values in `.env` and mount the key.
 - Token probe (owner runs it locally, never an agent; DD-3), after the smoke test's **Setup** below has created the scratch repo and added it to the installation. `<REPO_ID>` is the scratch repo's id (`gh api repos/4IRL/<scratch> --jq .id`): mint one installation token with the exact **Design** body and check the response. From the repo root, after Step 4 has landed:
   ```
