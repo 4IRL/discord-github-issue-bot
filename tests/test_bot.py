@@ -4,18 +4,23 @@ from unittest.mock import AsyncMock
 
 import discord
 import pytest
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 import issue_bot.__main__ as entry_point
-from issue_bot.bot import IssueBot, build_intents, channel_problems
+from issue_bot.bot import IssueBot, build_intents, channel_problems, filing_hook
 from issue_bot.config import Config
+from issue_bot.github import FiledIssue, GitHubError
 from issue_bot.handler import IssueCandidate
 from issue_bot.tags import IssueType, MalformedTag
-from issue_bot.threads import format_hint
+from issue_bot.threads import FILING_ERROR_REPLY, format_hint
 from tests.conftest import MessageFactory
 
 CONFIG_KEYS = (
     "DISCORD_TOKEN",
     "DISCORD_GUILD_ID",
+    "GITHUB_APP_ID",
+    "GITHUB_APP_INSTALLATION_ID",
+    "GITHUB_APP_PRIVATE_KEY_PATH",
     "DISCORD_CHANNEL_ID",
     "DISCORD_CHANNEL_NAME",
     "DISCORD_CATEGORY",
@@ -209,6 +214,154 @@ async def test_default_hook_logs_when_thread_fails(
     )
     for text in record_texts(caplog):
         assert "Secret title words" not in text
+
+
+ISSUE_URL = "https://github.com/example-org/example-repo/issues/7"
+SECRET_CONTENT = "!bug\nTitle: Secret title words\nBody: Secret body words"
+
+
+def fake_github(result: FiledIssue | Exception) -> SimpleNamespace:
+    if isinstance(result, Exception):
+        return SimpleNamespace(create_issue=AsyncMock(side_effect=result))
+    return SimpleNamespace(create_issue=AsyncMock(return_value=result))
+
+
+def assert_no_member_text(caplog: pytest.LogCaptureFixture) -> None:
+    for text in record_texts(caplog):
+        assert "Secret title words" not in text
+        assert "Secret body words" not in text
+        assert "Alice" not in text
+
+
+async def test_filing_hook_files_issue_and_logs_url(
+    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    github = fake_github(FiledIssue(7, ISSUE_URL))
+    bot = IssueBot(config, on_candidate=filing_hook(github))
+    message = make_message(SECRET_CONTENT)
+    with caplog.at_level(logging.INFO):
+        await bot.on_message(message)
+    message.create_thread.assert_awaited_once_with(name="Secret title words")
+    github.create_issue.assert_awaited_once()
+    target, _title, _body, labels = github.create_issue.await_args.args
+    assert target == config.target
+    assert labels == ["bug"]
+    message.create_thread.return_value.send.assert_not_awaited()
+    info_messages = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.INFO
+    ]
+    filed = [text for text in info_messages if "filed bug" in text]
+    assert len(filed) == 1
+    assert all(
+        part in filed[0]
+        for part in ("message_id=99", message.jump_url, "thread_id=1234", ISSUE_URL)
+    )
+    assert_no_member_text(caplog)
+
+
+async def test_filing_hook_failure_replies_and_logs_status(
+    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    github = fake_github(GitHubError("issue", 422))
+    bot = IssueBot(config, on_candidate=filing_hook(github))
+    message = make_message(SECRET_CONTENT)
+    with caplog.at_level(logging.INFO):
+        await bot.on_message(message)
+    message.create_thread.return_value.send.assert_awaited_once_with(FILING_ERROR_REPLY)
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert len(errors) == 1
+    assert all(
+        part in errors[0]
+        for part in (
+            "could not file bug",
+            "message_id=99",
+            "thread_id=1234",
+            "GitHubError",
+            "stage=issue",
+            "status=422",
+        )
+    )
+    assert_no_member_text(caplog)
+
+
+async def test_filing_hook_files_even_without_thread(
+    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    github = fake_github(FiledIssue(7, ISSUE_URL))
+    bot = IssueBot(config, on_candidate=filing_hook(github))
+    message = make_message(SECRET_CONTENT)
+    message.create_thread.side_effect = forbidden(50013, "x")
+    with caplog.at_level(logging.INFO):
+        await bot.on_message(message)
+    github.create_issue.assert_awaited_once()
+    assert any(
+        record.levelno == logging.INFO
+        and "filed bug" in record.getMessage()
+        and "thread_id=None" in record.getMessage()
+        for record in bot_records(caplog)
+    )
+    assert_no_member_text(caplog)
+
+
+async def test_filing_hook_failure_without_thread_logs_only(
+    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    github = fake_github(GitHubError("token", None))
+    bot = IssueBot(config, on_candidate=filing_hook(github))
+    message = make_message(SECRET_CONTENT)
+    message.create_thread.side_effect = forbidden(50013, "x")
+    with caplog.at_level(logging.INFO):
+        await bot.on_message(message)
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert len(errors) == 1
+    assert "could not file bug" in errors[0] and "thread_id=None" in errors[0]
+    message.create_thread.return_value.send.assert_not_awaited()
+    message.fetch_thread.return_value.send.assert_not_awaited()
+    assert_no_member_text(caplog)
+
+
+async def test_filing_error_send_failure_logged_without_text(
+    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    github = fake_github(GitHubError("issue", 422))
+    bot = IssueBot(config, on_candidate=filing_hook(github))
+    message = make_message(SECRET_CONTENT)
+    message.create_thread.return_value.send.side_effect = forbidden(50001, "Secret error words")
+    with caplog.at_level(logging.INFO):
+        await bot.on_message(message)
+    send_errors = [
+        record.getMessage()
+        for record in bot_records(caplog)
+        if record.levelno == logging.ERROR and "could not send filing error" in record.getMessage()
+    ]
+    assert len(send_errors) == 1
+    assert all(part in send_errors[0] for part in ("Forbidden", "403", "50001", "99"))
+    for text in record_texts(caplog):
+        assert "Secret error words" not in text
+    assert_no_member_text(caplog)
+
+
+async def test_filing_hook_unexpected_error_reaches_on_error(
+    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    github = fake_github(RuntimeError("Secret exception words"))
+    bot = IssueBot(config, on_candidate=filing_hook(github))
+    message = make_message(SECRET_CONTENT)
+    with caplog.at_level(logging.INFO):
+        await bot._run_event(bot.on_message, "on_message", message)
+    github.create_issue.assert_awaited_once()
+    message.create_thread.return_value.send.assert_not_awaited()
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert errors == ["unhandled RuntimeError in on_message message_id=99"]
+    for text in record_texts(caplog):
+        assert "Secret exception words" not in text
+    assert_no_member_text(caplog)
 
 
 async def test_malformed_message_gets_format_hint_in_thread(
@@ -476,8 +629,9 @@ def test_main_runs_bot_with_token(
     calls: dict[str, object] = {}
 
     class StubBot:
-        def __init__(self, config: Config) -> None:
+        def __init__(self, config: Config, **kwargs: object) -> None:
             calls["config"] = config
+            calls["init_kwargs"] = kwargs
 
         def run(self, token: str, **kwargs: object) -> None:
             calls["token"] = token
@@ -492,3 +646,33 @@ def test_main_runs_bot_with_token(
     assert config.guild_id == 111
     assert calls["token"] == "test-token"
     assert calls["kwargs"] == {"log_handler": None}
+    init_kwargs = calls["init_kwargs"]
+    assert isinstance(init_kwargs, dict)
+    assert callable(init_kwargs["on_candidate"])
+
+
+def test_main_builds_github_client(
+    monkeypatch: pytest.MonkeyPatch, test_env: dict[str, str]
+) -> None:
+    recorded: dict[str, tuple[object, ...]] = {}
+    sentinel = object()
+
+    class StubBot:
+        def __init__(self, config: Config, **kwargs: object) -> None:
+            pass
+
+        def run(self, token: str, **kwargs: object) -> None:
+            pass
+
+    def record_client(*args: object) -> object:
+        recorded["args"] = args
+        return sentinel
+
+    for key, value in test_env.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(entry_point, "IssueBot", StubBot)
+    monkeypatch.setattr(entry_point, "GitHubClient", record_client)
+    entry_point.main()
+    app_id, installation_id, private_key = recorded["args"]
+    assert (app_id, installation_id) == (333, 444)
+    assert isinstance(private_key, rsa.RSAPrivateKey)

@@ -5,7 +5,13 @@ import discord
 import pytest
 
 from issue_bot.tags import IssueType
-from issue_bot.threads import THREAD_NAME_LIMIT, format_hint, open_thread, thread_name
+from issue_bot.threads import (
+    FILING_ERROR_REPLY,
+    THREAD_NAME_LIMIT,
+    format_hint,
+    open_thread,
+    thread_name,
+)
 from tests.conftest import MessageFactory
 
 
@@ -117,3 +123,10 @@ async def test_open_thread_logs_forbidden_without_text(
         assert "Secret error words" not in text
         assert "Secret title words" not in text
     message.fetch_thread.assert_not_awaited()
+
+
+def test_filing_error_reply_is_fixed_text() -> None:
+    assert FILING_ERROR_REPLY == (
+        "Sorry, I couldn't file this as a GitHub issue. Check the repo before reposting; "
+        "to retry, post a new message (edits are ignored)."
+    )

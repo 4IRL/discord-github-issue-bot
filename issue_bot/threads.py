@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 THREAD_NAME_LIMIT = 100  # Discord's maximum thread-name length.
 THREAD_ALREADY_CREATED = 160004  # Discord error code: the message already has a thread.
+# Fixed text: it carries no member text and no GitHub response text.
+FILING_ERROR_REPLY = "Sorry, I couldn't file this as a GitHub issue. Check the repo before reposting; to retry, post a new message (edits are ignored)."
 
 
 def thread_name(title: str) -> str:

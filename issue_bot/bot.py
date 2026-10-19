@@ -8,9 +8,11 @@ from typing import Any
 import discord
 
 from issue_bot.config import Config
+from issue_bot.github import GitHubClient, GitHubError
 from issue_bot.handler import IssueCandidate, candidate_from_message
+from issue_bot.issues import file_candidate
 from issue_bot.tags import MalformedTag
-from issue_bot.threads import format_hint, open_thread, thread_name
+from issue_bot.threads import FILING_ERROR_REPLY, format_hint, open_thread, thread_name
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,55 @@ async def open_issue_thread(message: discord.Message, candidate: IssueCandidate)
     )
 
 
+def filing_hook(github: GitHubClient) -> CandidateHook:
+    """Return the production hook: open the issue's thread, then file the issue on GitHub.
+
+    The issue is filed even when the thread could not be opened. On a ``GitHubError`` it
+    replies in the thread with the fixed ``FILING_ERROR_REPLY``. It never logs member text
+    or GitHub response text: only the type, ids, URLs, error type, stage and status.
+    """
+
+    async def file_and_report(message: discord.Message, candidate: IssueCandidate) -> None:
+        thread = await open_thread(message, thread_name(candidate.title))
+        thread_id = thread.id if thread else None
+        try:
+            issue = await file_candidate(github, candidate)
+        except GitHubError as exc:
+            logger.error(
+                "could not file %s message_id=%s (%s) thread_id=%s: %s stage=%s status=%s",
+                candidate.type,
+                candidate.message_id,
+                candidate.message_url,
+                thread_id,
+                type(exc).__name__,
+                exc.stage,
+                exc.status,
+            )
+            if thread is not None:
+                try:
+                    await thread.send(FILING_ERROR_REPLY)
+                except discord.HTTPException as send_exc:
+                    logger.error(
+                        "could not send filing error for message_id=%s thread_id=%s: %s status=%s code=%s",
+                        message.id,
+                        thread.id,
+                        type(send_exc).__name__,
+                        send_exc.status,
+                        send_exc.code,
+                    )
+            return
+        logger.info(
+            "filed %s message_id=%s (%s) thread_id=%s issue=%s",
+            candidate.type,
+            candidate.message_id,
+            candidate.message_url,
+            thread_id,
+            issue.html_url,
+        )
+
+    return file_and_report
+
+
 async def reply_format_hint(message: discord.Message, malformed: MalformedTag) -> None:
     """Default malformed hook: reply in a ``Format help`` thread with the expected format."""
     thread = await open_thread(message, f"Format help: !{malformed.type}")
@@ -89,6 +140,7 @@ class IssueBot(discord.Client):
 
     A candidate goes to ``on_candidate`` (default: open its thread); a tagged message
     without a usable title goes to ``on_malformed`` (default: reply with the format hint).
+    Production wires ``filing_hook`` as ``on_candidate`` in ``__main__``.
     """
 
     def __init__(
