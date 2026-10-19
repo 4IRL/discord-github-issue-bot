@@ -148,3 +148,21 @@ Every claim was checked against the code.
 - [ ] **(Optional) Add `docs/` to `.dockerignore`.** _(Not done: the Dockerfile copies only `issue_bot/` and `requirements.txt`.)_
 
 6b: 0 misses (Review 2 never saw these files).
+
+## Review 4
+Generated: 2026-10-18 21:16
+Comparison: origin/feature/file-issue 2aea35ef4a6b90f6366bf19a3c6279582a6b9fb8..cb76e48
+Verdict: **PUSHED WITH MINOR FINDINGS**
+
+Scope: `docs/SMOKE-TEST.md`, the README and the plan pointer after the Review 3 fixes. All 8 reviewers PASS. Error Handling confirmed that the Review 3 major finding is fixed.
+
+### To-Do: Required Changes
+
+- [ ] **Name `DISCORD_TOKEN` in the runbook's `.env` block** — `docs/SMOKE-TEST.md` § 0 — `example.env` leaves it blank, so it must also be set.
+- [ ] **Make the empty-JWT guard stop the probe** — `docs/SMOKE-TEST.md` § 1 — Use `test -n "$JWT" || { echo 'JWT generation failed'; false; } && curl …`, or add "empty JWT" to the 401 troubleshooting row.
+- [ ] **Add the remaining troubleshooting rows** — `docs/SMOKE-TEST.md` — Cover a curl/JSON decode error (no network), Discord `LoginFailure` or `PrivilegedIntentsRequired` at startup, and how the runtime `stage=token status=N` line maps to the probe rows. Also say GitHub-issued keys start with `BEGIN RSA PRIVATE KEY`, so a different header means the wrong file.
+- [ ] **Keep one home for the container-key command** — `README.md`, `docs/SMOKE-TEST.md` § 4 and its troubleshooting rows — Keep the `sudo install` command in one place, link to it from the other, and shorten the troubleshooting rows to pointers.
+- [ ] **Tidy the plan's superseded note** — `plans/feature/file-issue/file-issue.md` § Manual checks — Reword it to "Superseded by …" and add a blank line after it. At fold-back, cut the section down to a link.
+- [ ] **Clarify `~` expansion** — `docs/SMOKE-TEST.md` § 0 — Say "an unquoted leading `~`".
+
+6b: 0 misses (Review 3's findings were all re-reported or fixed; these are new lines).
