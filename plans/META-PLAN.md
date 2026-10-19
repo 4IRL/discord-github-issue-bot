@@ -590,16 +590,18 @@ summary message, and the author comes from `interaction.user`; decide whether th
 mentions the reporter (`<@id>` with mentions suppressed) or names them. (b) The submit
 must be acknowledged within 3 seconds: defer ephemerally, then follow up once the summary
 is posted. (c) Command sync runs once per process (`setup_hook`), not on every `on_ready`.
-(d) `plans/ROADMAP.md` capabilities 1–2 and Phases 1, 1.5 and 2 still describe the
+(d) `plans/ROADMAP.md` capabilities 1–2 and Phases 1, 1.5 and 2, and the repo `CLAUDE.md`
+intro (`!bug`/`!feature` tags, clarifying questions in a thread), still describe the
 `!tag`/`Title:` intake and a thread conversation; update them (owner-approved) with or
-before F10. (e) A five-field modal cap leaves four fields for F3's per-tag questions;
-F10's Description field is the slot F3 replaces. (f) The public summary needs Send Messages
-in the intake channel (see the ★FOCUS live-run note); if posting it fails, send a fixed
-private follow-up and file nothing. The owner posts a cutover notice in the channel when the
-`!bug`/`!feature` tags stop working (a tag then gets no reply; agents never post live). Cap
-the Title with `max_length` 100 (`THREAD_NAME_LIMIT`) so `thread_name()` never truncates it,
-or allow 256 (`ISSUE_TITLE_LIMIT`) and keep the cut. Optionally scope who may run the
-commands (`default_member_permissions`, or the server's Integrations settings).
+before F10, folding in the F9 polish item's one-sentence intro. (e) A five-field modal cap
+leaves four fields for F3's per-tag questions; F10's Description field is the slot F3
+replaces. (f) The public summary needs Send Messages in the intake channel (see the ★FOCUS
+live-run note); if posting it fails, send a fixed private follow-up and file nothing. The
+owner posts a cutover notice in the channel when the `!bug`/`!feature` tags stop working (a
+tag then gets no reply; agents never post live). Cap the Title with `max_length` 100
+(`THREAD_NAME_LIMIT`) so `thread_name()` never truncates it, or allow 256
+(`ISSUE_TITLE_LIMIT`) and keep the cut. Optionally scope who may run the commands
+(`default_member_permissions`, or the server's Integrations settings).
 
 **Session.** `/run-feature F10` on branch `feature/slash-command-intake`; plan at
 `plans/feature/slash-command-intake/slash-command-intake.md`.
