@@ -519,7 +519,8 @@ target config object. Verify:
   env, never in the route file. The single-target env config of F1 still works, or is
   migrated with a documented one-route example.
 - The handler dispatches each `/bug` or `/feature` interaction by channel ID to its route;
-  one in an unrouted channel gets F10's ephemeral refusal. Filing, labels and the posted link use that route's repo.
+  one in an unrouted channel gets F10's ephemeral refusal. Filing, labels and the posted
+  link use that route's repo.
 - Startup validation rejects duplicate channel IDs and a repo outside the configured org,
   and runs F1's name/category sanity check for every route.
 - A compose file (or documented `docker run` set) runs two instances from the same image
