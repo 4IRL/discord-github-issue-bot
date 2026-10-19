@@ -399,7 +399,7 @@ Feature-list line F4.
 
 **Sizing.** unscored (intake estimate M); split check pending.
 
-**Assumed starting state** = **Baseline** plus F3's conversation and answers. Verify:
+**Assumed starting state** = **Baseline** plus F3's modal answers and preview. Verify:
 - F3's preview step exists and is where the rating is shown.
 
 **Expected end state** (repo-checkable):
