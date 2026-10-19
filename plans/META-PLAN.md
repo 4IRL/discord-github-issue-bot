@@ -213,7 +213,7 @@ The App private key is mounted read-only at `GITHUB_APP_PRIVATE_KEY_PATH`
 (`/run/secrets/github-app-key.pem` in the container). The owner's live smoke-test runbook is
 `docs/SMOKE-TEST.md`. Before PR #9 merged, the owner's run filed issues #1 and #2 in a private
 scratch repo, torn down on 2026-10-18 (recorded in PR #9's description).
-Not deployed anywhere yet.
+Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
 
 ### Standing invariants (must not regress)
 
