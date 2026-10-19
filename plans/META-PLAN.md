@@ -306,9 +306,9 @@ Parallel features: `/worktree <F-ID>...`.
 - **F9 push-review polish.** The unticked minor to-dos in
   `plans/chore/rename-repo/reviews/push-review-chore-rename-repo.md`, Review 1: restore
   `.claude/settings.json`'s trailing newline (owner edit), stricter zero-count and `ok`
-  wording in the plan's Owner checks, a one-sentence CLAUDE.md intro, and a ROADMAP
-  Sequencing reflow. The "rename F9's title" item was resolved by this fold-back. None blocks
-  a remaining feature.
+  wording in the plan's Owner checks, a one-sentence CLAUDE.md intro (folded into F10 risk
+  (d)), and a ROADMAP Sequencing reflow. The "rename F9's title" item was resolved by this
+  fold-back. None blocks a remaining feature.
 - **F2 push-review polish.** The unticked minor to-dos in
   `plans/feature/issue-thread/reviews/push-review-feature-issue-thread.md`, Review 1: one
   shared API-error log helper with distinct create/fetch/send wording, `format_hint` split
