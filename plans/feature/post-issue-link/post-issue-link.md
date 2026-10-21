@@ -226,12 +226,12 @@ Describe the new behaviour where the docs still say nothing is posted.
 Run the full test suites to confirm nothing is broken:
 
 **To-do:**
-- [ ] Run `.venv/bin/pytest` and confirm all tests pass.
-- [ ] Standing invariant 1: `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot || true` prints nothing.
-- [ ] Standing invariant 2: `grep -n 'candidate\.\(title\|body\|author_name\)' issue_bot/bot.py`
+- [x] Run `.venv/bin/pytest` and confirm all tests pass. - COMPLETE (2026-10-21): 216 passed, 0 failed
+- [x] Standing invariant 1: `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot || true` prints nothing. - COMPLETE (2026-10-21): prints nothing
+- [x] Standing invariant 2: `grep -n 'candidate\.\(title\|body\|author_name\)' issue_bot/bot.py`
   shows only `thread_name(candidate.title)` and `filed_reply(issue, candidate.title)` uses, none
-  inside a `logger.` call; the new tests' `assert_no_member_text` checks pass.
-- [ ] Investigate and fix any failures before marking the plan finished.
+  inside a `logger.` call; the new tests' `assert_no_member_text` checks pass. - COMPLETE (2026-10-21): hits at bot.py:61 and :102 (`thread_name(candidate.title)`) and :127 (`filed_reply(issue, candidate.title)` passed to `_post_outcome`), none in a logger call; suite green
+- [x] Investigate and fix any failures before marking the plan finished. - COMPLETE (2026-10-21): no failures
 
 ### Manual checks (owner, not executor)
 - Live smoke test per `docs/SMOKE-TEST.md` in the separate test server: each `/bug` and
@@ -243,7 +243,7 @@ Run the full test suites to confirm nothing is broken:
   permission.
 
 **To-do:**
-- [ ] Copy the "Manual checks" bullets above verbatim into the final report.
+- [x] Copy the "Manual checks" bullets above verbatim into the final report. - COMPLETE (2026-10-21)
 
 ## Status
-finished: false
+finished: true
