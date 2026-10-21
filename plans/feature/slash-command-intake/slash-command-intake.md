@@ -263,12 +263,12 @@ Run the full test suite and the Expected-end-state checks.
 Owner smoke test, 2026-10-21. (1) With a broken GitHub setup (e.g. a wrong installation id), a member fills out the whole modal before learning that nothing can be filed. The owner chose a GitHub access check before the modal opens, plus a startup self-check. (2) The documented DD-12 revert path does not work: the bot is not listed under Server Settings → Integrations. The owner chose to fix the docs and defer a `--clear-commands` flag.
 
 **To-do:**
-- [ ] **`GitHubClient.check_access`, Red → Green.** In `issue_bot/github.py`, add `async def check_access(self, target: TargetConfig) -> None` (docstring: "Confirm a repo-scoped installation token can be had for the target; raise GitHubError otherwise."). It awaits `self._installation_token(target.github_repo_id)` and discards the token, so a cached token answers with no request. Tests in `tests/test_github.py`, following that file's fake-transport pattern:
+- [x] **`GitHubClient.check_access`, Red → Green.** In `issue_bot/github.py`, add `async def check_access(self, target: TargetConfig) -> None` (docstring: "Confirm a repo-scoped installation token can be had for the target; raise GitHubError otherwise."). It awaits `self._installation_token(target.github_repo_id)` and discards the token, so a cached token answers with no request. Tests in `tests/test_github.py`, following that file's fake-transport pattern:
   - a cold call mints one token;
   - a second call within the cache window makes no request;
   - a non-201 token response raises `GitHubError("token", status)`;
   - a transport failure raises `GitHubError("token", None)`.
-- [ ] **Check before the modal, Red → Green.** In `issue_bot/intake.py`:
+- [x] **Check before the modal, Red → Green.** In `issue_bot/intake.py`:
   - Add `FilingCheck = Callable[[TargetConfig], Awaitable[None]]` beside `CandidateHook`.
   - Add `FILING_CHECK_TIMEOUT = 2.0  # Seconds; Discord needs the modal within 3 s of the command.`
   - Add `FILING_UNAVAILABLE_REPLY = "Sorry, reports can't be filed to GitHub right now, so the form didn't open. Try again later."`
@@ -281,7 +281,7 @@ Owner smoke test, 2026-10-21. (1) With a broken GitHub setup (e.g. a wrong insta
   - a check that never finishes (an `asyncio.Event().wait()`), with `FILING_CHECK_TIMEOUT` monkeypatched to `0.01`, gives the same refusal and logs `timeout`;
   - no `filing_check` opens the modal as before;
   - an out-of-channel command is refused before the check runs (the check is not awaited).
-- [ ] **Wire it through `IssueBot` and add the startup self-check, Red → Green.** In `issue_bot/bot.py`:
+- [x] **Wire it through `IssueBot` and add the startup self-check, Red → Green.** In `issue_bot/bot.py`:
   - `IssueBot.__init__(config, on_candidate=open_issue_thread, filing_check: FilingCheck | None = None)` stores it and passes it to each `intake_command`.
   - In `setup_hook`, after the sync's `try` (whatever it returned), when `filing_check` is set, run `await self.filing_check(self.config.target)`. On success log INFO `"github access ok for repo_id=%s"` (`config.target.github_repo_id`). On `GitHubError as exc` log ERROR `"github access check failed for repo_id=%s: %s stage=%s status=%s"`. The bot keeps running either way, since the per-command check still guards members.
   - In `issue_bot/__main__.py`, pass `filing_check=github.check_access`.
@@ -291,7 +291,7 @@ Owner smoke test, 2026-10-21. (1) With a broken GitHub setup (e.g. a wrong insta
   - with `GitHubError("token", 401)` it logs ERROR `stage=token status=401`, returns normally, and still synced;
   - the commands built by `IssueBot(config, filing_check=check)` refuse when the check fails (an end-to-end through `bot.tree.get_command`);
   - `test_main_*` asserts `filing_check` is passed (extend the existing main test's kwargs assertion).
-- [ ] **Docs.**
+- [x] **Docs.**
   - README Reporting: add the unavailable reply. README Known limits:
     - replace the Integrations removal sentence with: commands are registered on Discord's side and persist when the bot stops (they then fail with "The application did not respond");
     - a redeploy re-syncs them;
@@ -302,8 +302,9 @@ Owner smoke test, 2026-10-21. (1) With a broken GitHub setup (e.g. a wrong insta
     - Teardown: remove the Integrations instruction. The test server keeps `/bug` and `/feature`, which is harmless, or the test server can be deleted.
     - Add a troubleshooting row: "`/bug` says reports can't be filed" → check the `github access check failed` log line and the App ids or key.
   - Never touch `example.env`: it has the owner's uncommitted smoke-test edits.
-- [ ] **Final-report line for the fold-back:** META-PLAN Deferred follow-ups gain "`--clear-commands`: a one-shot empty guild sync for a rollback or retirement; until then removal is an empty sync or removing the app (unverified)". The baseline gains `GitHubClient.check_access` and the pre-modal and startup checks.
-- [ ] Verify: `.venv/bin/pytest` green; `grep -rnE --include='*.py' 'exc_info=|%r|logger\.exception' issue_bot` prints nothing; `grep -n 'Integrations' README.md docs/SMOKE-TEST.md` prints no line telling the reader to remove the app there; `git status --short example.env` still shows the owner's edit, unstaged.
+- [x] **Final-report line for the fold-back:** META-PLAN Deferred follow-ups gain "`--clear-commands`: a one-shot empty guild sync for a rollback or retirement; until then removal is an empty sync or removing the app (unverified)". The baseline gains `GitHubClient.check_access` and the pre-modal and startup checks.
+- [x] Verify: `.venv/bin/pytest` green; `grep -rnE --include='*.py' 'exc_info=|%r|logger\.exception' issue_bot` prints nothing; `grep -n 'Integrations' README.md docs/SMOKE-TEST.md` prints no line telling the reader to remove the app there; `git status --short example.env` still shows the owner's edit, unstaged.
+- [x] Done 2026-10-21: `.venv/bin/pytest` gave 212 passed (198 + 14 new: 4 in `tests/test_github.py`, 5 in `tests/test_intake.py`, 5 in `tests/test_bot.py`); the existing modal-opening test covers "no `filing_check`". The `exc_info=|%r|logger.exception` grep prints nothing; `grep -n 'Integrations' README.md docs/SMOKE-TEST.md` prints nothing. Beyond the plan (review finding, minor): both checks also catch any other exception (e.g. a key or JWT failure in `app_jwt`) and log its type only; the startup check so it cannot stop `login()`, the pre-modal check so the member gets `FILING_UNAVAILABLE_REPLY` rather than "The application did not respond". `git status --short example.env` printed nothing: the owner's edit was already committed in 8212e33; the file was not opened or touched.
 
 ## Owner checks (not executor tasks)
 - In a test guild, after the bot is re-invited with the `applications.commands` scope and Send Messages on the intake channel:
@@ -317,4 +318,4 @@ Owner smoke test, 2026-10-21. (1) With a broken GitHub setup (e.g. a wrong insta
 - Before deploying to the live server: re-invite the bot there with the `bot` and `applications.commands` scopes (or confirm the scope is already granted), and grant View Channel and Send Messages on the live intake channel, alongside the existing thread permissions. Post the cutover notice in the intake channel that `!bug`/`!feature` no longer work (agents never post live). After the deploy, confirm the log shows `synced 2 commands to guild <DISCORD_GUILD_ID>` and that `/bug` opens the modal in the live intake channel.
 
 ## Status
-finished: false
+finished: true

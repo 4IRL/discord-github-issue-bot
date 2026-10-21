@@ -20,6 +20,7 @@ F2 (thread per report), F5 (issue filing) and F10 (slash-command intake) exist: 
 
 - A title with no letter or digit posts nothing; you get a private reply asking you to run the command again.
 - If the summary can't be posted, nothing is filed, and you get a private reply saying so.
+- Before the form opens, the bot checks it can reach the GitHub repo. If it can't (within 2 seconds), no form opens and you get a private reply: "Sorry, reports can't be filed to GitHub right now, so the form didn't open. Try again later."
 - Run anywhere else, including inside a thread of the intake channel, the command gets a private refusal pointing to the intake channel.
 
 Direction: [`plans/ROADMAP.md`](plans/ROADMAP.md). Next work: [`plans/META-PLAN.md`](plans/META-PLAN.md).
@@ -27,11 +28,11 @@ Direction: [`plans/ROADMAP.md`](plans/ROADMAP.md). Next work: [`plans/META-PLAN.
 ### Known limits
 
 - No retry or dedup until Phase 4, so a timeout can leave an issue filed after an error reply.
-- A command run while the bot is down fails in Discord ("The application did not respond") and files nothing.
+- `/bug` and `/feature` are registered on Discord's side and persist when the bot stops: a command run while the bot is down fails in Discord ("The application did not respond") and files nothing. A redeploy re-syncs them.
 - An open modal expires after 30 minutes, and a bot restart drops every open modal: its submit fails in Discord, and nothing is filed or logged.
 - The private confirmation means the summary was posted, not that the issue was filed. A filing failure is reported in the thread; if the thread could not be opened either, it shows only in the log.
 - If GitHub filing fails, the Description typed in the modal is not kept anywhere in Discord; the reporter must type it again (F3's preview step addresses this).
-- Rolling back to a build without slash commands leaves `/bug` and `/feature` registered in the guild. To remove them, remove the app under Server Settings → Integrations (or kick the bot), then re-invite it. _(unverified: the owner confirms it in the smoke-test teardown)_
+- Rolling back to a build without slash commands leaves `/bug` and `/feature` registered in the guild but unanswered, until an empty command sync for the guild or removal of the app from the server. Neither path is verified yet; a `--clear-commands` flag is a deferred follow-up.
 
 ## Getting started
 

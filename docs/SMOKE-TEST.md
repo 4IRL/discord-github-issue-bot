@@ -9,7 +9,7 @@ The run happens against a **private scratch repo** and a **test channel**, never
 - **Startup:** the bot registers `/bug` and `/feature` in the guild `DISCORD_GUILD_ID` names. It overwrites them on every start, and they stay after teardown (see section 5).
 - **Probe:** one installation token on GitHub, which expires within an hour. Nothing else.
 - **Success checks:** two issues in the scratch repo (three with the optional `@someone` check), and one summary message plus one public thread per submission in the test channel.
-- **Failure check:** one summary message, one thread and one bot reply in that thread, in the test channel. It writes nothing to GitHub.
+- **Failure check:** one private reply to you. It posts nothing in the test channel and writes nothing to GitHub.
 - **Re-runs:** every re-run repeats its writes.
 
 ## 0. One-time setup
@@ -40,7 +40,7 @@ The run happens against a **private scratch repo** and a **test channel**, never
    ```
 
    Create any label that returns 404.
-4. Pick a Discord test channel in a separate test guild, never the live server: the commands are registered in the whole guild, and the teardown removes the app from it. The bot needs View Channel, Send Messages, Create Public Threads and Send Messages in Threads there, and must have been invited with the `bot` and `applications.commands` scopes.
+4. Pick a Discord test channel in a separate test guild, never the live server: the commands are registered in the whole guild and stay there after teardown. The bot needs View Channel, Send Messages, Create Public Threads and Send Messages in Threads there, and must have been invited with the `bot` and `applications.commands` scopes.
 
 ### `.env` for a local run
 
@@ -121,10 +121,11 @@ The log shows `synced 2 commands to guild <DISCORD_GUILD_ID>`. In the test chann
 
 ## 3. Failure path
 
-1. Stop the bot, set a wrong `GITHUB_APP_INSTALLATION_ID` in `.env`, restart it, and run one `/bug`.
-2. The thread gets "Sorry, I couldn't file this as a GitHub issue. Check the repo before reporting it again; to retry, run the command again."
-3. The log shows `could not file … stage=token status=…` with no member text. The private "Thanks! Your report is posted" confirmation still appears: it confirms the summary, not the issue.
-4. Restore the right ID.
+1. Stop the bot, set a wrong `GITHUB_APP_INSTALLATION_ID` in `.env` and restart it. The startup log shows an ERROR `github access check failed for repo_id=…: GitHubError stage=token status=…`, and the bot keeps running.
+2. Run one `/bug`. No form opens; you get the private reply "Sorry, reports can't be filed to GitHub right now, so the form didn't open. Try again later." The log shows `filing unavailable for bug interaction_id=…: GitHubError stage=token status=…` with no member text. Nothing is posted in the channel and nothing goes to GitHub.
+3. Restore the right ID.
+
+A filing failure after a submit (the thread's `FILING_ERROR_REPLY`) can't be triggered this way, since the check now stops the form first; the unit tests cover it.
 
 Restart the bot after every `.env` change. It reads its configuration only at startup.
 
@@ -177,7 +178,7 @@ For a quick test, add `--user "$(id -u)"` instead and mount the original `github
 2. Remove the scratch repo from the installation's selected repositories (org **Settings → GitHub Apps → Configure**), then delete the repo. Keep the App and its installation for the real target.
 3. Restore `.env` to the real target repo, intake channel and host key path. Delete the container key copy unless you'll keep running the bot in Docker: `sudo rm ~/.config/discord-github-issue-bot/github-app.container.pem`.
 4. Delete the smoke-test summary messages and threads, or leave them if the test channel is private to you.
-5. The test guild keeps `/bug` and `/feature` until the app is removed under Server Settings → Integrations (or the bot is kicked). Record in the PR whether that removed the commands (unverified until this run). Restore `.env`, but don't start the bot with the real config until the owner approves the live deploy and has posted the cutover notice (step 6): that start syncs the commands to the live server.
+5. The test guild keeps `/bug` and `/feature`, which is harmless (they answer "The application did not respond" while the bot is down), or you can delete the test guild. Restore `.env`, but don't start the bot with the real config until the owner approves the live deploy and has posted the cutover notice (step 6): that start syncs the commands to the live server.
 6. Cutover: before the live deploy, the owner posts a notice in the live intake channel that `!bug` and `!feature` no longer work. Agents never post.
 
 ## Troubleshooting
@@ -189,6 +190,7 @@ For a quick test, add `--user "$(id -u)"` instead and mount the original `github
 | The same error, container run | Run the three checks in section 4. `.env` must say exactly `/run/secrets/github-app-key.pem`. The `-v` source must be a regular file owned by 10001: if it was missing, Docker created an empty directory there, so remove it with `sudo rmdir` and recreate the copy. The key file must start with `-----BEGIN RSA PRIVATE KEY-----`, which `sudo head -c 31 <file>` shows without printing the key. |
 | `/bug` and `/feature` are missing | The commands weren't synced to this guild. The bot must be invited with the `applications.commands` scope, `DISCORD_GUILD_ID` must be the test channel's guild, and the startup log must show `synced 2 commands to guild …` (a `could not sync commands …` ERROR names the failure). If the log is right, reload the Discord client, which caches the command list. |
 | The command is refused in the right channel | A command run inside a thread, including a summary's thread, is refused: run it in the channel itself. Otherwise `DISCORD_CHANNEL_ID` doesn't match the channel: copy the channel ID again and restart the bot. |
+| `/bug` says reports can't be filed | The bot can't get a GitHub token for the repo. Check the startup log's `github access check failed …` line (its `status`) and the `filing unavailable …` lines, then the App ID, installation ID, `GITHUB_REPO_ID` and private key; the token probe in section 1 shows the same failure. Restart the bot after fixing `.env`. |
 | A submit gets a private error and no summary | The bot can't post in the channel. Check the startup log for `connected as …` with no channel ERROR or WARNING after it, and that the bot has View Channel, Send Messages, Create Public Threads and Send Messages in Threads there. |
 | The probe prints `JWT generation failed` | The key couldn't be loaded. Check the `<KEY_PATH>` argument and the Python error above that line. |
 | The probe returns 401 | The JWT was rejected. The App ID may be wrong, the key may belong to another App, or the system clock may be off by more than a minute. |
