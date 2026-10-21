@@ -8,15 +8,22 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from discord import app_commands
 
 import issue_bot.__main__ as entry_point
-from issue_bot.bot import IssueBot, build_intents, channel_problems, filing_hook
+from issue_bot.bot import (
+    IssueBot,
+    build_intents,
+    channel_problems,
+    filing_hook,
+    open_issue_thread,
+)
 from issue_bot.config import Config
 from issue_bot.github import FiledIssue, GitHubError
 from issue_bot.handler import IssueCandidate
+from issue_bot.intake import INTAKE_ERROR_REPLY, IntakeModal
 from issue_bot.issue_type import IssueType
-from issue_bot.tags import MalformedTag
-from issue_bot.threads import FILING_ERROR_REPLY, format_hint
+from issue_bot.threads import FILING_ERROR_REPLY
 from tests.conftest import (
     ISSUE_URL,
+    CandidateFactory,
     InteractionFactory,
     MessageFactory,
     assert_no_member_text,
@@ -64,9 +71,9 @@ class FailingBot:
 
 def test_intents() -> None:
     intents = build_intents()
-    assert intents.message_content is True
-    assert intents.guild_messages is True
     assert intents.guilds is True
+    assert intents.message_content is False
+    assert intents.guild_messages is False
     assert intents.members is False
     assert intents.presences is False
 
@@ -110,45 +117,20 @@ def test_no_category(config: Config) -> None:
     ]
 
 
-async def test_on_message_calls_hook_with_message_and_candidate(
-    config: Config, make_message: MessageFactory
-) -> None:
-    hook = AsyncMock()
-    bot = IssueBot(config, on_candidate=hook)
-    message = make_message()
-    await bot.on_message(message)
-    hook.assert_awaited_once()
-    awaited_message, candidate = hook.await_args.args
-    assert awaited_message is message
-    assert isinstance(candidate, IssueCandidate)
-    assert candidate.type == IssueType.BUG
-
-
-async def test_on_message_ignores_untagged(
-    config: Config, make_message: MessageFactory
-) -> None:
-    hook = AsyncMock()
-    bot = IssueBot(config, on_candidate=hook)
-    await bot.on_message(make_message("anyone around tonight?"))
-    hook.assert_not_awaited()
-
-
-async def test_on_message_malformed_skips_candidate_hook(
-    config: Config, make_message: MessageFactory
-) -> None:
-    hook = AsyncMock()
-    bot = IssueBot(config, on_candidate=hook)
-    await bot.on_message(make_message("!bug\nBody: x"))
-    hook.assert_not_awaited()
+def test_no_message_listeners() -> None:
+    assert not hasattr(IssueBot, "on_message")
+    assert not hasattr(IssueBot, "on_message_edit")
 
 
 async def test_default_hook_logs_ids_not_text(
-    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    bot = IssueBot(config)
-    message = make_message("!bug\nTitle: Secret title words\nBody: Secret body words")
+    message = make_message()
+    candidate = make_candidate(title="Secret title words", body="Secret body words")
     with caplog.at_level(logging.INFO):
-        await bot.on_message(message)
+        await open_issue_thread(message, candidate)
     info_messages = [
         record.getMessage() for record in bot_records(caplog) if record.levelno == logging.INFO
     ]
@@ -163,32 +145,31 @@ async def test_default_hook_logs_ids_not_text(
 
 
 async def test_default_hook_opens_one_thread_named_from_title(
-    config: Config, make_message: MessageFactory
+    make_message: MessageFactory, make_candidate: CandidateFactory
 ) -> None:
-    bot = IssueBot(config)
-    message = make_message("!bug\nTitle: Fix it")
-    await bot.on_message(message)
+    message = make_message()
+    await open_issue_thread(message, make_candidate(title="Fix it"))
     message.create_thread.assert_awaited_once_with(name="Fix it")
 
 
 async def test_default_hook_truncates_long_title(
-    config: Config, make_message: MessageFactory
+    make_message: MessageFactory, make_candidate: CandidateFactory
 ) -> None:
-    bot = IssueBot(config)
-    message = make_message("!bug\nTitle: " + "y" * 150)
-    await bot.on_message(message)
+    message = make_message()
+    await open_issue_thread(message, make_candidate(title="y" * 150))
     message.create_thread.assert_awaited_once()
     assert len(message.create_thread.await_args.kwargs["name"]) == 100
 
 
 async def test_default_hook_skips_message_with_thread(
-    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     existing = SimpleNamespace(id=5)
     message = make_message(thread=existing)
-    bot = IssueBot(config)
     with caplog.at_level(logging.INFO):
-        await bot.on_message(message)
+        await open_issue_thread(message, make_candidate())
     message.create_thread.assert_not_awaited()
     assert any(
         record.levelno == logging.INFO and "thread_id=5" in record.getMessage()
@@ -197,13 +178,14 @@ async def test_default_hook_skips_message_with_thread(
 
 
 async def test_default_hook_logs_when_thread_fails(
-    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    bot = IssueBot(config)
-    message = make_message("!bug\nTitle: Secret title words")
+    message = make_message()
     message.create_thread.side_effect = forbidden(50013, "x")
     with caplog.at_level(logging.INFO):
-        await bot.on_message(message)
+        await open_issue_thread(message, make_candidate(title="Secret title words"))
     assert any(
         record.levelno == logging.INFO and "thread_id=None" in record.getMessage()
         for record in bot_records(caplog)
@@ -216,17 +198,22 @@ async def test_default_hook_logs_when_thread_fails(
         assert "Secret title words" not in text
 
 
-SECRET_CONTENT = "!bug\nTitle: Secret title words\nBody: Secret body words"
+def secret_candidate(make_candidate: CandidateFactory) -> IssueCandidate:
+    return make_candidate(
+        title="Secret title words", body="Secret body words", author_name="Alice"
+    )
 
 
 async def test_filing_hook_files_issue_and_logs_url(
-    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+    config: Config,
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     github = fake_github(FiledIssue(7, ISSUE_URL))
-    bot = IssueBot(config, on_candidate=filing_hook(github))
-    message = make_message(SECRET_CONTENT)
+    message = make_message()
     with caplog.at_level(logging.INFO):
-        await bot.on_message(message)
+        await filing_hook(github)(message, secret_candidate(make_candidate))
     message.create_thread.assert_awaited_once_with(name="Secret title words")
     github.create_issue.assert_awaited_once()
     target, _title, _body, labels = github.create_issue.await_args.args
@@ -246,13 +233,14 @@ async def test_filing_hook_files_issue_and_logs_url(
 
 
 async def test_filing_hook_failure_replies_and_logs_status(
-    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     github = fake_github(GitHubError("issue", 422))
-    bot = IssueBot(config, on_candidate=filing_hook(github))
-    message = make_message(SECRET_CONTENT)
+    message = make_message()
     with caplog.at_level(logging.INFO):
-        await bot.on_message(message)
+        await filing_hook(github)(message, secret_candidate(make_candidate))
     message.create_thread.return_value.send.assert_awaited_once_with(FILING_ERROR_REPLY)
     errors = [
         record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
@@ -273,14 +261,15 @@ async def test_filing_hook_failure_replies_and_logs_status(
 
 
 async def test_filing_hook_files_even_without_thread(
-    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     github = fake_github(FiledIssue(7, ISSUE_URL))
-    bot = IssueBot(config, on_candidate=filing_hook(github))
-    message = make_message(SECRET_CONTENT)
+    message = make_message()
     message.create_thread.side_effect = forbidden(50013, "x")
     with caplog.at_level(logging.INFO):
-        await bot.on_message(message)
+        await filing_hook(github)(message, secret_candidate(make_candidate))
     github.create_issue.assert_awaited_once()
     assert any(
         record.levelno == logging.INFO
@@ -292,14 +281,15 @@ async def test_filing_hook_files_even_without_thread(
 
 
 async def test_filing_hook_failure_without_thread_logs_only(
-    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     github = fake_github(GitHubError("token", None))
-    bot = IssueBot(config, on_candidate=filing_hook(github))
-    message = make_message(SECRET_CONTENT)
+    message = make_message()
     message.create_thread.side_effect = forbidden(50013, "x")
     with caplog.at_level(logging.INFO):
-        await bot.on_message(message)
+        await filing_hook(github)(message, secret_candidate(make_candidate))
     errors = [
         record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
     ]
@@ -311,14 +301,15 @@ async def test_filing_hook_failure_without_thread_logs_only(
 
 
 async def test_filing_error_send_failure_logged_without_text(
-    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     github = fake_github(GitHubError("issue", 422))
-    bot = IssueBot(config, on_candidate=filing_hook(github))
-    message = make_message(SECRET_CONTENT)
+    message = make_message()
     message.create_thread.return_value.send.side_effect = forbidden(50001, "Secret error words")
     with caplog.at_level(logging.INFO):
-        await bot.on_message(message)
+        await filing_hook(github)(message, secret_candidate(make_candidate))
     send_errors = [
         record.getMessage()
         for record in bot_records(caplog)
@@ -331,98 +322,35 @@ async def test_filing_error_send_failure_logged_without_text(
     assert_no_member_text(caplog)
 
 
-async def test_filing_hook_unexpected_error_reaches_on_error(
-    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
+async def test_filing_hook_unexpected_error_reaches_modal_on_error(
+    config: Config, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
     github = fake_github(RuntimeError("Secret exception words"))
-    bot = IssueBot(config, on_candidate=filing_hook(github))
-    message = make_message(SECRET_CONTENT)
+    modal = IntakeModal(IssueType.BUG, config.target, filing_hook(github))
+    interaction = make_interaction()
+    # discord.py's own seed for a submitted value: a real submit needs the Gateway.
+    modal.title_input._value = "Secret title words"
+    modal.description_input._value = "Secret body words"
     with caplog.at_level(logging.INFO):
-        await bot._run_event(bot.on_message, "on_message", message)
+        # discord.py's own dispatch path (2.7.1: interaction, components, resolved): empty
+        # components keep the seeded values, and an exception in on_submit reaches on_error.
+        await modal._scheduled_task(interaction, [], {})
     github.create_issue.assert_awaited_once()
-    message.create_thread.return_value.send.assert_not_awaited()
-    errors = [
-        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    summary = interaction.channel.send.return_value
+    summary.create_thread.return_value.send.assert_not_awaited()
+    intake_errors = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "issue_bot.intake" and record.levelno == logging.ERROR
     ]
-    assert errors == ["unhandled RuntimeError in on_message message_id=99"]
+    assert intake_errors == [
+        "unhandled RuntimeError in bug modal interaction_id=4242 status=None code=None"
+    ]
     for text in record_texts(caplog):
         assert "Secret exception words" not in text
     assert_no_member_text(caplog)
-
-
-async def test_malformed_message_gets_format_hint_in_thread(
-    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
-) -> None:
-    hook = AsyncMock()
-    bot = IssueBot(config, on_candidate=hook)
-    message = make_message("!bug\nBody: x")
-    with caplog.at_level(logging.INFO):
-        await bot.on_message(message)
-    hook.assert_not_awaited()
-    message.create_thread.assert_awaited_once_with(name="Format help: !bug")
-    message.create_thread.return_value.send.assert_awaited_once_with(format_hint(IssueType.BUG))
-    assert any(
-        record.levelno == logging.INFO
-        and "format hint bug" in record.getMessage()
-        and "thread_id=1234" in record.getMessage()
-        for record in bot_records(caplog)
-    )
-
-
-async def test_malformed_with_existing_thread_reuses_it(
-    config: Config, make_message: MessageFactory
-) -> None:
-    existing = SimpleNamespace(id=5, send=AsyncMock())
-    message = make_message("!bug\nBody: x", thread=existing)
-    bot = IssueBot(config)
-    await bot.on_message(message)
-    message.create_thread.assert_not_awaited()
-    existing.send.assert_awaited_once()
-
-
-async def test_malformed_hint_skipped_when_thread_fails(
-    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
-) -> None:
-    bot = IssueBot(config)
-    message = make_message("!bug\nBody: x")
-    message.create_thread.side_effect = forbidden(50013, "x")
-    with caplog.at_level(logging.INFO):
-        await bot.on_message(message)
-    thread_errors = [
-        record.getMessage()
-        for record in caplog.records
-        if record.name == "issue_bot.threads" and record.levelno == logging.ERROR
-    ]
-    assert len(thread_errors) == 1
-    assert "Forbidden" in thread_errors[0] and "99" in thread_errors[0]
-    message.create_thread.return_value.send.assert_not_awaited()
-    message.fetch_thread.assert_not_awaited()
-
-
-async def test_malformed_hint_send_failure_logged_without_text(
-    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
-) -> None:
-    bot = IssueBot(config)
-    message = make_message("!bug\nBody: x")
-    message.create_thread.return_value.send.side_effect = forbidden(50001, "Secret error words")
-    with caplog.at_level(logging.INFO):
-        await bot.on_message(message)
-    bot_errors = [
-        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
-    ]
-    assert len(bot_errors) == 1
-    assert all(part in bot_errors[0] for part in ("Forbidden", "403", "50001", "99"))
-    for text in record_texts(caplog):
-        assert "Secret error words" not in text
-
-
-async def test_custom_on_malformed_hook(config: Config, make_message: MessageFactory) -> None:
-    malformed_hook = AsyncMock()
-    bot = IssueBot(config, on_malformed=malformed_hook)
-    message = make_message("!bug\nBody: x")
-    await bot.on_message(message)
-    malformed_hook.assert_awaited_once_with(message, MalformedTag(IssueType.BUG))
-    message.create_thread.assert_not_awaited()
+    interaction.followup.send.assert_awaited_once_with(INTAKE_ERROR_REPLY, ephemeral=True)
+    interaction.response.send_message.assert_not_awaited()
 
 
 async def test_on_ready_logs_missing_channel_as_error(
@@ -493,13 +421,30 @@ async def test_on_error_hides_exception_text(
         try:
             raise RuntimeError("Secret title words")
         except RuntimeError:
-            await bot.on_error("on_message")
+            await bot.on_error("on_ready")
     errors = [
         record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
     ]
-    assert any("RuntimeError" in text and "on_message" in text for text in errors)
+    assert errors == ["unhandled RuntimeError in on_ready"]
     for text in record_texts(caplog):
         assert "Secret title words" not in text
+
+
+async def test_raising_event_dispatched_by_discord_logs_type_only(
+    config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(config)
+    on_ready = AsyncMock(side_effect=RuntimeError("Secret title words"))
+    monkeypatch.setattr(bot, "on_ready", on_ready)
+    with caplog.at_level(logging.INFO):
+        # discord.py's own dispatch path: it catches the error and calls on_error.
+        await bot._run_event(bot.on_ready, "on_ready")
+    on_ready.assert_awaited_once()
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert errors == ["unhandled RuntimeError in on_ready"]
+    assert_no_member_text(caplog)
 
 
 async def test_on_error_without_active_exception(
@@ -512,77 +457,6 @@ async def test_on_error_without_active_exception(
         record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
     ]
     assert errors == ["unhandled unknown error in on_ready"]
-
-
-async def test_on_error_adds_message_id_for_on_message(
-    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
-) -> None:
-    bot = IssueBot(config)
-    message = make_message("!bug\nTitle: Secret title words", message_id=4242)
-    with caplog.at_level(logging.INFO):
-        try:
-            raise RuntimeError("Secret title words")
-        except RuntimeError:
-            await bot.on_error("on_message", message)
-    errors = [
-        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
-    ]
-    assert errors == ["unhandled RuntimeError in on_message message_id=4242"]
-    for text in record_texts(caplog):
-        assert "Secret title words" not in text
-        assert "Alice" not in text
-
-
-async def test_raising_hook_dispatched_by_discord_logs_type_and_id_only(
-    config: Config, make_message: MessageFactory, caplog: pytest.LogCaptureFixture
-) -> None:
-    hook = AsyncMock(side_effect=RuntimeError("Secret exception words"))
-    bot = IssueBot(config, on_candidate=hook)
-    message = make_message("!bug\nTitle: Secret title words", message_id=4242)
-    with caplog.at_level(logging.INFO):
-        # discord.py's own dispatch path: it catches the error and calls on_error.
-        await bot._run_event(bot.on_message, "on_message", message)
-    hook.assert_awaited_once()
-    errors = [
-        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
-    ]
-    assert errors == ["unhandled RuntimeError in on_message message_id=4242"]
-    for text in record_texts(caplog):
-        assert "Secret exception words" not in text
-        assert "Secret title words" not in text
-        assert "Alice" not in text
-
-
-@pytest.mark.parametrize(
-    ("event_method", "arguments"),
-    [
-        ("on_message", (SimpleNamespace(id="99"),)),
-        ("on_message", (SimpleNamespace(id=True),)),
-        ("on_message", (SimpleNamespace(),)),
-        ("on_message", ()),
-        ("on_guild_join", (SimpleNamespace(id=4242),)),
-    ],
-)
-async def test_on_error_omits_non_message_ids(
-    config: Config,
-    caplog: pytest.LogCaptureFixture,
-    event_method: str,
-    arguments: tuple[SimpleNamespace, ...],
-) -> None:
-    bot = IssueBot(config)
-    with caplog.at_level(logging.INFO):
-        try:
-            raise RuntimeError("boom")
-        except RuntimeError:
-            await bot.on_error(event_method, *arguments)
-    errors = [
-        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
-    ]
-    assert errors == [f"unhandled RuntimeError in {event_method}"]
-
-
-def test_edits_not_handled() -> None:
-    assert not hasattr(IssueBot, "on_message_edit")
 
 
 def test_main_exits_on_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -705,6 +579,23 @@ async def test_setup_hook_sync_failure_logged_without_text(
     assert any("Forbidden" in text and "403" in text and "50001" in text for text in errors)
     for text in record_texts(caplog):
         assert "Secret error words" not in text
+
+
+async def test_setup_hook_non_http_sync_failure_logged_type_only(
+    config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(config)
+    monkeypatch.setattr(
+        bot.tree, "sync", AsyncMock(side_effect=RuntimeError("Secret exception words"))
+    )
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert errors == ["could not sync commands to guild 111: RuntimeError"]
+    for text in record_texts(caplog):
+        assert "Secret exception words" not in text
 
 
 @pytest.mark.parametrize(

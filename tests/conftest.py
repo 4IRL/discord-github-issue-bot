@@ -8,8 +8,10 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from issue_bot.config import Config
+from issue_bot.config import Config, TargetConfig
 from issue_bot.github import FiledIssue
+from issue_bot.handler import IssueCandidate
+from issue_bot.issue_type import IssueType
 
 
 ISSUE_URL = "https://github.com/example-org/example-repo/issues/7"
@@ -102,6 +104,7 @@ def config(test_env: dict[str, str]) -> Config:
 
 MessageFactory = Callable[..., SimpleNamespace]
 InteractionFactory = Callable[..., SimpleNamespace]
+CandidateFactory = Callable[..., IssueCandidate]
 
 
 @pytest.fixture
@@ -109,24 +112,14 @@ def make_message() -> MessageFactory:
     """Build a duck-typed stand-in for ``discord.Message`` (no real Discord objects)."""
 
     def factory(
-        content: str = "!bug\nTitle: Fix it",
         *,
         channel_id: int = 555,
-        author_bot: bool = False,
-        webhook_id: int | None = None,
-        message_type: discord.MessageType = discord.MessageType.default,
-        author_id: int = 7,
-        author_name: str = "Alice",
         message_id: int = 99,
         thread: object | None = None,
         created_thread_id: int = 1234,
     ) -> SimpleNamespace:
         return SimpleNamespace(
-            content=content,
             channel=SimpleNamespace(id=channel_id),
-            author=SimpleNamespace(bot=author_bot, id=author_id, display_name=author_name),
-            webhook_id=webhook_id,
-            type=message_type,
             id=message_id,
             jump_url=f"https://discord.com/channels/111/{channel_id}/{message_id}",
             thread=thread,
@@ -134,6 +127,35 @@ def make_message() -> MessageFactory:
                 return_value=SimpleNamespace(id=created_thread_id, send=AsyncMock())
             ),
             fetch_thread=AsyncMock(return_value=SimpleNamespace(id=message_id, send=AsyncMock())),
+        )
+
+    return factory
+
+
+@pytest.fixture
+def make_candidate(config: Config) -> CandidateFactory:
+    """Build an ``IssueCandidate`` for a report; ``target`` defaults to the test config's."""
+
+    def factory(
+        *,
+        type: IssueType = IssueType.BUG,
+        title: str = "Fix it",
+        body: str = "Steps",
+        author_name: str = "Alice",
+        author_id: int = 7,
+        message_id: int = 99,
+        message_url: str = "https://discord.com/channels/111/555/99",
+        target: TargetConfig | None = None,
+    ) -> IssueCandidate:
+        return IssueCandidate(
+            type=type,
+            title=title,
+            body=body,
+            author_id=author_id,
+            author_name=author_name,
+            message_id=message_id,
+            message_url=message_url,
+            target=target or config.target,
         )
 
     return factory

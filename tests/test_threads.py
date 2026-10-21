@@ -4,11 +4,9 @@ from types import SimpleNamespace
 import discord
 import pytest
 
-from issue_bot.issue_type import IssueType
 from issue_bot.threads import (
     FILING_ERROR_REPLY,
     THREAD_NAME_LIMIT,
-    format_hint,
     open_thread,
     thread_name,
 )
@@ -40,15 +38,6 @@ def test_thread_name_truncated_to_limit() -> None:
     assert len(truncated) == THREAD_NAME_LIMIT
     assert truncated.endswith("…")
     assert thread_name("a" * 98 + " bcd") == "a" * 98 + "…"
-
-
-def test_format_hint_names_tag_and_fields() -> None:
-    assert format_hint(IssueType.BUG) == (
-        "No issue was filed: this message has no usable `Title:` line. Post a new message "
-        "(edits are ignored) in this form:\n```\n!bug\nTitle: <one-line summary>\n"
-        "Body: <optional details>\n```"
-    )
-    assert "!feature" in format_hint(IssueType.FEATURE)
 
 
 async def test_open_thread_creates_once(make_message: MessageFactory) -> None:
@@ -103,7 +92,7 @@ async def test_open_thread_fetch_failure_returns_none(
 async def test_open_thread_logs_forbidden_without_text(
     make_message: MessageFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
-    message = make_message("!bug\nTitle: Secret title words")
+    message = make_message()
     message.create_thread.side_effect = discord.Forbidden(
         SimpleNamespace(status=403, reason="Forbidden"),
         {"code": 50013, "message": "Secret error words"},
@@ -127,6 +116,6 @@ async def test_open_thread_logs_forbidden_without_text(
 
 def test_filing_error_reply_is_fixed_text() -> None:
     assert FILING_ERROR_REPLY == (
-        "Sorry, I couldn't file this as a GitHub issue. Check the repo before reposting; "
-        "to retry, post a new message (edits are ignored)."
+        "Sorry, I couldn't file this as a GitHub issue. Check the repo before reporting it "
+        "again; to retry, run the command again."
     )

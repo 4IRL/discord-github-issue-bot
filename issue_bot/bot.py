@@ -1,8 +1,7 @@
-"""The Discord client: listens to the intake channel and hands tagged messages to hooks."""
+"""The Discord client: registers the intake commands and hands each report to a hook."""
 
 import logging
 import sys
-from collections.abc import Awaitable, Callable
 from typing import Any
 
 import discord
@@ -10,24 +9,19 @@ from discord import app_commands
 
 from issue_bot.config import Config
 from issue_bot.github import GitHubClient, GitHubError
-from issue_bot.handler import IssueCandidate, candidate_from_message
+from issue_bot.handler import IssueCandidate
 from issue_bot.intake import CandidateHook, discord_error_fields, intake_command
 from issue_bot.issue_type import IssueType
 from issue_bot.issues import file_candidate
-from issue_bot.tags import MalformedTag
-from issue_bot.threads import FILING_ERROR_REPLY, format_hint, open_thread, thread_name
+from issue_bot.threads import FILING_ERROR_REPLY, open_thread, thread_name
 
 logger = logging.getLogger(__name__)
 
-MalformedHook = Callable[[discord.Message, MalformedTag], Awaitable[None]]
-
 
 def build_intents() -> discord.Intents:
-    """Least-privilege intents: guilds, guild messages and message content only."""
+    """Least-privilege intents: guilds only (slash commands and modals need no intent)."""
     intents = discord.Intents.none()
     intents.guilds = True
-    intents.guild_messages = True
-    intents.message_content = True
     return intents
 
 
@@ -117,26 +111,6 @@ def filing_hook(github: GitHubClient) -> CandidateHook:
     return file_and_report
 
 
-async def reply_format_hint(message: discord.Message, malformed: MalformedTag) -> None:
-    """Default malformed hook: reply in a ``Format help`` thread with the expected format."""
-    thread = await open_thread(message, f"Format help: !{malformed.type}")
-    if thread is None:
-        return
-    try:
-        await thread.send(format_hint(malformed.type))
-    except discord.HTTPException as exc:
-        logger.error(
-            "could not send format hint for message_id=%s thread_id=%s: %s status=%s code=%s",
-            message.id,
-            thread.id,
-            type(exc).__name__,
-            exc.status,
-            exc.code,
-        )
-        return
-    logger.info("format hint %s message_id=%s thread_id=%s", malformed.type, message.id, thread.id)
-
-
 class IntakeTree(app_commands.CommandTree):
     """The bot's command tree, with a privacy-safe error handler."""
 
@@ -161,10 +135,10 @@ class IntakeTree(app_commands.CommandTree):
 
 
 class IssueBot(discord.Client):
-    """Hands new tagged messages in the intake channel to hooks.
+    """Registers ``/bug`` and ``/feature`` in the configured guild.
 
-    A candidate goes to ``on_candidate`` (default: open its thread); a tagged message
-    without a usable title goes to ``on_malformed`` (default: reply with the format hint).
+    Each submitted report is posted as a public summary message in the intake channel, and
+    that message and its candidate go to ``on_candidate`` (default: open its thread).
     Production wires ``filing_hook`` as ``on_candidate`` in ``__main__``.
     """
 
@@ -172,12 +146,10 @@ class IssueBot(discord.Client):
         self,
         config: Config,
         on_candidate: CandidateHook = open_issue_thread,
-        on_malformed: MalformedHook = reply_format_hint,
     ) -> None:
         super().__init__(intents=build_intents())
         self.config = config
         self.on_candidate = on_candidate
-        self.on_malformed = on_malformed
         self._startup_checked: bool = False
         self.tree = IntakeTree(self)
         self._guild = discord.Object(id=config.guild_id)
@@ -204,6 +176,14 @@ class IssueBot(discord.Client):
                 exc.code,
             )
             return
+        except Exception as exc:
+            # Network, timeout or MissingApplicationID: log the type only, never exc_info.
+            logger.error(
+                "could not sync commands to guild %s: %s",
+                self.config.guild_id,
+                type(exc).__name__,
+            )
+            return
         logger.info("synced %d commands to guild %s", len(synced), self.config.guild_id)
 
     async def on_ready(self) -> None:
@@ -221,25 +201,8 @@ class IssueBot(discord.Client):
         for problem in channel_problems(channel, self.config):
             log_problem("%s", problem)
 
-    async def on_message(self, message: discord.Message) -> None:
-        result = candidate_from_message(message, self.config)
-        if isinstance(result, IssueCandidate):
-            await self.on_candidate(message, result)
-        elif isinstance(result, MalformedTag):
-            await self.on_malformed(message, result)
-
     async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:
-        """Log the exception type, event and on_message's message id only.
-
-        Tracebacks and args can quote member text; an integer message id cannot.
-        """
+        """Log the exception type and event name only: tracebacks and args can quote member text."""
         error = sys.exc_info()[1]
         error_name = type(error).__name__ if error is not None else "unknown error"
-        message = args[0] if event_method == "on_message" and args else None
-        message_id = getattr(message, "id", None)
-        if isinstance(message_id, int) and not isinstance(message_id, bool):
-            logger.error(
-                "unhandled %s in %s message_id=%d", error_name, event_method, message_id
-            )
-        else:
-            logger.error("unhandled %s in %s", error_name, event_method)
+        logger.error("unhandled %s in %s", error_name, event_method)

@@ -1,17 +1,11 @@
-"""Turn a tagged intake-channel message into an issue candidate."""
+"""The issue candidate a slash-command report becomes."""
 
-import logging
 from dataclasses import dataclass, field
 
 import discord
 
-from issue_bot.config import Config, TargetConfig
+from issue_bot.config import TargetConfig
 from issue_bot.issue_type import IssueType
-from issue_bot.tags import MalformedTag, parse_tag
-
-logger = logging.getLogger(__name__)
-
-ACCEPTED_MESSAGE_TYPES = (discord.MessageType.default, discord.MessageType.reply)
 
 
 @dataclass(frozen=True)
@@ -29,45 +23,6 @@ class IssueCandidate:
     message_id: int
     message_url: str
     target: TargetConfig
-
-
-def candidate_from_message(
-    message: discord.Message, config: Config
-) -> IssueCandidate | MalformedTag | None:
-    """Return a candidate for a new, human, tagged message in the intake channel, the
-    ``MalformedTag`` for a tagged one without a usable title, else ``None``.
-
-    Messages in threads are dropped too: their ``channel.id`` is the thread's id.
-    """
-    if message.channel.id != config.target.channel_id:
-        return None
-    if message.author.bot:
-        return None
-    if message.webhook_id is not None:
-        return None
-    if message.type not in ACCEPTED_MESSAGE_TYPES:
-        return None
-    parsed = parse_tag(message.content)
-    if parsed is None:
-        return None
-    if isinstance(parsed, MalformedTag):
-        logger.info(
-            "malformed %s message_id=%s (%s): no usable Title: line",
-            parsed.type,
-            message.id,
-            message.jump_url,
-        )
-        return parsed
-    return IssueCandidate(
-        type=parsed.type,
-        title=parsed.title,
-        body=parsed.body,
-        author_id=message.author.id,
-        author_name=message.author.display_name,
-        message_id=message.id,
-        message_url=message.jump_url,
-        target=config.target,
-    )
 
 
 def candidate_from_submission(
