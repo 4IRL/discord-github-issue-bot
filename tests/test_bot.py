@@ -268,7 +268,7 @@ async def test_filing_hook_failure_replies_and_logs_status(
     assert_no_member_text(caplog)
 
 
-async def test_filing_hook_files_even_without_thread(
+async def test_filing_hook_without_thread_replies_link_on_summary(
     make_message: MessageFactory,
     make_candidate: CandidateFactory,
     caplog: pytest.LogCaptureFixture,
@@ -285,10 +285,16 @@ async def test_filing_hook_files_even_without_thread(
         and "thread_id=None" in record.getMessage()
         for record in bot_records(caplog)
     )
+    message.reply.assert_awaited_once_with(
+        filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words"),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
+    message.create_thread.return_value.send.assert_not_awaited()
     assert_no_member_text(caplog)
 
 
-async def test_filing_hook_failure_without_thread_logs_only(
+async def test_filing_hook_failure_without_thread_replies_error_on_summary(
     make_message: MessageFactory,
     make_candidate: CandidateFactory,
     caplog: pytest.LogCaptureFixture,
@@ -303,8 +309,9 @@ async def test_filing_hook_failure_without_thread_logs_only(
     ]
     assert len(errors) == 1
     assert "could not file bug" in errors[0] and "thread_id=None" in errors[0]
-    message.create_thread.return_value.send.assert_not_awaited()
-    message.fetch_thread.return_value.send.assert_not_awaited()
+    message.reply.assert_awaited_once_with(
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
+    )
     assert_no_member_text(caplog)
 
 
@@ -330,6 +337,97 @@ async def test_filing_error_send_failure_logged_without_text(
     assert_no_member_text(caplog)
 
 
+async def test_link_send_failure_logged_without_text(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = fake_github(FiledIssue(7, ISSUE_URL))
+    message = make_message()
+    message.create_thread.return_value.send.side_effect = forbidden(50001, "Secret error words")
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github)(message, secret_candidate(make_candidate))
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert len(errors) == 1
+    assert all(
+        part in errors[0]
+        for part in (
+            "could not send issue link",
+            "Forbidden",
+            "403",
+            "50001",
+            "message_id=99",
+            "thread_id=1234",
+        )
+    )
+    assert any(
+        record.levelno == logging.INFO and "filed bug" in record.getMessage()
+        for record in bot_records(caplog)
+    )
+    for text in record_texts(caplog):
+        assert "Secret error words" not in text
+    assert_no_member_text(caplog)
+
+
+async def test_summary_reply_failure_logged_without_text(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = fake_github(FiledIssue(7, ISSUE_URL))
+    message = make_message()
+    message.create_thread.side_effect = forbidden(50013, "x")
+    message.reply.side_effect = forbidden(50001, "Secret error words")
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github)(message, secret_candidate(make_candidate))
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert len(errors) == 1
+    assert all(
+        part in errors[0]
+        for part in (
+            "could not send issue link",
+            "Forbidden",
+            "403",
+            "50001",
+            "message_id=99",
+            "thread_id=None",
+        )
+    )
+    for text in record_texts(caplog):
+        assert "Secret error words" not in text
+    assert_no_member_text(caplog)
+
+
+async def test_summary_error_reply_failure_logged_without_text(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = fake_github(GitHubError("issue", 422))
+    message = make_message()
+    message.create_thread.side_effect = forbidden(50013, "x")
+    message.reply.side_effect = forbidden(50001, "Secret error words")
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github)(message, secret_candidate(make_candidate))
+    send_errors = [
+        record.getMessage()
+        for record in bot_records(caplog)
+        if record.levelno == logging.ERROR and "could not send filing error" in record.getMessage()
+    ]
+    assert len(send_errors) == 1
+    assert all(
+        part in send_errors[0]
+        for part in ("Forbidden", "403", "50001", "message_id=99", "thread_id=None")
+    )
+    for text in record_texts(caplog):
+        assert "Secret error words" not in text
+    assert_no_member_text(caplog)
+
+
 async def test_filing_hook_unexpected_error_reaches_modal_on_error(
     config: Config, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -346,6 +444,7 @@ async def test_filing_hook_unexpected_error_reaches_modal_on_error(
     github.create_issue.assert_awaited_once()
     summary = interaction.channel.send.return_value
     summary.create_thread.return_value.send.assert_not_awaited()
+    summary.reply.assert_not_awaited()
     intake_errors = [
         record.getMessage()
         for record in caplog.records

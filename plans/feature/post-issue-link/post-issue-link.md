@@ -149,31 +149,31 @@ With no thread, the same text goes to a reply on the summary; a failed link send
 without text.
 
 **To-do:**
-- [ ] Extend `test_filing_hook_files_even_without_thread` (rename it to
+- [x] Extend `test_filing_hook_files_even_without_thread` (rename it to
   `test_filing_hook_without_thread_replies_link_on_summary`): assert
   `message.reply.assert_awaited_once_with(filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words"), allowed_mentions=NO_MENTIONS, suppress_embeds=True)`
   and `message.create_thread.return_value.send.assert_not_awaited()`. It passes already, since Step 2's
   `_post_outcome` helper covers the no-thread path; run it and confirm it passes.
-- [ ] Rename `test_filing_hook_failure_without_thread_logs_only` to
+- [x] Rename `test_filing_hook_failure_without_thread_logs_only` to
   `test_filing_hook_failure_without_thread_replies_error_on_summary` and replace its two
   `send.assert_not_awaited()` lines with
   `message.reply.assert_awaited_once_with(FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True)`;
   keep the single-ERROR-line assertion (the thread-open failure is logged by `threads`, not
   `bot`, so `bot_records` still has one error). Run it; confirm it passes.
-- [ ] Add `test_link_send_failure_logged_without_text`, modelled on
+- [x] Add `test_link_send_failure_logged_without_text`, modelled on
   `test_filing_error_send_failure_logged_without_text`: `fake_github(FiledIssue(7, ISSUE_URL))`,
   thread `send.side_effect = forbidden(50001, "Secret error words")`; assert exactly one bot ERROR
   record containing `could not send issue link`, `Forbidden`, `403`, `50001`, `message_id=99`,
   `thread_id=1234`; the `filed bug` INFO record is still present; no record contains
   `Secret error words`; `assert_no_member_text(caplog)`.
-- [ ] Add `test_summary_reply_failure_logged_without_text`: `create_thread.side_effect =
+- [x] Add `test_summary_reply_failure_logged_without_text`: `create_thread.side_effect =
   forbidden(50013, "x")`, `message.reply.side_effect = forbidden(50001, "Secret error words")`,
   success filing; assert one bot ERROR containing `could not send issue link` and
   `thread_id=None`, and no `Secret error words` in any record; `assert_no_member_text(caplog)`.
-- [ ] In `test_filing_hook_unexpected_error_reaches_modal_on_error`, keep
+- [x] In `test_filing_hook_unexpected_error_reaches_modal_on_error`, keep
   `summary.create_thread.return_value.send.assert_not_awaited()` and add
   `summary.reply.assert_not_awaited()` (an unexpected error posts nothing; it reaches `on_error`).
-- [ ] Extend `tests/test_intake.py::test_submit_files_issue_through_filing_hook` (DD-5); it
+- [x] Extend `tests/test_intake.py::test_submit_files_issue_through_filing_hook` (DD-5); it
   already submits `filled_modal(config, filing_hook(github))` (title `"Fix it"`) with
   `summary = interaction.channel.send.return_value`. After its `body.startswith(…)` assertion add
   `summary.create_thread.return_value.send.assert_awaited_once_with(filed_reply(FiledIssue(7, ISSUE_URL), "Fix it"), allowed_mentions=NO_MENTIONS, suppress_embeds=True)`,
@@ -182,7 +182,7 @@ without text.
   (the private confirmation still goes out). Change `from issue_bot.threads import FILING_ERROR_REPLY`
   to `from issue_bot.threads import FILING_ERROR_REPLY, filed_reply`. This is the META-PLAN
   "message → thread → mocked issue → link posted" handler test.
-- [ ] Run `.venv/bin/pytest -q`; confirm green.
+- [x] Run `.venv/bin/pytest -q`; confirm green. - COMPLETE (2026-10-21): 216 passed (review fix: `test_summary_reply_failure_logged_without_text` now asserts type/status/code/message_id, and `test_summary_error_reply_failure_logged_without_text` added for a failed summary reply on the filing-error path)
 
 ### 4. Docs
 Describe the new behaviour where the docs still say nothing is posted.
