@@ -142,6 +142,9 @@ A new `issue_bot/intake.py` builds one guild command per `IssueType`, and the mo
 `IssueBot` owns a privacy-safe command tree, registers `/bug` and `/feature` for the configured guild only, and syncs once per process.
 
 **To-do:**
+- [ ] **Step 3 hardening (owner-approved 2026-10-20, from Step 3's security review).** In `issue_bot/intake.py`, Red → Green:
+  (a) `IntakeModal.on_error`'s reply `try` gains a final `except Exception as exc` that logs ERROR `"could not send %s reply interaction_id=%s: %s"` (type only, never `exc_info`) and returns, so a non-HTTP failure (network or timeout) during the error reply never reaches asyncio's traceback log. Test `test_modal_on_error_reply_non_http_failure_swallowed`: the reply raises `RuntimeError("Secret exception words")`; `on_error` returns normally, the log names `RuntimeError`, and the secret is absent from `record_texts`.
+  (b) The summary post passes `suppress_embeds=True` to `interaction.channel.send(...)`, so a bare URL in a member's title never unfurls under the bot's name (extends DD-14). Extend `test_submit_posts_summary_without_pings` to assert `suppress_embeds is True` in the `send` kwargs. Check that `Messageable.send` accepts `suppress_embeds` in discord.py 2.7.1 (`abc.py`) before relying on it.
 - [ ] **Red.** In `tests/test_bot.py`:
   - `test_commands_registered_for_guild_only`: after `IssueBot(config)`, `sorted(c.name for c in bot.tree.get_commands(guild=discord.Object(111)))` is `["bug", "feature"]` and `bot.tree.get_commands()` (global) is `[]`.
   - `test_setup_hook_syncs_guild_once`: monkeypatch `bot.tree.sync` with `AsyncMock(return_value=[...two items...])` and `await bot.setup_hook()`. `sync` is awaited once; its only kwarg `guild` has `.id == 111`; and no call has `guild=None` or no `guild`. An INFO log reads `synced 2 commands to guild 111`.
