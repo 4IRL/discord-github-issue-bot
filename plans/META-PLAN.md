@@ -62,7 +62,7 @@ what it posts into.
 
 A live run needs the bot invited with the `bot` and `applications.commands` scopes and View
 Channel, Read Message History, Send Messages, Create Public Threads and Send Messages in Threads
-on the intake channel, plus F5's GitHub App (README § Setup and § GitHub App setup; runbook
+on the intake channel, plus F5's GitHub App (README § Discord setup and § GitHub App setup; runbook
 `docs/SMOKE-TEST.md`, which uses a separate test server).
 
 ---
@@ -317,7 +317,7 @@ Parallel features: `/worktree <F-ID>...`.
   files even when no thread opened. Today it posts nothing on success and the fixed
   `FILING_ERROR_REPLY` on a `GitHubError`; F7 adds the success message there. With no thread
   and a failed filing, the reporter still gets F10's private "posted" confirmation (F10
-  DD-13); F7 takes that gap with the no-thread fallback.
+  DD-13); F7 may take that gap with the no-thread fallback.
 - Auth is one GitHub App installation (instance-wide `GITHUB_APP_*` config); each token is
   scoped to one target repo id with `issues: write` and cached per repo id. F8's extra target
   repos join that installation; F6 widens the token request's `permissions` for Projects.
@@ -353,8 +353,8 @@ Parallel features: `/worktree <F-ID>...`.
   into a human-started thread, two test tightenings (101-character name, no false "format
   hint" line after a failed send) and a one-line `candidate_from_message` docstring summary.
   The META-PLAN and PR-description items were resolved by this fold-back and PR #7. None
-  blocks a remaining feature. The `format_hint`, hint-posting and `candidate_from_message`
-  items lapsed when F10 removed the tags (PR #13).
+  blocks a remaining feature. The `format_hint`, hint-posting, human-started-thread, false-hint
+  test and `candidate_from_message` items lapsed when F10 removed the tags (PR #13).
 - **F2 accepted risk: emoji thread names.** `thread_name` counts Python code points; if a
   `could not open thread … code=50035` ERROR ever appears, count as Discord does.
 - **F5 push-review polish.** The unticked minor to-dos in
@@ -412,7 +412,7 @@ target from the start.
 
 **Sizing.** unscored (intake estimate M); split check pending.
 
-**Assumed starting state** = **Baseline** plus F10's `/bug` and `/feature` modals. Verify:
+**Assumed starting state** = **Baseline** (which includes F10's `/bug` and `/feature` modals). Verify:
 - F5's issue-body builder exists and is the only place that formats an issue body.
 - F10 builds each tag's modal in one place, from `IssueType`.
 
@@ -526,8 +526,8 @@ summary message rather than reworked later.
 
 **Sizing.** unscored (intake estimate S); split check pending.
 
-**Assumed starting state** = **Baseline** plus F2's thread, F5's returned issue and F10's
-slash-command intake. Verify:
+**Assumed starting state** = **Baseline** (which includes F2's thread, F5's returned issue and
+F10's slash-command intake). Verify:
 - F5's client returns the created issue's `html_url`.
 - F10's modal submit reaches `filing_hook` through `on_candidate`.
 
@@ -549,7 +549,7 @@ number and title, not only the bare URL.
 
 **Goal.** One bot process serves several targets: a route table in a config file maps each
 intake channel (all in the configured guild) to its target repo in the 4IRL org, with its
-own tag → label map. The same image can also run as several containers, each with its own
+own type → label map. The same image can also run as several containers, each with its own
 route file, and the deployment docs show both. Feature-list line F8.
 
 **Rank rationale.** It comes right after the Phase 1 skeleton (owner's choice, 2026-10-17)
@@ -562,8 +562,8 @@ start; owner's choice, 2026-10-18).
 
 **Sizing.** unscored (intake estimate L); split check pending.
 
-**Assumed starting state** = **Baseline** plus Phase 1 (F1, F2, F5, F7, F10) and F1's
-target config object. Verify:
+**Assumed starting state** = **Baseline** plus F7 (the rest of Phase 1, F1, F2, F5 and F10, is
+already in the Baseline) and F1's target config object. Verify:
 - F1's config has one target object, separate from instance-wide values, and
   `grep -rnE 'chores4irl|969373970' --include='*.py' .` outside `tests/` prints nothing.
 - F10's `/bug` and `/feature` interaction intake exists: the commands open their modals,
@@ -571,7 +571,7 @@ target config object. Verify:
 
 **Expected end state** (repo-checkable):
 - A route file (format chosen at planning, e.g. YAML or TOML, path from env) lists one or
-  more targets: intake channel ID, target repo and repo ID, tag → label map. Secrets stay in
+  more targets: intake channel ID, target repo and repo ID, type → label map. Secrets stay in
   env, never in the route file. The single-target env config of F1 still works, or is
   migrated with a documented one-route example.
 - The handler dispatches each `/bug` or `/feature` interaction by channel ID to its route;
