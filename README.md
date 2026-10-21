@@ -1,40 +1,38 @@
 # discord-github-issue-bot
 
-A Discord bot that turns tagged messages (`!bug`, `!feature`) in a configured intake channel of a Discord server into fleshed-out GitHub issues in a configured repo of the 4IRL GitHub org, and onto that repo's roadmap. It asks clarifying questions in a thread, then posts the new issue's link back there. Its first target (an example) is `#c4i-github-issues` in the 4irl server → `4IRL/chores4irl`.
+A Discord bot that turns `/bug` and `/feature` reports, made through a modal in a configured intake channel of a Discord server, into GitHub issues in a configured repo of the 4IRL GitHub org. Each report becomes a public summary message, a thread on it and a filed issue. Posting the issue's link back in the thread, clarifying questions and roadmap placement are planned features. Its first target (an example) is `#c4i-github-issues` in the 4irl server → `4IRL/chores4irl`.
 
 The code itself is target-agnostic: it holds no 4irl values (never as a code default), and their config home is the committed [`example.env`](example.env).
 
 ## Status
 
-F1 (channel listener and tag parser), F2 (thread per tagged message) and F5 (issue filing) exist: the bot connects to Discord, watches the intake channel and turns each new `!bug` / `!feature` message into an issue candidate. Each candidate gets a public thread on its message, named from the title (truncated to 100 characters), and is then filed as an issue in the target repo with the tag's label. A message that already has a thread reuses it. A filed issue is logged by issue type, message id, message URL, thread id and issue URL. If filing fails, the bot posts a fixed error reply in the thread, when the thread was opened. Posting the issue's link back in the thread comes with F7.
+F2 (thread per report), F5 (issue filing) and F10 (slash-command intake) exist: the bot registers `/bug` and `/feature` and files each report as described under [Reporting](#reporting). The thread is named from the title, and the issue gets its type's label. A filed issue is logged by issue type, message id, message URL, thread id and issue URL. If filing fails, the bot posts a fixed error reply in the thread, when the thread was opened. Posting the issue's link back in the thread comes with F7.
 
+- The commands are synced to the `DISCORD_GUILD_ID` guild only, once per start, and are refused outside the intake channel.
 - The intake channel is matched by `DISCORD_CHANNEL_ID`; its name, category and guild are only checked at startup (a mismatch logs a warning; a channel the bot cannot see logs an error).
-- Edited messages are ignored, and so are messages inside threads, from bots or webhooks, and system messages.
-- The first recognized tag decides the issue type; every tag is stripped from the title and body.
 
-### Message format
+### Reporting
 
-A message files an issue only in this structured form. The tag can go anywhere; the labels are case-insensitive and may be bolded.
+1. Run `/bug` or `/feature` in the intake channel. A "New bug" or "New feature" form opens.
+2. Fill in **Title** (required, up to 100 characters) and, optionally, **Description** (up to 4000 characters, line breaks kept), then submit.
+3. The bot posts a public summary in the channel: the type, the title and you as a mention that pings nobody. It opens a thread on the summary and files the issue.
+4. You get a private confirmation linking the summary. Only you see it.
 
-```text
-!feature
-Title: Sharing/Inviting to UTubs
-Body: allow easy sharing/inviting to UTubs for members outside the UTub
-```
-
-- `Title:` is required and is one line.
-- `Body:` is optional and keeps its line breaks. It runs to the end of the message, or to a later `Title:` line while the title is still missing or blank.
-- Lines outside the two fields are ignored.
-- A blank `Title:` (one with no letter or digit) or a blank `Body:` yields to a later line with the same label. Once a label has text, a repeated label is ordinary text inside the Body and is ignored elsewhere.
-- A tagged message with no usable `Title:` line files no issue: the bot opens a `Format help: !<tag>` thread on it, replies with the expected format, and logs it by issue type, message id, message URL and thread id.
+- A title with no letter or digit posts nothing; you get a private reply asking you to run the command again.
+- If the summary can't be posted, nothing is filed, and you get a private reply saying so.
+- Before the form opens, the bot checks it can reach the GitHub repo. If it can't (within 2 seconds), no form opens and you get a private reply: "Sorry, reports can't be filed to GitHub right now, so the form didn't open. Try again later."
+- Run anywhere else, including inside a thread of the intake channel, the command gets a private refusal pointing to the intake channel.
 
 Direction: [`plans/ROADMAP.md`](plans/ROADMAP.md). Next work: [`plans/META-PLAN.md`](plans/META-PLAN.md).
 
 ### Known limits
 
 - No retry or dedup until Phase 4, so a timeout can leave an issue filed after an error reply.
-- Messages sent while the bot is down are not filed.
-- An edit after filing does not update the issue.
+- `/bug` and `/feature` are registered on Discord's side and persist when the bot stops: a command run while the bot is down fails in Discord ("The application did not respond") and files nothing. A redeploy re-syncs them.
+- An open modal expires after 30 minutes, and a bot restart drops every open modal: its submit fails in Discord, and nothing is filed or logged.
+- The private confirmation means the summary was posted, not that the issue was filed. A filing failure is reported in the thread; if the thread could not be opened either, it shows only in the log.
+- If GitHub filing fails, the Description typed in the modal is not kept anywhere in Discord; the reporter must type it again (F3's preview step addresses this).
+- Rolling back to a build without slash commands leaves `/bug` and `/feature` registered in the guild but unanswered, until an empty command sync for the guild or removal of the app from the server. Neither path is verified yet; a `--clear-commands` flag is a deferred follow-up.
 
 ## Getting started
 
@@ -46,8 +44,7 @@ Direction: [`plans/ROADMAP.md`](plans/ROADMAP.md). Next work: [`plans/META-PLAN.
 ### Discord setup
 
 1. In the [Discord Developer Portal](https://discord.com/developers/applications), create an application and add a bot to it. Copy the bot token.
-2. Under **Bot → Privileged Gateway Intents**, enable **Message Content Intent**. Without it the bot sees empty message text and never finds a tag.
-3. Invite the bot to the server with the **View Channel**, **Read Message History**, **Create Public Threads** and **Send Messages in Threads** permissions on the intake channel. Threads use the channel's default auto-archive duration.
+2. Invite the bot to the server with the `bot` and `applications.commands` scopes, and the **View Channel**, **Read Message History**, **Send Messages**, **Create Public Threads** and **Send Messages in Threads** permissions on the intake channel. Read Message History is kept for opening and fetching threads on the summary message. Threads use the channel's default auto-archive duration.
 
 ### GitHub App setup
 
@@ -80,8 +77,8 @@ Then set the bot token, the intake channel's ID (enable Developer Mode in Discor
 | `DISCORD_CATEGORY` | target | string | Expected category name (startup sanity check only) |
 | `GITHUB_REPO` | target | `owner/name` | Output repo |
 | `GITHUB_REPO_ID` | target | positive integer | Output repo id |
-| `GITHUB_LABEL_BUG` | target | string | Label for `!bug` |
-| `GITHUB_LABEL_FEATURE` | target | string | Label for `!feature` |
+| `GITHUB_LABEL_BUG` | target | string | Label for `/bug` |
+| `GITHUB_LABEL_FEATURE` | target | string | Label for `/feature` |
 
 Each `GITHUB_LABEL_*` label must already exist in the target repo: a label an App requests that doesn't exist may be dropped or auto-created depending on its permissions _(unverified)_. The scratch-repo [smoke test](docs/SMOKE-TEST.md) confirms the label was applied.
 

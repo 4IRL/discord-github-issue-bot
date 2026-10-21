@@ -1,4 +1,4 @@
-"""Open the public thread on a tagged message, and the helpers that name and fill it.
+"""Open the public thread on a report's summary message, and the helpers that name and fill it.
 
 Thread names hold member text (the issue title), so they are never logged; logs carry
 message and thread ids, and a caught Discord API error's type, HTTP status and code only.
@@ -8,14 +8,12 @@ import logging
 
 import discord
 
-from issue_bot.tags import IssueType
-
 logger = logging.getLogger(__name__)
 
 THREAD_NAME_LIMIT = 100  # Discord's maximum thread-name length.
 THREAD_ALREADY_CREATED = 160004  # Discord error code: the message already has a thread.
 # Fixed text: it carries no member text and no GitHub response text.
-FILING_ERROR_REPLY = "Sorry, I couldn't file this as a GitHub issue. Check the repo before reposting; to retry, post a new message (edits are ignored)."
+FILING_ERROR_REPLY = "Sorry, I couldn't file this as a GitHub issue. Check the repo before reporting it again; to retry, run the command again."
 
 
 def thread_name(title: str) -> str:
@@ -23,11 +21,6 @@ def thread_name(title: str) -> str:
     if len(title) <= THREAD_NAME_LIMIT:
         return title
     return title[: THREAD_NAME_LIMIT - 1].rstrip() + "…"
-
-
-def format_hint(issue_type: IssueType) -> str:
-    """Return the reply that shows a malformed tag's author the expected message format."""
-    return f"No issue was filed: this message has no usable `Title:` line. Post a new message (edits are ignored) in this form:\n```\n!{issue_type}\nTitle: <one-line summary>\nBody: <optional details>\n```"
 
 
 async def open_thread(message: discord.Message, name: str) -> discord.Thread | None:

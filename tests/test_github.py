@@ -288,3 +288,54 @@ async def test_default_transport_is_guarded(
 
     with pytest.raises(AssertionError, match="live GitHub call in a test"):
         await create(client, config)
+
+
+async def test_check_access_mints_a_token(
+    github_private_key: rsa.RSAPrivateKey, config: Config
+) -> None:
+    transport = AsyncMock(side_effect=[token_response()])
+    client = make_client(github_private_key, transport)
+
+    await client.check_access(config.target)
+
+    assert transport.await_count == 1
+    method, url, _headers, payload = transport.call_args.args
+    assert (method, url) == ("POST", TOKEN_URL)
+    assert payload == {"repository_ids": [222], "permissions": {"issues": "write"}}
+
+
+async def test_check_access_reuses_cached_token(
+    github_private_key: rsa.RSAPrivateKey, config: Config
+) -> None:
+    transport = AsyncMock(side_effect=[token_response()])
+    client = make_client(github_private_key, transport, clock=lambda: EXPIRES_AT_EPOCH - 301)
+
+    await client.check_access(config.target)
+    await client.check_access(config.target)
+
+    assert transport.await_count == 1
+
+
+async def test_check_access_token_error_raises(
+    github_private_key: rsa.RSAPrivateKey, config: Config
+) -> None:
+    transport = AsyncMock(return_value=(404, {"message": "Secret error words"}))
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.check_access(config.target)
+
+    assert (exc_info.value.stage, exc_info.value.status) == ("token", 404)
+    assert "Secret error words" not in str(exc_info.value)
+
+
+async def test_check_access_transport_error_raises_status_none(
+    github_private_key: rsa.RSAPrivateKey, config: Config
+) -> None:
+    transport = AsyncMock(side_effect=aiohttp.ClientConnectionError("Secret error words"))
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.check_access(config.target)
+
+    assert (exc_info.value.stage, exc_info.value.status) == ("token", None)
