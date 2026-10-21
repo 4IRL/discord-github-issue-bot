@@ -80,8 +80,8 @@ Pure refactor: `IssueType` gets its own dependency-free module so `tags.py` can 
 `IssueCandidate` loses its raw-message `content` field and gains a builder for slash-command intake.
 
 **To-do:**
-- [ ] **Red.** In `tests/test_handler.py` (add `from types import SimpleNamespace` to its stdlib imports), add `test_candidate_from_submission_fields`: build `user = SimpleNamespace(id=7, display_name="Alice")` and `message = SimpleNamespace(id=99, jump_url="https://discord.com/channels/111/555/99")`, call `candidate_from_submission(IssueType.BUG, "Fix it", "Steps", user, message, config.target)`, and assert `type is IssueType.BUG`, `title == "Fix it"`, `body == "Steps"`, `author_id == 7`, `author_name == "Alice"`, `message_id == 99`, `message_url == message.jump_url`, `target is config.target`. Add `test_submission_candidate_repr_hides_text`, which asserts `repr(candidate)` contains none of the title, body or `"Alice"` (port of `test_candidate_repr_hides_text`'s intent). Run them and confirm an `ImportError`.
-- [ ] **Green.** In `issue_bot/handler.py`, remove the `content: str = field(repr=False)` field from `IssueCandidate`, drop `content=message.content` from `candidate_from_message`'s constructor call (`handler.py:65`), and delete the `content` assertion in `test_tagged_message_becomes_candidate` (`tests/test_handler.py:18`). Change the class docstring's first line to `"""A report ready for the thread and filing steps."""`. Add:
+- [x] **Red.** In `tests/test_handler.py` (add `from types import SimpleNamespace` to its stdlib imports), add `test_candidate_from_submission_fields`: build `user = SimpleNamespace(id=7, display_name="Alice")` and `message = SimpleNamespace(id=99, jump_url="https://discord.com/channels/111/555/99")`, call `candidate_from_submission(IssueType.BUG, "Fix it", "Steps", user, message, config.target)`, and assert `type is IssueType.BUG`, `title == "Fix it"`, `body == "Steps"`, `author_id == 7`, `author_name == "Alice"`, `message_id == 99`, `message_url == message.jump_url`, `target is config.target`. Add `test_submission_candidate_repr_hides_text`, which asserts `repr(candidate)` contains none of the title, body or `"Alice"` (port of `test_candidate_repr_hides_text`'s intent). Run them and confirm an `ImportError`.
+- [x] **Green.** In `issue_bot/handler.py`, remove the `content: str = field(repr=False)` field from `IssueCandidate`, drop `content=message.content` from `candidate_from_message`'s constructor call (`handler.py:65`), and delete the `content` assertion in `test_tagged_message_becomes_candidate` (`tests/test_handler.py:18`). Change the class docstring's first line to `"""A report ready for the thread and filing steps."""`. Add:
   ```python
   def candidate_from_submission(
       issue_type: IssueType,
@@ -94,7 +94,7 @@ Pure refactor: `IssueType` gets its own dependency-free module so `tags.py` can 
       """Return the candidate for a submitted report, tied to the bot's summary ``message``."""
   ```
   It returns `IssueCandidate(type=issue_type, title=title, body=description, author_id=reporter.id, author_name=reporter.display_name, message_id=message.id, message_url=message.jump_url, target=target)`.
-- [ ] Verify: `.venv/bin/pytest tests/test_handler.py tests/test_issues.py tests/test_bot.py` green, then the full `.venv/bin/pytest`.
+- [x] Verify: `.venv/bin/pytest tests/test_handler.py tests/test_issues.py tests/test_bot.py` green, then the full `.venv/bin/pytest`. Done 2026-10-20: Red gave the expected `ImportError`; after Green the three files gave 69 passed and the full suite 248 passed (246 + 2 new).
 
 ### 3. The intake module: commands, modal and submit flow
 A new `issue_bot/intake.py` builds one guild command per `IssueType`, and the modal that posts the summary and feeds `on_candidate`. Built test-first in `tests/test_intake.py`.

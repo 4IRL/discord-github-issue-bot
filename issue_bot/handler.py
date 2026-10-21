@@ -16,7 +16,7 @@ ACCEPTED_MESSAGE_TYPES = (discord.MessageType.default, discord.MessageType.reply
 
 @dataclass(frozen=True)
 class IssueCandidate:
-    """A new tagged message, ready for the thread and filing steps.
+    """A report ready for the thread and filing steps.
 
     Member text and names are hidden from ``repr`` so logs and tracebacks never carry them.
     """
@@ -24,7 +24,6 @@ class IssueCandidate:
     type: IssueType
     title: str = field(repr=False)
     body: str = field(repr=False)
-    content: str = field(repr=False)
     author_id: int
     author_name: str = field(repr=False)
     message_id: int
@@ -63,10 +62,30 @@ def candidate_from_message(
         type=parsed.type,
         title=parsed.title,
         body=parsed.body,
-        content=message.content,
         author_id=message.author.id,
         author_name=message.author.display_name,
         message_id=message.id,
         message_url=message.jump_url,
         target=config.target,
+    )
+
+
+def candidate_from_submission(
+    issue_type: IssueType,
+    title: str,
+    description: str,
+    reporter: discord.abc.User,
+    message: discord.Message,
+    target: TargetConfig,
+) -> IssueCandidate:
+    """Return the candidate for a submitted report, tied to the bot's summary ``message``."""
+    return IssueCandidate(
+        type=issue_type,
+        title=title,
+        body=description,
+        author_id=reporter.id,
+        author_name=reporter.display_name,
+        message_id=message.id,
+        message_url=message.jump_url,
+        target=target,
     )
