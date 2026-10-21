@@ -146,6 +146,10 @@ class GitHubClient:
         self._tokens[repo_id] = parsed
         return parsed[0]
 
+    async def check_access(self, target: TargetConfig) -> None:
+        """Confirm a repo-scoped installation token can be had for the target; raise GitHubError otherwise."""
+        await self._installation_token(target.github_repo_id)
+
     async def create_issue(
         self, target: TargetConfig, title: str, body: str, labels: list[str]
     ) -> FiledIssue:

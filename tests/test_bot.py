@@ -16,9 +16,9 @@ from issue_bot.bot import (
     open_issue_thread,
 )
 from issue_bot.config import Config
-from issue_bot.github import FiledIssue, GitHubError
+from issue_bot.github import FiledIssue, GitHubClient, GitHubError
 from issue_bot.handler import IssueCandidate
-from issue_bot.intake import INTAKE_ERROR_REPLY, IntakeModal
+from issue_bot.intake import FILING_UNAVAILABLE_REPLY, INTAKE_ERROR_REPLY, IntakeModal
 from issue_bot.issue_type import IssueType
 from issue_bot.threads import FILING_ERROR_REPLY
 from tests.conftest import (
@@ -509,13 +509,16 @@ def test_main_runs_bot_with_token(
     init_kwargs = calls["init_kwargs"]
     assert isinstance(init_kwargs, dict)
     assert callable(init_kwargs["on_candidate"])
+    filing_check = init_kwargs["filing_check"]
+    assert isinstance(filing_check.__self__, GitHubClient)
+    assert filing_check.__func__ is GitHubClient.check_access
 
 
 def test_main_builds_github_client(
     monkeypatch: pytest.MonkeyPatch, test_env: dict[str, str]
 ) -> None:
     recorded: dict[str, tuple[object, ...]] = {}
-    sentinel = object()
+    sentinel = SimpleNamespace(check_access=AsyncMock())
 
     class StubBot:
         def __init__(self, config: Config, **kwargs: object) -> None:
@@ -596,6 +599,79 @@ async def test_setup_hook_non_http_sync_failure_logged_type_only(
     assert errors == ["could not sync commands to guild 111: RuntimeError"]
     for text in record_texts(caplog):
         assert "Secret exception words" not in text
+
+
+async def test_setup_hook_logs_github_access_ok(
+    config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    check = AsyncMock()
+    bot = IssueBot(config, filing_check=check)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    check.assert_awaited_once_with(config.target)
+    assert "github access ok for repo_id=222" in [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.INFO
+    ]
+
+
+@pytest.mark.parametrize("sync_fails", [False, True], ids=["synced", "sync-failed"])
+async def test_setup_hook_github_access_failure_logged_and_survived(
+    config: Config,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    sync_fails: bool,
+) -> None:
+    check = AsyncMock(side_effect=GitHubError("token", 401))
+    bot = IssueBot(config, filing_check=check)
+    sync = AsyncMock(
+        side_effect=forbidden(50001, "Secret error words") if sync_fails else None,
+        return_value=[],
+    )
+    monkeypatch.setattr(bot.tree, "sync", sync)
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    sync.assert_awaited_once()
+    check.assert_awaited_once_with(config.target)
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert (
+        "github access check failed for repo_id=222: GitHubError stage=token status=401" in errors
+    )
+
+
+async def test_setup_hook_unexpected_check_failure_logged_type_only(
+    config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    check = AsyncMock(side_effect=RuntimeError("Secret exception words"))
+    bot = IssueBot(config, filing_check=check)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    assert [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ] == ["github access check failed for repo_id=222: RuntimeError"]
+    for text in record_texts(caplog):
+        assert "Secret exception words" not in text
+
+
+async def test_bot_commands_refuse_when_filing_check_fails(
+    config: Config, make_interaction: InteractionFactory
+) -> None:
+    hook = AsyncMock()
+    check = AsyncMock(side_effect=GitHubError("token", 404))
+    bot = IssueBot(config, on_candidate=hook, filing_check=check)
+    for name in ("bug", "feature"):
+        command = bot.tree.get_command(name, guild=discord.Object(111))
+        interaction = make_interaction()
+        await command.callback(interaction)
+        interaction.response.send_message.assert_awaited_once_with(
+            FILING_UNAVAILABLE_REPLY, ephemeral=True
+        )
+        interaction.response.send_modal.assert_not_awaited()
+    assert check.await_count == 2
+    hook.assert_not_awaited()
 
 
 @pytest.mark.parametrize(

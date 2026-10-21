@@ -10,7 +10,7 @@ from discord import app_commands
 from issue_bot.config import Config
 from issue_bot.github import GitHubClient, GitHubError
 from issue_bot.handler import IssueCandidate
-from issue_bot.intake import CandidateHook, discord_error_fields, intake_command
+from issue_bot.intake import CandidateHook, FilingCheck, discord_error_fields, intake_command
 from issue_bot.issue_type import IssueType
 from issue_bot.issues import file_candidate
 from issue_bot.threads import FILING_ERROR_REPLY, open_thread, thread_name
@@ -139,32 +139,42 @@ class IssueBot(discord.Client):
 
     Each submitted report is posted as a public summary message in the intake channel, and
     that message and its candidate go to ``on_candidate`` (default: open its thread).
-    Production wires ``filing_hook`` as ``on_candidate`` in ``__main__``.
+    ``filing_check``, when set, guards each command before its modal opens and runs once
+    at startup. Production wires ``filing_hook`` as ``on_candidate`` and
+    ``GitHubClient.check_access`` as ``filing_check`` in ``__main__``.
     """
 
     def __init__(
         self,
         config: Config,
         on_candidate: CandidateHook = open_issue_thread,
+        filing_check: FilingCheck | None = None,
     ) -> None:
         super().__init__(intents=build_intents())
         self.config = config
         self.on_candidate = on_candidate
+        self.filing_check = filing_check
         self._startup_checked: bool = False
         self.tree = IntakeTree(self)
         self._guild = discord.Object(id=config.guild_id)
         for issue_type in IssueType:
             # Always pass guild=: without it the command would be global.
             self.tree.add_command(
-                intake_command(issue_type, config.target, self.on_candidate), guild=self._guild
+                intake_command(issue_type, config.target, self.on_candidate, self.filing_check),
+                guild=self._guild,
             )
 
     async def setup_hook(self) -> None:
-        """Sync the intake commands to the configured guild.
+        """Sync the intake commands to the configured guild, then check GitHub access.
 
-        login() calls this once per process, unlike on_ready. A failed sync is logged and
-        the bot still runs: commands from an earlier sync keep working.
+        login() calls this once per process, unlike on_ready. A failed sync or access check
+        is logged and the bot still runs: commands from an earlier sync keep working, and
+        the per-command check still guards members.
         """
+        await self._sync_commands()
+        await self._check_github_access()
+
+    async def _sync_commands(self) -> None:
         try:
             synced = await self.tree.sync(guild=self._guild)
         except discord.HTTPException as exc:
@@ -185,6 +195,29 @@ class IssueBot(discord.Client):
             )
             return
         logger.info("synced %d commands to guild %s", len(synced), self.config.guild_id)
+
+    async def _check_github_access(self) -> None:
+        if self.filing_check is None:
+            return
+        repo_id = self.config.target.github_repo_id
+        try:
+            await self.filing_check(self.config.target)
+        except GitHubError as exc:
+            logger.error(
+                "github access check failed for repo_id=%s: %s stage=%s status=%s",
+                repo_id,
+                type(exc).__name__,
+                exc.stage,
+                exc.status,
+            )
+            return
+        except Exception as exc:
+            # A key or JWT failure must not stop the bot or log a traceback.
+            logger.error(
+                "github access check failed for repo_id=%s: %s", repo_id, type(exc).__name__
+            )
+            return
+        logger.info("github access ok for repo_id=%s", repo_id)
 
     async def on_ready(self) -> None:
         """Check the intake channel once: on_ready fires again after each Gateway reconnect.

@@ -5,6 +5,7 @@ interaction, message and channel ids and the summary URL only, and a Discord API
 type, HTTP status and Discord error code.
 """
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 
@@ -12,6 +13,7 @@ import discord
 from discord import app_commands
 
 from issue_bot.config import TargetConfig
+from issue_bot.github import GitHubError
 from issue_bot.handler import IssueCandidate, candidate_from_submission
 from issue_bot.issue_type import IssueType
 from issue_bot.threads import THREAD_NAME_LIMIT
@@ -19,16 +21,19 @@ from issue_bot.threads import THREAD_NAME_LIMIT
 logger = logging.getLogger(__name__)
 
 CandidateHook = Callable[[discord.Message, IssueCandidate], Awaitable[None]]
+FilingCheck = Callable[[TargetConfig], Awaitable[None]]
 
 TITLE_MAX_LENGTH = THREAD_NAME_LIMIT  # Owner's choice: a title is never cut in the thread name.
 DESCRIPTION_MAX_LENGTH = 4000  # Discord's maximum text-input length.
 MODAL_TIMEOUT = 1800  # Seconds an open modal is kept; a later submit fails in Discord, unfiled (DD-10).
+FILING_CHECK_TIMEOUT = 2.0  # Seconds; Discord needs the modal within 3 s of the command.
 NO_MENTIONS = discord.AllowedMentions.none()
 # Fixed text: none of these carries member text.
 INTAKE_REFUSAL = "Reports go in the intake channel: run this command there."
 BLANK_TITLE_REPLY = "No report was posted: the title needs a letter or digit. Run the command again."
 SUMMARY_FAILED_REPLY = "Sorry, I couldn't post your report in the channel, so nothing was filed. Try again later."
 SUBMITTED_REPLY = "Thanks! Your report is posted: {url}"
+FILING_UNAVAILABLE_REPLY = "Sorry, reports can't be filed to GitHub right now, so the form didn't open. Try again later."
 INTAKE_ERROR_REPLY = "Sorry, something went wrong with this report. Check the channel before running the command again."
 
 
@@ -173,9 +178,16 @@ class IntakeModal(discord.ui.Modal):
 
 
 def intake_command(
-    issue_type: IssueType, target: TargetConfig, on_candidate: CandidateHook
+    issue_type: IssueType,
+    target: TargetConfig,
+    on_candidate: CandidateHook,
+    filing_check: FilingCheck | None = None,
 ) -> app_commands.Command:
-    """Return the slash command that opens the report modal in the intake channel only."""
+    """Return the slash command that opens the report modal in the intake channel only.
+
+    When ``filing_check`` is set, it must pass within ``FILING_CHECK_TIMEOUT`` before the
+    modal opens; otherwise the member gets ``FILING_UNAVAILABLE_REPLY`` privately.
+    """
 
     # A closure: Command needs a real function, and functools.partial has no __globals__.
     async def report(interaction: discord.Interaction) -> None:
@@ -188,6 +200,38 @@ def intake_command(
             )
             await interaction.response.send_message(INTAKE_REFUSAL, ephemeral=True)
             return
+        if filing_check is not None:
+            try:
+                await asyncio.wait_for(filing_check(target), FILING_CHECK_TIMEOUT)
+            except GitHubError as exc:
+                logger.error(
+                    "filing unavailable for %s interaction_id=%s: %s stage=%s status=%s",
+                    issue_type,
+                    interaction.id,
+                    type(exc).__name__,
+                    exc.stage,
+                    exc.status,
+                )
+                await interaction.response.send_message(FILING_UNAVAILABLE_REPLY, ephemeral=True)
+                return
+            except TimeoutError:
+                logger.error(
+                    "filing unavailable for %s interaction_id=%s: timeout",
+                    issue_type,
+                    interaction.id,
+                )
+                await interaction.response.send_message(FILING_UNAVAILABLE_REPLY, ephemeral=True)
+                return
+            except Exception as exc:
+                # A key or JWT failure: reply rather than leave Discord's "did not respond".
+                logger.error(
+                    "filing unavailable for %s interaction_id=%s: %s",
+                    issue_type,
+                    interaction.id,
+                    type(exc).__name__,
+                )
+                await interaction.response.send_message(FILING_UNAVAILABLE_REPLY, ephemeral=True)
+                return
         await interaction.response.send_modal(IntakeModal(issue_type, target, on_candidate))
 
     return app_commands.Command(

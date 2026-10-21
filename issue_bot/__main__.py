@@ -22,7 +22,9 @@ def main() -> None:
     github = GitHubClient(
         config.github_app_id, config.github_installation_id, config.github_private_key
     )
-    IssueBot(config, on_candidate=filing_hook(github)).run(config.discord_token, log_handler=None)
+    IssueBot(
+        config, on_candidate=filing_hook(github), filing_check=github.check_access
+    ).run(config.discord_token, log_handler=None)
 
 
 if __name__ == "__main__":

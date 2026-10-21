@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from unittest.mock import AsyncMock, Mock
 
@@ -5,10 +6,11 @@ import discord
 import pytest
 
 from issue_bot.bot import filing_hook
-from issue_bot.config import Config
+from issue_bot.config import Config, TargetConfig
 from issue_bot.github import FiledIssue, GitHubError
 from issue_bot.intake import (
     BLANK_TITLE_REPLY,
+    FILING_UNAVAILABLE_REPLY,
     INTAKE_ERROR_REPLY,
     INTAKE_REFUSAL,
     MODAL_TIMEOUT,
@@ -16,6 +18,7 @@ from issue_bot.intake import (
     SUBMITTED_REPLY,
     SUMMARY_FAILED_REPLY,
     CandidateHook,
+    FilingCheck,
     IntakeModal,
     intake_command,
     summary_text,
@@ -108,6 +111,92 @@ async def test_command_refused_outside_intake_channel(
     assert intake_messages(caplog, logging.INFO) == [
         f"refused bug outside the intake channel interaction_id=4242 channel_id={channel_id}"
     ]
+
+
+async def test_command_opens_modal_when_filing_check_passes(
+    config: Config, make_interaction: InteractionFactory
+) -> None:
+    check = AsyncMock()
+    command = intake_command(IssueType.BUG, config.target, AsyncMock(), check)
+    interaction = make_interaction()
+    await command.callback(interaction)
+    check.assert_awaited_once_with(config.target)
+    interaction.response.send_modal.assert_awaited_once()
+    interaction.response.send_message.assert_not_awaited()
+
+
+async def test_command_refused_when_filing_check_fails(
+    config: Config, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    hook = AsyncMock()
+    check = AsyncMock(side_effect=GitHubError("token", 404))
+    command = intake_command(IssueType.BUG, config.target, hook, check)
+    interaction = make_interaction()
+    with caplog.at_level(logging.INFO):
+        await command.callback(interaction)
+    interaction.response.send_message.assert_awaited_once_with(
+        FILING_UNAVAILABLE_REPLY, ephemeral=True
+    )
+    interaction.response.send_modal.assert_not_awaited()
+    hook.assert_not_awaited()
+    assert intake_messages(caplog, logging.ERROR) == [
+        "filing unavailable for bug interaction_id=4242: GitHubError stage=token status=404"
+    ]
+
+
+async def test_command_refused_when_filing_check_times_out(
+    config: Config,
+    make_interaction: InteractionFactory,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("issue_bot.intake.FILING_CHECK_TIMEOUT", 0.01)
+
+    async def never_finishes(_target: TargetConfig) -> None:
+        await asyncio.Event().wait()
+
+    command = intake_command(IssueType.FEATURE, config.target, AsyncMock(), never_finishes)
+    interaction = make_interaction()
+    with caplog.at_level(logging.INFO):
+        await command.callback(interaction)
+    interaction.response.send_message.assert_awaited_once_with(
+        FILING_UNAVAILABLE_REPLY, ephemeral=True
+    )
+    interaction.response.send_modal.assert_not_awaited()
+    assert intake_messages(caplog, logging.ERROR) == [
+        "filing unavailable for feature interaction_id=4242: timeout"
+    ]
+
+
+async def test_command_refused_when_filing_check_raises_unexpectedly(
+    config: Config, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    check = AsyncMock(side_effect=ValueError("Secret exception words"))
+    command = intake_command(IssueType.BUG, config.target, AsyncMock(), check)
+    interaction = make_interaction()
+    with caplog.at_level(logging.INFO):
+        await command.callback(interaction)
+    interaction.response.send_message.assert_awaited_once_with(
+        FILING_UNAVAILABLE_REPLY, ephemeral=True
+    )
+    interaction.response.send_modal.assert_not_awaited()
+    assert intake_messages(caplog, logging.ERROR) == [
+        "filing unavailable for bug interaction_id=4242: ValueError"
+    ]
+    for text in record_texts(caplog):
+        assert "Secret exception words" not in text
+
+
+async def test_command_refused_outside_channel_before_filing_check(
+    config: Config, make_interaction: InteractionFactory
+) -> None:
+    check: FilingCheck = AsyncMock()
+    command = intake_command(IssueType.BUG, config.target, AsyncMock(), check)
+    interaction = make_interaction(channel_id=556)
+    await command.callback(interaction)
+    interaction.response.send_message.assert_awaited_once_with(INTAKE_REFUSAL, ephemeral=True)
+    check.assert_not_awaited()
+    interaction.response.send_modal.assert_not_awaited()
 
 
 async def test_submit_defers_privately_first(
