@@ -6,9 +6,10 @@ The run happens against a **private scratch repo** and a **test channel**, never
 
 ## What it writes
 
+- **Startup:** the bot registers `/bug` and `/feature` in the guild `DISCORD_GUILD_ID` names. It overwrites them on every start, and they stay after teardown (see section 5).
 - **Probe:** one installation token on GitHub, which expires within an hour. Nothing else.
-- **Success checks:** two issues in the scratch repo plus one for the long-title check, and one public thread per message in the test channel.
-- **Failure check:** one thread and one bot reply in the test channel. It writes nothing to GitHub.
+- **Success checks:** two issues in the scratch repo (three with the optional `@someone` check), and one summary message plus one public thread per submission in the test channel.
+- **Failure check:** one summary message, one thread and one bot reply in that thread, in the test channel. It writes nothing to GitHub.
 - **Re-runs:** every re-run repeats its writes.
 
 ## 0. One-time setup
@@ -39,7 +40,7 @@ The run happens against a **private scratch repo** and a **test channel**, never
    ```
 
    Create any label that returns 404.
-4. Pick a Discord test channel the bot can see, with Create Public Threads and Send Messages in Threads.
+4. Pick a Discord test channel in a separate test guild, never the live server: the commands are registered in the whole guild, and the teardown removes the app from it. The bot needs View Channel, Send Messages, Create Public Threads and Send Messages in Threads there, and must have been invited with the `bot` and `applications.commands` scopes.
 
 ### `.env` for a local run
 
@@ -51,10 +52,13 @@ GITHUB_APP_INSTALLATION_ID=<installation ID>
 GITHUB_APP_PRIVATE_KEY_PATH=/home/<you>/.config/discord-github-issue-bot/github-app.pem
 GITHUB_REPO=4IRL/issue-bot-scratch
 GITHUB_REPO_ID=<REPO_ID>
+DISCORD_GUILD_ID=<the test channel's guild ID>
 DISCORD_CHANNEL_ID=<test channel ID>
 DISCORD_CHANNEL_NAME=<test channel name>
 DISCORD_CATEGORY=<test channel's category>
 ```
+
+The bot syncs `/bug` and `/feature` to the `DISCORD_GUILD_ID` guild, so leaving example.env's value would register them in the live server. Set it to the test guild's ID.
 
 The two run modes read `.env` differently:
 
@@ -96,34 +100,37 @@ If any of these differs, stop and fix it before going on.
 (set -a; . ./.env; set +a; exec .venv/bin/python -m issue_bot)
 ```
 
-In the test channel, post:
+The log shows `synced 2 commands to guild <DISCORD_GUILD_ID>`. In the test channel:
 
-1. A `!bug` message with `Title:` and `Body:` lines, then a `!feature` message with `Title:` and `Body:` lines. Then check the following:
+1. Run `/bug` and submit the modal with a Title and a Description, then do the same with `/feature`. Then check the following:
 
    | Where | What to see |
    |---|---|
-   | Discord | A thread for each message, with **nothing** posted in it (the link post comes with F7) |
-   | Issue title | The `Title:` text |
-   | Issue body | Opens with ``Reported by `<display name>` in Discord: <message link>``, then `---`, then the `Body:` text |
-   | Issue label | `bug` on the `!bug` issue, `enhancement` on the `!feature` one |
+   | Discord summary | A message reading "New bug from @\<you\>: \<Title\>" ("New feature" for `/feature`), with the type in bold; the mention does not ping |
+   | Discord thread | A thread on each summary, with **nothing** posted in it (the link post comes with F7) |
+   | Discord confirmation | A private "Thanks! Your report is posted: <summary link>" that only you see |
+   | Issue title | The modal's Title |
+   | Issue body | Opens with ``Reported by `<display name>` in Discord: <summary message link>``, then `---`, then the Description |
+   | Issue label | `bug` on the `/bug` issue, `enhancement` on the `/feature` one |
    | Issue author | `<app-slug>[bot]` |
-   | Log | One `filed bug …` and one `filed feature …` INFO line with the issue URL, and no message text |
+   | Log | One `filed bug …` and one `filed feature …` INFO line with the issue URL, and no member text |
 
-2. A tagged message with a 300-character title. The filed title is 256 characters ending in `…`.
-3. Optionally, a body containing `@someone`. Nobody is notified.
+2. In the modal, type past 100 characters in the Title. The field stops at 100 characters. Cancel the modal.
+3. Run `/bug` in another channel. You get a private refusal ("Reports go in the intake channel: run this command there."), no modal opens, and the log shows `refused bug outside the intake channel …`.
+4. Optionally, a Description containing `@someone`. It files a third issue, and nobody is notified.
 
 ## 3. Failure path
 
-1. Stop the bot, set a wrong `GITHUB_APP_INSTALLATION_ID` in `.env`, restart it, and post one tagged message.
-2. The thread gets "Sorry, I couldn't file this as a GitHub issue. Check the repo before reposting; to retry, post a new message (edits are ignored)."
-3. The log shows `could not file … stage=token status=…` with no message text.
+1. Stop the bot, set a wrong `GITHUB_APP_INSTALLATION_ID` in `.env`, restart it, and run one `/bug`.
+2. The thread gets "Sorry, I couldn't file this as a GitHub issue. Check the repo before reporting it again; to retry, run the command again."
+3. The log shows `could not file … stage=token status=…` with no member text. The private "Thanks! Your report is posted" confirmation still appears: it confirms the summary, not the issue.
 4. Restore the right ID.
 
 Restart the bot after every `.env` change. It reads its configuration only at startup.
 
 ## 4. Container run
 
-Stop the local bot first. Two processes on one bot token both file every tagged message.
+Stop the local bot first. Two processes on one bot token both receive each command: one opens the modal and the other's reply fails (logged by the command tree's error handler), so a report is filed once. Still, never run two.
 
 The image runs as uid 10001, which can't read your `0600` key. Give the container its own copy rather than changing the original's owner, because a key `chown`ed to 10001 is no longer readable by you for local runs:
 
@@ -155,7 +162,7 @@ docker run --rm --env-file .env \
   discord-github-issue-bot
 ```
 
-Post one `!bug` message. It is filed as in step 2. Set the key path back to the host path afterwards.
+Submit one `/bug`. It is filed as in section 2. Set the key path back to the host path afterwards.
 
 For a quick test, add `--user "$(id -u)"` instead and mount the original `github-app.pem`. The container then runs as you.
 
@@ -163,13 +170,15 @@ For a quick test, add `--user "$(id -u)"` instead and mount the original `github
 
 1. In the PR description, record:
    - the scratch repo name
-   - each filed issue number and what each check showed: title, author line, label, `[bot]` author and the 256-character title
+   - each filed issue number and what each check showed: title, author line, label, `[bot]` author and the 100-character Title cap
    - the teardown date
 
    Do this before deleting the repo, because the issue links stop working once it's gone.
 2. Remove the scratch repo from the installation's selected repositories (org **Settings → GitHub Apps → Configure**), then delete the repo. Keep the App and its installation for the real target.
 3. Restore `.env` to the real target repo, intake channel and host key path. Delete the container key copy unless you'll keep running the bot in Docker: `sudo rm ~/.config/discord-github-issue-bot/github-app.container.pem`.
-4. Delete the smoke-test threads, or leave them if the test channel is private to you.
+4. Delete the smoke-test summary messages and threads, or leave them if the test channel is private to you.
+5. The test guild keeps `/bug` and `/feature` until the app is removed under Server Settings → Integrations (or the bot is kicked). Record in the PR whether that removed the commands (unverified until this run). Restore `.env`, but don't start the bot with the real config until the owner approves the live deploy and has posted the cutover notice (step 6): that start syncs the commands to the live server.
+6. Cutover: before the live deploy, the owner posts a notice in the live intake channel that `!bug` and `!feature` no longer work. Agents never post.
 
 ## Troubleshooting
 
@@ -178,7 +187,9 @@ For a quick test, add `--user "$(id -u)"` instead and mount the original `github
 | `Unable to find image 'discord-github-issue-bot:latest' locally` | The image was never built. Run `docker build -t discord-github-issue-bot .` first. |
 | `configuration error: GITHUB_APP_PRIVATE_KEY_PATH must name a readable RSA private key` (exit 2), local run | The `.env` path is wrong, often still the container path, or you can't read the file, for example after a `chown 10001`. Run the `test -r` check in section 0. |
 | The same error, container run | Run the three checks in section 4. `.env` must say exactly `/run/secrets/github-app-key.pem`. The `-v` source must be a regular file owned by 10001: if it was missing, Docker created an empty directory there, so remove it with `sudo rmdir` and recreate the copy. The key file must start with `-----BEGIN RSA PRIVATE KEY-----`, which `sudo head -c 31 <file>` shows without printing the key. |
-| A tagged message gets no thread and no log line | The bot isn't seeing the message. Check four things. The bot logged `connected as …` at startup, with no channel ERROR or WARNING after it. `DISCORD_CHANNEL_ID`, `DISCORD_CHANNEL_NAME` and `DISCORD_CATEGORY` match the test channel. The Message Content intent is on. The bot has Create Public Threads and Send Messages in Threads in that channel. |
+| `/bug` and `/feature` are missing | The commands weren't synced to this guild. The bot must be invited with the `applications.commands` scope, `DISCORD_GUILD_ID` must be the test channel's guild, and the startup log must show `synced 2 commands to guild …` (a `could not sync commands …` ERROR names the failure). If the log is right, reload the Discord client, which caches the command list. |
+| The command is refused in the right channel | A command run inside a thread, including a summary's thread, is refused: run it in the channel itself. Otherwise `DISCORD_CHANNEL_ID` doesn't match the channel: copy the channel ID again and restart the bot. |
+| A submit gets a private error and no summary | The bot can't post in the channel. Check the startup log for `connected as …` with no channel ERROR or WARNING after it, and that the bot has View Channel, Send Messages, Create Public Threads and Send Messages in Threads there. |
 | The probe prints `JWT generation failed` | The key couldn't be loaded. Check the `<KEY_PATH>` argument and the Python error above that line. |
 | The probe returns 401 | The JWT was rejected. The App ID may be wrong, the key may belong to another App, or the system clock may be off by more than a minute. |
 | The probe returns 400 | A `<…>` placeholder was left in the command, or the JSON body is malformed. |

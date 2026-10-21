@@ -199,14 +199,14 @@ Delete the `!bug`/`!feature` path, the format hint, `on_message` and the privile
 Describe the modal intake everywhere the tag intake is described (owner-approved for CLAUDE.md and ROADMAP).
 
 **To-do:**
-- [ ] `README.md`:
+- [x] `README.md`:
   - L3 intro: replace "turns tagged messages (`!bug`, `!feature`) … asks clarifying questions in a thread" with the `/bug`/`/feature` modal intake (summary message, thread, filed issue; link-back and question work as planned features).
   - L9 status paragraph: replace the tag description with F10's flow, and say commands are synced to `DISCORD_GUILD_ID` only and refused outside the intake channel.
   - Delete L12-13 (edits/threads/bots ignored; first tag wins) and replace the whole `### Message format` section (L15-29) with `### Reporting`: `/bug` or `/feature` in the intake channel; Title (required, ≤100) and Description (optional); the public summary with a non-pinging mention; the thread and issue; private confirmations; refusal elsewhere.
   - Known limits (L35-37): keep L35. Replace L36 with "A command run while the bot is down fails in Discord ("The application did not respond") and files nothing." Replace L37 with "An open modal expires after 30 minutes, and a bot restart drops every open modal: its submit fails in Discord, and nothing is filed or logged." Add "If GitHub filing fails, the Description typed in the modal is not kept anywhere in Discord; the reporter must type it again (F3's preview step addresses this)." (DD-17) Add "Rolling back to a build without slash commands leaves `/bug` and `/feature` registered in the guild. To remove them, remove the app under Server Settings → Integrations (or kick the bot), then re-invite it." _(unverified: the owner confirms it in the smoke-test teardown, DD-12)_
   - Setup: delete L49 (Message Content intent). Rewrite L50: invite with the `bot` and `applications.commands` scopes, with View Channel, Read Message History (kept for opening and fetching threads on the summary, DD-6), Send Messages, Create Public Threads and Send Messages in Threads on the intake channel.
   - L83-84: "Label for `/bug`" / "Label for `/feature`".
-- [ ] `docs/SMOKE-TEST.md`:
+- [x] `docs/SMOKE-TEST.md`:
   - L10-11: two issues in the scratch repo (no long-title issue), and one summary message plus one thread per submission. The failure check writes one summary, one thread and one thread reply, and nothing to GitHub.
   - L9-12 "What it writes": add a **Startup** bullet: the bot registers `/bug` and `/feature` in the guild `DISCORD_GUILD_ID` names, overwrites them on every start, and they stay after teardown (see §5).
   - L44-57 `.env` block: add `DISCORD_GUILD_ID=<the test channel's guild ID>`, with a sentence that the commands sync to this guild, so leaving example.env's value would register `/bug` and `/feature` in the live server.
@@ -219,11 +219,11 @@ Describe the modal intake everywhere the tag intake is described (owner-approved
   - L181 troubleshooting: replace the Message Content row with "commands missing" (the `applications.commands` scope, `DISCORD_GUILD_ID`, the `synced … commands` log line) and "refused in the right channel" (`DISCORD_CHANNEL_ID`).
   - Add a step: the command in another channel gets the private refusal.
   - Add a cutover note: the owner posts a notice in the channel that `!bug`/`!feature` no longer work. Agents never post.
-- [ ] `CLAUDE.md`:
+- [x] `CLAUDE.md`:
   - L3: a one-sentence description, followed by the kept target sentence: "A Discord bot that turns `/bug` and `/feature` reports, made through a modal in a configured intake channel of a Discord server, into fleshed-out GitHub issues in a configured repo of the 4IRL GitHub org and onto that repo's roadmap." (DD-15) Keep the second sentence naming the first target.
   - L22: "per-tag templates" → "per-type templates".
   - L35 log rule: replace `ids (message, thread)` with `ids (guild, channel, message, thread, interaction)`; add that modal text and interaction payloads are member text; and replace the sentence `Exceptions escaping event handlers and hooks are logged by type and event name only.` with one saying that exceptions escaping event handlers and hooks are logged by type and event name only, while the command and modal error handlers log the exception type, the command or modal name, the interaction id and, for a Discord API error, its HTTP status and Discord error code, never `exc_info` or an interaction's repr.
-- [ ] `plans/ROADMAP.md`:
+- [x] `plans/ROADMAP.md`:
   - L22 and L26-31 (overview).
   - Capability 1 (L43-48): **Slash-command capture**, with the `/feature` modal acceptance example ("Title: Sharing/Inviting to UTubs").
   - Capability 2 (L49-52): **Per-type questions**, the per-type modal questions with preview, per F3's amended line.
@@ -235,8 +235,8 @@ Describe the modal intake everywhere the tag intake is described (owner-approved
   - Phase 2 (L183-203): per-type modal questions, ephemeral preview with File/Edit, no thread conversation or persisted state.
 
   Leave Phases 3-4's vision unchanged apart from those lines. The generic "tag" wording in Capability 3, Principles, Phase 3 and Phase 4 stays as is (outside the approved scope); F3/F4 planning rewords it. Afterwards, `grep -nE '!bug|!feature' CLAUDE.md plans/ROADMAP.md` prints nothing, or only lines naming the removed tags as history.
-- [ ] `example.env`: add the line `# Guild (server) ID: the /bug and /feature commands are synced to this guild only.` directly above `DISCORD_GUILD_ID=`. Read the file before editing (it is the secret-free template; never open `.env`).
-- [ ] Verify: `grep -n 'applications.commands' README.md` prints the Setup invite line; `grep -niE 'message content' README.md` prints nothing; `grep -n 'DISCORD_GUILD_ID' docs/SMOKE-TEST.md` prints the `.env` block's override line; `grep -nE '!bug|!feature' README.md docs/SMOKE-TEST.md` prints nothing, or only lines naming the removed tags as history (the SMOKE-TEST cutover note); `grep -n 'interaction' CLAUDE.md` prints the log-rule line; `grep -n 'per-tag' CLAUDE.md` prints nothing; `grep -n 'synced to this guild only' example.env` prints the comment line.
+- [x] `example.env`: add the line `# Guild (server) ID: the /bug and /feature commands are synced to this guild only.` directly above `DISCORD_GUILD_ID=`. Read the file before editing (it is the secret-free template; never open `.env`).
+- [x] Verify: `grep -n 'applications.commands' README.md` prints the Setup invite line; `grep -niE 'message content' README.md` prints nothing; `grep -n 'DISCORD_GUILD_ID' docs/SMOKE-TEST.md` prints the `.env` block's override line; `grep -nE '!bug|!feature' README.md docs/SMOKE-TEST.md` prints nothing, or only lines naming the removed tags as history (the SMOKE-TEST cutover note); `grep -n 'interaction' CLAUDE.md` prints the log-rule line; `grep -n 'per-tag' CLAUDE.md` prints nothing; `grep -n 'synced to this guild only' example.env` prints the comment line. Done 2026-10-21: every verify grep gave the expected output (the only `!bug`/`!feature` line in README.md and docs/SMOKE-TEST.md is the SMOKE-TEST cutover note; none in CLAUDE.md or ROADMAP.md); the full suite gave 198 passed. Review fixes: SMOKE-TEST requires a separate test guild (never the live server) and holds the real-config restart until the owner's go-ahead and the cutover notice; refusal inside a thread, the confirmation-after-failed-filing limit and the optional third `@someone` issue are documented; README Status links to Reporting instead of repeating it; gates re-run green, 198 passed.
 
 ### 7. Verify All Tests Pass
 

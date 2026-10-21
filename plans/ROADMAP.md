@@ -19,16 +19,16 @@
 ## End state (the north star)
 
 discord-github-issue-bot is a Discord bot that watches
-configured intake channels in the 4irl Discord server and turns members' tagged ideas into
+configured intake channels in the 4irl Discord server and turns members' reported ideas into
 well-formed issues in configured repos of the 4IRL GitHub org and their roadmaps. Its first
 target is `#c4i-github-issues` in the `C4I` category (guild `1137236302358659185`) →
 `4IRL/chores4irl` (repo id `969373970`).
-Any member posts an idea as a type tag plus a `Title:` line and an optional `Body:`, such as
-"!bug / Title: Chore bars turn red on the due date" (one field per line). The bot ignores
-untagged chatter. For a tagged message it opens
-a thread, asks the questions that tag needs to flesh the idea out, rates its complexity, then
-files a labeled issue, adds it to the roadmap and posts the issue's direct link in the same
-thread. Capture, triage and filing happen without anyone leaving Discord.
+Any member reports an idea with a `/bug` or `/feature` slash command, which opens a modal
+asking for a title and the questions that type needs to flesh the idea out, such as
+"/bug, Title: Chore bars turn red on the due date". The bot never reads ordinary chatter. On
+submit it posts a summary message in the channel and opens a thread on it, rates the idea's
+complexity, then files a labeled issue, adds it to the roadmap and posts the issue's direct
+link in the thread. Capture, triage and filing happen without anyone leaving Discord.
 
 chores4irl is the first target, not the only one. The bot is portable: which channel it
 listens to and which repo it files into are settings, and one deployment (or several
@@ -40,16 +40,17 @@ repos in the 4IRL GitHub org.
 The numbered capabilities define "done". Each is a user-observable outcome, never a
 component.
 
-1. **Tagged capture.** A message in `#c4i-github-issues` from any member that carries a
-   known type tag is picked up; untagged messages and bot messages are ignored.
-   Messages use the structured form `!feature` / `Title: …` / `Body: …` (Body optional).
-   *Acceptance example:* "!feature / Title: Sharing/Inviting to UTubs / Body: allow easy
-   sharing/inviting to UTubs for members outside the UTub" (one field per line) is captured
-   as a `feature` with that title and body; "anyone around tonight?" produces no response.
-2. **Clarifying thread.** For each captured message the bot opens a thread on it and asks
-   the rule-based questions that tag requires, collecting the author's (or any member's)
-   answers there. *Acceptance example:* a `!bug` thread asks for steps to reproduce, expected
-   behavior and actual behavior before anything is filed.
+1. **Slash-command capture.** Any member runs `/bug` or `/feature` in
+   `#c4i-github-issues`, fills in the modal (a required Title and an optional Description)
+   and submits it; the bot posts a public summary message and opens a thread on it. The
+   same command in any other channel is refused privately. *Acceptance example:* `/feature`
+   submitted with "Title: Sharing/Inviting to UTubs" and "Description: allow easy
+   sharing/inviting to UTubs for members outside the UTub" is captured as a `feature` with
+   that title and body; "anyone around tonight?" produces no response.
+2. **Per-type questions.** Each type's modal asks the rule-based questions that type
+   requires, and the reporter sees a private preview of the issue with File and Edit before
+   anything is filed. *Acceptance example:* the `/bug` modal asks for steps to reproduce,
+   expected behavior and actual behavior, and nothing is filed until the reporter picks File.
 3. **Complexity rating.** From the tag and the answers, the bot assigns a complexity rating
    that becomes part of the filed issue. The scale is S / M / L / XL; the owner approves the
    rules that pick the band.
@@ -61,8 +62,8 @@ component.
    `https://github.com/4IRL/chores4irl/issues/<n>`.
 6. **Multiple targets.** Several intake channels in the server each file into their own
    repo in the 4IRL org, from one running bot or from several instances, and adding a
-   target is a settings change, not a code change. *Acceptance example:* a tagged message
-   in a second configured channel files its issue in that channel's repo, while
+   target is a settings change, not a code change. *Acceptance example:* a report in a
+   second configured channel files its issue in that channel's repo, while
    `#c4i-github-issues` keeps filing in chores4irl.
 
 ### Out of scope
@@ -77,12 +78,12 @@ component.
 exist, what the schema is) is META-PLAN's Baseline; do not restate it here. Update the
 "as of" date whenever a row changes, which is normally at a phase-status change. -->
 
-*As of 2026-10-17.*
+*As of 2026-10-21.*
 
 | # | Capability | State | Delivered by |
 |---|---|---|---|
-| 1 | Tagged capture | none — not started | Phase 1 |
-| 2 | Clarifying thread | none — not started | Phase 2 |
+| 1 | Slash-command capture | none — not started | Phase 1 |
+| 2 | Per-type questions | none — not started | Phase 2 |
 | 3 | Complexity rating | none — not started | Phase 3 |
 | 4 | Issue filed and on the roadmap | none — not started | Phases 1 (filed), 2 (structured body), 3 (roadmap) |
 | 5 | Link posted back | none — not started | Phase 1 |
@@ -112,10 +113,10 @@ README. Keep each item to one or two sentences. -->
   live outside the repo (see `CLAUDE.md`). *Why:* it limits the damage if a credential leaks.
 - **External dependencies.** The bot relies on the Discord Gateway and the GitHub REST and
   GraphQL APIs, and files nothing while either is unavailable. A GitHub failure is reported
-  in the thread rather than silently dropped (retry added in Phase 4), and messages posted
-  while Discord was unreachable are picked up on restart (Phase 4). It runs on `c4i`
-  (Phase 4): while that Pi is down the bot is offline, and the restart catch-up covers
-  the gap.
+  in the thread rather than silently dropped (retry added in Phase 4). A command needs the
+  bot online: one run while the bot or Discord is unreachable fails in Discord, and nothing
+  is queued. It runs on `c4i` (Phase 4): while that Pi is down the bot is offline, and
+  members report again once it is back.
 
 ## Phases
 
@@ -134,26 +135,28 @@ Status markers: `done (YYYY-MM-DD)`, `active`, `planned`. Exactly one phase is `
 at a time unless the sequencing rationale says otherwise.
 -->
 
-### Phase 1: Walking skeleton (message → issue → link) · active
+### Phase 1: Walking skeleton (command → issue → link) · active
 
-**Goal.** A tagged message in the channel becomes a minimal GitHub issue, and its link
-appears in a thread, end to end. **Advances capabilities:** 1, 4 (filed only), 5.
+**Goal.** A `/bug` or `/feature` report in the channel becomes a minimal GitHub issue, and
+its link appears in a thread, end to end. **Advances capabilities:** 1, 4 (filed only), 5.
 
-- The bot runs in its Docker container, connects to the Gateway and listens only to the
-  configured channel; guild, category, channel and target repo all come from config.
-- Tag parsing recognizes `!bug` and `!feature` anywhere in the message, reads the required
-  `Title:` and optional `Body:` fields, and ignores untagged, bot and edited messages.
-- For each tagged message the bot opens a thread on it, creates an issue (the `Title:`, the
-  `Body:` and author as the body, the type label) and posts the issue URL in the
-  thread.
+- The bot runs in its Docker container, connects to the Gateway and registers `/bug` and
+  `/feature` in the configured guild only; guild, category, channel and target repo all
+  come from config.
+- Each command opens a modal with a required Title and an optional Description. A command
+  outside the configured channel is refused privately.
+- For each submitted report the bot posts a summary message in the channel, opens a thread
+  on it, creates an issue (the Title, the Description and author as the body, the type
+  label) and posts the issue URL in the thread.
 - The bot authenticates to GitHub with least privilege on the target repo only (issues
   write; GitHub App vs fine-grained token decided at planning).
 - Tests drive the flow against mocked Discord and GitHub clients; no test touches the live
   channel or repo.
 
-**Exit criteria.** In a test channel pointed at a test repo, posting
-"!bug / Title: Chore bars turn red on the due date" (one field per line) produces a thread, a
-`bug`-labeled issue and its link in the thread, and an untagged message produces nothing.
+**Exit criteria.** In a test channel pointed at a test repo, submitting `/bug` with the
+Title "Chore bars turn red on the due date" produces a summary, a thread on it, a
+`bug`-labeled issue and its link in the thread, and a command outside the channel is
+refused.
 The test suite is green and runs as META-PLAN's Verification.
 
 **Why here.** It proves every external integration (Gateway intents, thread permissions,
@@ -166,41 +169,42 @@ own as a quick-capture tool.
 project carries a name that matches. **Advances capabilities:** 6.
 
 - A route table in a config file maps each intake channel in the server to its target repo
-  in the 4IRL org (with its own tag → label map); messages are filed to their channel's
+  in the 4IRL org (with its own type → label map); reports are filed to their channel's
   repo, and unrouted channels are ignored.
 - The same image runs as one process with several routes or as several containers, each
   with its own route file; the deployment docs show both.
 - The repo, local folder, docs and image are renamed to `discord-github-issue-bot`.
 
-**Exit criteria.** With two routes pointing two test channels at two test repos, a tagged
-message in each channel files in its own repo and posts its link back, both from one
+**Exit criteria.** With two routes pointing two test channels at two test repos, a report
+in each channel files in its own repo and posts its link back, both from one
 process and from two containers. The renamed repo's suite is green.
 
 **Why here.** Phase 2 and 3 add per-conversation state and per-repo Project config. Making
 the config multi-target before they start means they are built per target once, instead
 of refactored later.
 
-### Phase 2: Clarifying conversation · planned
+### Phase 2: Per-type questions · planned
 
-**Goal.** The bot asks the questions each tag needs in the thread and files an issue whose
-body is built from the answers. **Advances capabilities:** 2, 4.
+**Goal.** Each type's modal asks the questions that type needs, and the bot files an issue
+whose body is built from the answers after the reporter confirms a preview. **Advances
+capabilities:** 2, 4.
 
-- Question sets for each tag are data rather than code (for example `!bug`: steps to
-  reproduce, expected, actual, device/browser; `!feature`: who it is for, the problem it
-  solves, what "done" looks like), so adding a tag or question needs no code change.
-- The bot asks one question at a time and accepts replies from any member in the thread,
-  with commands to skip a question, cancel, or file now.
-- Before filing, the bot posts a preview of the issue and waits for a confirmation, then
-  files the issue with a structured body (sections per question).
-- Conversation state survives a bot restart, and an abandoned thread times out with a note
-  instead of hanging forever.
+- Question sets for each type are data rather than code (for example `/bug`: steps to
+  reproduce, expected, actual, device/browser; `/feature`: who it is for, the problem it
+  solves, what "done" looks like), so adding a type or question needs no code change. They
+  become the modal's fields: the Title plus up to four questions (Discord's five-field cap).
+- After submit the reporter gets a private (ephemeral) preview of the issue with **File**
+  and **Edit**: File files it with a structured body (sections per question), and Edit
+  reopens the modal prefilled.
+- There is no thread conversation and no persisted conversation state; members can still
+  comment in the thread.
 
-**Exit criteria.** In the test channel, a `!bug` and a `!feature` thread each run through
-their questions (including a skip and a cancel), and the filed issue's body has one
-section per answered question. Restarting the container mid-conversation resumes it.
+**Exit criteria.** In the test channel, a `/bug` and a `/feature` report each show their
+questions in the modal and a private preview, an Edit reopens the modal prefilled, and the
+filed issue's body has one section per answered question.
 
 **Why here.** The value of the bot over a plain form is the fleshed-out idea; it needs the
-Phase 1 thread and filing path to exist first.
+Phase 1 modal, thread and filing path to exist first.
 
 ### Phase 3: Triage and roadmap placement · planned
 
@@ -234,8 +238,8 @@ losing ideas. **Advances capabilities:** 1–5 (reliability).
   `plans/HOST-ROLES.md` and ROADMAP Phase 3.
 - GitHub or Discord errors are reported in the thread with a retry, never silently
   dropped, and rate limits are respected.
-- Messages posted while the bot was down are picked up on start, and a message is never
-  filed twice.
+- A command needs the bot online, and nothing is queued while it is down; a report is
+  never filed twice.
 - Quality-of-life additions ordered by impact (more tags, duplicate-issue hints, a help
   command).
 
