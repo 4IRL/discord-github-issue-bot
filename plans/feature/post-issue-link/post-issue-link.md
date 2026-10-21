@@ -83,7 +83,7 @@ Give the `make_message` stand-in a `reply` mock so tests can assert the fallback
 One thread message with the issue number, escaped title and URL; no mentions, no embeds.
 
 **To-do:**
-- [ ] **Red.** In `tests/test_threads.py`, add `test_filed_reply_has_number_title_and_url`:
+- [x] **Red.** In `tests/test_threads.py`, add `test_filed_reply_has_number_title_and_url`:
   `filed_reply(FiledIssue(7, ISSUE_URL), "Fix *it*")` equals
   `f"Filed as GitHub issue #7: Fix \\*it\\*\n{ISSUE_URL}"`. Imports: add
   `from issue_bot.github import FiledIssue` above the `from issue_bot.threads import (` block, add
@@ -91,7 +91,7 @@ One thread message with the issue number, escaped title and URL; no mentions, no
   functions), and change `from tests.conftest import MessageFactory` to
   `from tests.conftest import ISSUE_URL, MessageFactory`.
   Run it; confirm it fails with an `ImportError` for `filed_reply`.
-- [ ] **Green.** In `issue_bot/threads.py`, below `FILING_ERROR_REPLY`, add
+- [x] **Green.** In `issue_bot/threads.py`, below `FILING_ERROR_REPLY`, add
   `FILED_REPLY = "Filed as GitHub issue #{number}: {title}\n{url}"` and
   `def filed_reply(issue: FiledIssue, title: str) -> str` returning
   `FILED_REPLY.format(number=issue.number, title=discord.utils.escape_markdown(title), url=issue.html_url)`
@@ -100,7 +100,7 @@ One thread message with the issue number, escaped title and URL; no mentions, no
   after `import discord`, separated by a blank line (no cycle: `issue_bot.github` imports only
   `issue_bot.config`). Update the module docstring's
   first line to mention the replies it formats. Run the test; confirm it passes.
-- [ ] **Red.** In `tests/test_bot.py`, rename `test_filing_hook_files_issue_and_logs_url` to
+- [x] **Red.** In `tests/test_bot.py`, rename `test_filing_hook_files_issue_and_logs_url` to
   `test_filing_hook_files_issue_posts_link_and_logs_url` and replace its
   `message.create_thread.return_value.send.assert_not_awaited()` with
   `message.create_thread.return_value.send.assert_awaited_once_with(filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words"), allowed_mentions=NO_MENTIONS, suppress_embeds=True)`
@@ -108,7 +108,7 @@ One thread message with the issue number, escaped title and URL; no mentions, no
   `from issue_bot.intake import FILING_UNAVAILABLE_REPLY, INTAKE_ERROR_REPLY, NO_MENTIONS, IntakeModal`
   and the threads line to `from issue_bot.threads import FILING_ERROR_REPLY, filed_reply`. Keep its log and `assert_no_member_text` assertions.
   Run it; confirm it fails because `send` was not awaited.
-- [ ] **Green.** In `issue_bot/bot.py`, add a module-level
+- [x] **Green.** In `issue_bot/bot.py`, add a module-level
   `async def _post_outcome(message: discord.Message, thread: discord.Thread | None, text: str, what: str) -> None`
   (DD-4): inside `try:` call `await thread.send(text, allowed_mentions=NO_MENTIONS, suppress_embeds=True)` when
   `thread is not None`, else `await message.reply(text, allowed_mentions=NO_MENTIONS, suppress_embeds=True)`;
@@ -120,29 +120,29 @@ One thread message with the issue number, escaped title and URL; no mentions, no
   block, one name per line: `NO_MENTIONS`, `CandidateHook`, `FilingCheck`,
   `discord_error_fields`, `intake_command`; change the threads line to
   `from issue_bot.threads import FILING_ERROR_REPLY, filed_reply, open_thread, thread_name`.
-- [ ] In `file_and_report`, after the `filed …` `logger.info`, add
+- [x] In `file_and_report`, after the `filed …` `logger.info`, add
   `await _post_outcome(message, thread, filed_reply(issue, candidate.title), "issue link")`.
   (The link is posted after the log so a failed send never hides the filed issue's URL.) Run the
   test; confirm it passes.
-- [ ] **Refactor.** Replace the `GitHubError` branch's `if thread is not None: try: await thread.send(FILING_ERROR_REPLY) … except …` block with
+- [x] **Refactor.** Replace the `GitHubError` branch's `if thread is not None: try: await thread.send(FILING_ERROR_REPLY) … except …` block with
   `await _post_outcome(message, thread, FILING_ERROR_REPLY, "filing error")` (the `return`
   stays). The log line keeps its `could not send filing error for message_id=…` prefix, so
   `test_filing_error_send_failure_logged_without_text`'s substring check still matches; update
   that test only if it fails. Update `filing_hook`'s docstring: on
   success it posts `filed_reply` and on a `GitHubError` the fixed `FILING_ERROR_REPLY`, in the
   thread or, with no thread, as a reply to the summary message.
-- [ ] Update `test_filing_hook_failure_replies_and_logs_status`'s
+- [x] Update `test_filing_hook_failure_replies_and_logs_status`'s
   `send.assert_awaited_once_with(FILING_ERROR_REPLY)` to
   `assert_awaited_once_with(FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True)`
   and add `message.reply.assert_not_awaited()`, so a failed filing posts the error and no link
   (Expected end state).
-- [ ] In `tests/test_intake.py` `test_github_error_still_posts_filing_error_reply`, change
+- [x] In `tests/test_intake.py` `test_github_error_still_posts_filing_error_reply`, change
   `summary.create_thread.return_value.send.assert_awaited_once_with(FILING_ERROR_REPLY)` to
   `assert_awaited_once_with(FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True)`
   and add `summary.reply.assert_not_awaited()`. `NO_MENTIONS` is already in that file's
   `from issue_bot.intake import (` block, so no import changes.
-- [ ] Run `.venv/bin/pytest -q tests/test_bot.py tests/test_threads.py tests/test_intake.py`;
-  confirm green.
+- [x] Run `.venv/bin/pytest -q tests/test_bot.py tests/test_threads.py tests/test_intake.py`;
+  confirm green. - COMPLETE (2026-10-21): 84 passed (full suite 213 passed)
 
 ### 3. Red → Green: no-thread fallback and send failures
 With no thread, the same text goes to a reply on the summary; a failed link send is logged

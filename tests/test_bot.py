@@ -18,9 +18,9 @@ from issue_bot.bot import (
 from issue_bot.config import Config
 from issue_bot.github import FiledIssue, GitHubClient, GitHubError
 from issue_bot.handler import IssueCandidate
-from issue_bot.intake import FILING_UNAVAILABLE_REPLY, INTAKE_ERROR_REPLY, IntakeModal
+from issue_bot.intake import FILING_UNAVAILABLE_REPLY, INTAKE_ERROR_REPLY, NO_MENTIONS, IntakeModal
 from issue_bot.issue_type import IssueType
-from issue_bot.threads import FILING_ERROR_REPLY
+from issue_bot.threads import FILING_ERROR_REPLY, filed_reply
 from tests.conftest import (
     ISSUE_URL,
     CandidateFactory,
@@ -204,7 +204,7 @@ def secret_candidate(make_candidate: CandidateFactory) -> IssueCandidate:
     )
 
 
-async def test_filing_hook_files_issue_and_logs_url(
+async def test_filing_hook_files_issue_posts_link_and_logs_url(
     config: Config,
     make_message: MessageFactory,
     make_candidate: CandidateFactory,
@@ -219,7 +219,12 @@ async def test_filing_hook_files_issue_and_logs_url(
     target, _title, _body, labels = github.create_issue.await_args.args
     assert target == config.target
     assert labels == ["bug"]
-    message.create_thread.return_value.send.assert_not_awaited()
+    message.create_thread.return_value.send.assert_awaited_once_with(
+        filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words"),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
+    message.reply.assert_not_awaited()
     info_messages = [
         record.getMessage() for record in bot_records(caplog) if record.levelno == logging.INFO
     ]
@@ -241,7 +246,10 @@ async def test_filing_hook_failure_replies_and_logs_status(
     message = make_message()
     with caplog.at_level(logging.INFO):
         await filing_hook(github)(message, secret_candidate(make_candidate))
-    message.create_thread.return_value.send.assert_awaited_once_with(FILING_ERROR_REPLY)
+    message.create_thread.return_value.send.assert_awaited_once_with(
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
+    )
+    message.reply.assert_not_awaited()
     errors = [
         record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
     ]
