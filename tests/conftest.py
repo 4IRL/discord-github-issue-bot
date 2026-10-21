@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import discord
 import pytest
@@ -9,6 +9,33 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from issue_bot.config import Config
+from issue_bot.github import FiledIssue
+
+
+ISSUE_URL = "https://github.com/example-org/example-repo/issues/7"
+
+
+def record_texts(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [record.getMessage() + (record.exc_text or "") for record in caplog.records]
+
+
+def forbidden(code: int, text: str) -> discord.Forbidden:
+    return discord.Forbidden(
+        SimpleNamespace(status=403, reason="Forbidden"), {"code": code, "message": text}
+    )
+
+
+def fake_github(result: FiledIssue | Exception) -> SimpleNamespace:
+    if isinstance(result, Exception):
+        return SimpleNamespace(create_issue=AsyncMock(side_effect=result))
+    return SimpleNamespace(create_issue=AsyncMock(return_value=result))
+
+
+def assert_no_member_text(caplog: pytest.LogCaptureFixture) -> None:
+    for text in record_texts(caplog):
+        assert "Secret title words" not in text
+        assert "Secret body words" not in text
+        assert "Alice" not in text
 
 
 @pytest.fixture(autouse=True)
@@ -74,6 +101,7 @@ def config(test_env: dict[str, str]) -> Config:
 
 
 MessageFactory = Callable[..., SimpleNamespace]
+InteractionFactory = Callable[..., SimpleNamespace]
 
 
 @pytest.fixture
@@ -106,6 +134,47 @@ def make_message() -> MessageFactory:
                 return_value=SimpleNamespace(id=created_thread_id, send=AsyncMock())
             ),
             fetch_thread=AsyncMock(return_value=SimpleNamespace(id=message_id, send=AsyncMock())),
+        )
+
+    return factory
+
+
+@pytest.fixture
+def make_interaction(make_message: MessageFactory) -> InteractionFactory:
+    """Build a duck-typed stand-in for a slash-command or modal ``discord.Interaction``."""
+
+    def factory(
+        *,
+        channel_id: int | None = 555,
+        user_id: int = 7,
+        display_name: str = "Alice",
+        interaction_id: int = 4242,
+        summary: SimpleNamespace | None = None,
+    ) -> SimpleNamespace:
+        if summary is None:
+            summary = make_message()
+        channel = (
+            None
+            if channel_id is None
+            else SimpleNamespace(id=channel_id, send=AsyncMock(return_value=summary))
+        )
+        response = SimpleNamespace(
+            send_modal=AsyncMock(),
+            send_message=AsyncMock(),
+            defer=AsyncMock(),
+            is_done=Mock(return_value=False),
+        )
+        # A deferred interaction reports is_done() True, as in production (DD-2).
+        response.defer.side_effect = lambda *args, **kwargs: setattr(
+            response.is_done, "return_value", True
+        )
+        return SimpleNamespace(
+            id=interaction_id,
+            channel_id=channel_id,
+            channel=channel,
+            user=SimpleNamespace(id=user_id, display_name=display_name, mention=f"<@{user_id}>"),
+            response=response,
+            followup=SimpleNamespace(send=AsyncMock()),
         )
 
     return factory

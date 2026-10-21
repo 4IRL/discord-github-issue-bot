@@ -14,7 +14,14 @@ from issue_bot.handler import IssueCandidate
 from issue_bot.issue_type import IssueType
 from issue_bot.tags import MalformedTag
 from issue_bot.threads import FILING_ERROR_REPLY, format_hint
-from tests.conftest import MessageFactory
+from tests.conftest import (
+    ISSUE_URL,
+    MessageFactory,
+    assert_no_member_text,
+    fake_github,
+    forbidden,
+    record_texts,
+)
 
 CONFIG_KEYS = (
     "DISCORD_TOKEN",
@@ -46,10 +53,6 @@ def make_channel(
 
 def bot_records(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
     return [record for record in caplog.records if record.name == "issue_bot.bot"]
-
-
-def record_texts(caplog: pytest.LogCaptureFixture) -> list[str]:
-    return [record.getMessage() + (record.exc_text or "") for record in caplog.records]
 
 
 class FailingBot:
@@ -157,12 +160,6 @@ async def test_default_hook_logs_ids_not_text(
         assert "Alice" not in text
 
 
-def forbidden(code: int, text: str) -> discord.Forbidden:
-    return discord.Forbidden(
-        SimpleNamespace(status=403, reason="Forbidden"), {"code": code, "message": text}
-    )
-
-
 async def test_default_hook_opens_one_thread_named_from_title(
     config: Config, make_message: MessageFactory
 ) -> None:
@@ -217,21 +214,7 @@ async def test_default_hook_logs_when_thread_fails(
         assert "Secret title words" not in text
 
 
-ISSUE_URL = "https://github.com/example-org/example-repo/issues/7"
 SECRET_CONTENT = "!bug\nTitle: Secret title words\nBody: Secret body words"
-
-
-def fake_github(result: FiledIssue | Exception) -> SimpleNamespace:
-    if isinstance(result, Exception):
-        return SimpleNamespace(create_issue=AsyncMock(side_effect=result))
-    return SimpleNamespace(create_issue=AsyncMock(return_value=result))
-
-
-def assert_no_member_text(caplog: pytest.LogCaptureFixture) -> None:
-    for text in record_texts(caplog):
-        assert "Secret title words" not in text
-        assert "Secret body words" not in text
-        assert "Alice" not in text
 
 
 async def test_filing_hook_files_issue_and_logs_url(
