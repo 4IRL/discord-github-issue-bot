@@ -243,8 +243,8 @@ Describe the modal intake everywhere the tag intake is described (owner-approved
 Run the full test suite and the Expected-end-state checks.
 
 **To-do:**
-- [ ] Run `.venv/bin/pytest` and confirm every test passes. Record the new count.
-- [ ] Run the Expected-end-state greps:
+- [x] Run `.venv/bin/pytest` and confirm every test passes. Record the new count.
+- [x] Run the Expected-end-state greps:
   - `grep -rnE '!bug|!feature' --include='*.py' issue_bot` prints nothing;
   - `grep -nE '!bug|!feature' CLAUDE.md plans/ROADMAP.md` prints nothing, or only history lines;
   - `grep -rn --include='*.py' 'message_content' issue_bot` prints nothing;
@@ -253,10 +253,11 @@ Run the full test suite and the Expected-end-state checks.
   - `grep -rnE --include='*.py' 'exc_info=|%r|logger\.exception' issue_bot` prints nothing (exit 1 is the pass);
   - `grep -n 'applications.commands' README.md` prints the Setup invite line, and `grep -niE 'message content' README.md` prints nothing;
   - `grep -nE '!bug|!feature' README.md docs/SMOKE-TEST.md` prints nothing, or only history lines.
-- [ ] Investigate and fix any failure before marking the plan finished.
-- [ ] Copy the **Owner checks** below verbatim into the final report.
-- [ ] Add one final-report line for the fold-back: F8's Open risks gain "in multi-container mode every container receives every `/bug`/`/feature`; a container whose route doesn't match must stay silent rather than send F10's refusal, or it races the right container" (DD-18).
-- [ ] Add one final-report line for the fold-back: Standing invariant 2 must be updated to match the new CLAUDE.md log rule (ids: guild, channel, message, thread, interaction; `on_error` logs type and event name only; the command and modal error handlers log type, name, interaction id, status and code).
+- [x] Investigate and fix any failure before marking the plan finished.
+- [x] Copy the **Owner checks** below verbatim into the final report.
+- [x] Add one final-report line for the fold-back: F8's Open risks gain "in multi-container mode every container receives every `/bug`/`/feature`; a container whose route doesn't match must stay silent rather than send F10's refusal, or it races the right container" (DD-18).
+- [x] Add one final-report line for the fold-back: Standing invariant 2 must be updated to match the new CLAUDE.md log rule (ids: guild, channel, message, thread, interaction; `on_error` logs type and event name only; the command and modal error handlers log type, name, interaction id, status and code).
+- [x] Done 2026-10-21: `.venv/bin/pytest` gave 198 passed (unchanged from Step 6); every Expected-end-state grep gave the expected output (the only `tree.sync(` is `issue_bot/bot.py:169` with `guild=self._guild`; the README Setup invite line names `applications.commands`; the only `!bug`/`!feature` line in README.md and docs/SMOKE-TEST.md is the SMOKE-TEST cutover note at L181; all other greps printed nothing). No failures to fix. Owner checks and both fold-back lines went into the final report.
 
 ## Owner checks (not executor tasks)
 - In a test guild, after the bot is re-invited with the `applications.commands` scope and Send Messages on the intake channel:
@@ -270,4 +271,4 @@ Run the full test suite and the Expected-end-state checks.
 - Before deploying to the live server: re-invite the bot there with the `bot` and `applications.commands` scopes (or confirm the scope is already granted), and grant View Channel and Send Messages on the live intake channel, alongside the existing thread permissions. Post the cutover notice in the intake channel that `!bug`/`!feature` no longer work (agents never post live). After the deploy, confirm the log shows `synced 2 commands to guild <DISCORD_GUILD_ID>` and that `/bug` opens the modal in the live intake channel.
 
 ## Status
-finished: false
+finished: true
