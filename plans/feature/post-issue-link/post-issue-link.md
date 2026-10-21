@@ -188,38 +188,38 @@ without text.
 Describe the new behaviour where the docs still say nothing is posted.
 
 **To-do:**
-- [ ] `README.md` line 3: drop "Posting the issue's link back in the thread," from the planned
+- [x] `README.md` line 3: drop "Posting the issue's link back in the thread," from the planned
   list (keep "clarifying questions and roadmap placement are planned features").
-- [ ] `README.md` line 9: add F7 to the list of features that exist; replace the last two
+- [x] `README.md` line 9: add F7 to the list of features that exist; replace the last two
   sentences with: on success the bot posts the issue number, title and link in the thread; if
   filing fails it posts a fixed error reply there; with no thread, either goes as a reply to the
   summary message.
-- [ ] `README.md` § Reporting step 3 (line 18): add that it then posts the issue's link in the
+- [x] `README.md` § Reporting step 3 (line 18): add that it then posts the issue's link in the
   thread. Line 33: the confirmation still means only the summary was posted; the filing outcome
   (link or error) appears in the thread, or as a reply to the summary when no thread opened; if
   that post fails too, the outcome shows only in the log (`could not send issue link …` or
   `could not send filing error …`).
-- [ ] `docs/SMOKE-TEST.md` line 11: success checks include one link post per submission. Line
+- [x] `docs/SMOKE-TEST.md` line 11: success checks include one link post per submission. Line
   110: the thread row expects one bot message `Filed as GitHub issue #<n>: <title>` with the
   issue link and no preview card. Line 128: the failure reply goes in the thread, or as a reply to
   the summary with no thread. Keep the rest of the runbook unchanged.
-- [ ] `README.md` § Discord setup step 2: the sentence "Read Message History is kept for opening and
+- [x] `README.md` § Discord setup step 2: the sentence "Read Message History is kept for opening and
   fetching threads on the summary message." becomes "Read Message History is kept for opening and
   fetching threads on the summary message, and for replying to the summary when no thread could be
   opened."
-- [ ] `docs/SMOKE-TEST.md`: in setup step 4, "The bot needs View Channel, Send Messages, Create
+- [x] `docs/SMOKE-TEST.md`: in setup step 4, "The bot needs View Channel, Send Messages, Create
   Public Threads and Send Messages in Threads there" becomes "The bot needs View Channel, Read
   Message History, Send Messages, Create Public Threads and Send Messages in Threads there"; in the
   troubleshooting row "A submit gets a private error and no summary", "the bot has View Channel,
   Send Messages, Create Public Threads and Send Messages in Threads there" gains Read Message
   History the same way.
-- [ ] `docs/SMOKE-TEST.md` troubleshooting table: after the "A submit gets a private error and no
+- [x] `docs/SMOKE-TEST.md` troubleshooting table: after the "A submit gets a private error and no
   summary" row, add the row
   `` | The issue is filed but no link appears in the thread | The bot couldn't post it. Check the log for `could not send issue link …` (its status and code): the thread post needs Send Messages in Threads; the reply on the summary (when no thread opened) needs Send Messages and Read Message History. | ``
   (two columns, like the rest of the table).
-- [ ] `grep -n "comes with F7\|nothing\*\* posted\|link post comes\|link back in the thread" README.md docs/SMOKE-TEST.md || true`
+- [x] `grep -n "comes with F7\|nothing\*\* posted\|link post comes\|link back in the thread" README.md docs/SMOKE-TEST.md || true`
   prints nothing (before Step 4 it prints README's opening paragraph, README's Status paragraph
-  and SMOKE-TEST's "Discord thread" row).
+  and SMOKE-TEST's "Discord thread" row). - COMPLETE (2026-10-21): grep prints nothing; full suite 216 passed; 3 reviewers PASS
 
 ### 5. Verify All Tests Pass
 
