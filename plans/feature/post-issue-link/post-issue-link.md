@@ -66,8 +66,8 @@ Research was done inline (20 source files, one layer, change confined to `issue_
 - **DD-6 — send helper exceptions.** **Chosen:** `discord.HTTPException` only, like `open_thread`
   and the existing error send; a rare transport error after filing reaches `IntakeModal.on_error`,
   with the issue's URL already logged (assumed: dd-policy, `dd-261021-014`).
-- **DD-7 — live check of the reply fallback.** **Chosen:** an optional owner manual-check bullet
-  (assumed: dd-policy, `dd-261021-015`).
+- **DD-7 — live check of the reply fallback.** **Chosen:** no live check; the mocked unit tests
+  cover the fallback (overturned at review; was assumed `dd-261021-015`).
 
 ## Steps
 
@@ -237,10 +237,6 @@ Run the full test suites to confirm nothing is broken:
 - Live smoke test per `docs/SMOKE-TEST.md` in the separate test server: each `/bug` and
   `/feature` submission gets one `Filed as GitHub issue #<n>: <title>` message with the link in
   its thread, and no preview card.
-- Optional, in the test server only (DD-7): remove the bot's Create Public Threads permission on
-  the test channel, submit one `/bug`, and expect a reply on the summary message
-  `Filed as GitHub issue #<n>: <title>` with the link (no preview card); then restore the
-  permission.
 
 **To-do:**
 - [x] Copy the "Manual checks" bullets above verbatim into the final report. - COMPLETE (2026-10-21)

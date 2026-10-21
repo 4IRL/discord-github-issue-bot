@@ -139,7 +139,7 @@ All six subagents PASS; 0 critical, 0 major. Pass 1's fixes M1–M6 and both DDs
 
 **Labels:** kind=dd category=testing reversible=yes rework=low · Recommended: 1
 
-**Chosen:** Add optional owner manual-check bullet (assumed: dd-policy, dd-261021-015)
+**Chosen:** Leave to unit tests (overturned at review; was assumed dd-261021-015)
 
 ---
 
