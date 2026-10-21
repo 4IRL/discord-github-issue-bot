@@ -55,3 +55,57 @@ No findings. The discord.py 2.7.1 API usage was verified: `ui.Label(TextInput)`,
 - [ ] **Reply privately from `IntakeTree.on_error`** — `issue_bot/bot.py` — When `interaction.response.is_done()` is False, send `INTAKE_ERROR_REPLY` with `ephemeral=True` inside a try that logs failures by type, status and code, mirroring `IntakeModal.on_error`; add a test.
 - [ ] **Record the F8 seam and the no-thread filing gap at fold-back** — `plans/META-PLAN.md` (in the Phase C fold-back, not this branch) — Under F8's contract note that `intake_command(issue_type, target, on_candidate)` is the registration seam to generalize. The no-thread "posted" gap stays with F7 (DD-13).
 - [ ] **Leave `IssueCandidate` validation and `CandidateHook`'s home as is** — `issue_bot/handler.py`, `issue_bot/intake.py` — No action unless a second construction path or a third hook consumer appears. Close this item as "won't do".
+
+## Review 2
+Generated: 2026-10-21 09:30
+Comparison: origin/feature/slash-command-intake f108039312cdfe0564007fae03d746f4e440ff56..5e7aa94 (+uncommitted: the owner's example.env edit, not pushed)
+Verdict: **PUSHED WITH MINOR FINDINGS**
+
+Scope: F10 Step 8. Merge-gate follow-ups from the owner's smoke test: `GitHubClient.check_access`, a filing check before the modal, a startup self-check, and revert-path docs. 8 reviewers ran; Type Design was skipped because no type was added or reshaped.
+
+### Results by Reviewer
+
+#### 1. Safety & Security — PASS
+- (minor) A failed token mint isn't cached, so while GitHub access is broken every `/bug` run makes a fresh token request.
+
+#### 2. Correctness — PASS
+- (minor) `wait_for` cancels a slow cold-cache mint, so during sustained slow GitHub every command refuses; `asyncio.shield` would let the mint finish and warm the cache.
+- (minor) The startup check has no timeout of its own (bounded by the transport's 30 s).
+
+#### 3. Simplicity & Conciseness — PASS
+- (minor) The three except branches in the pre-modal check repeat the same reply and return.
+- (minor) `_check_github_access` could use try/except/else and drop the redundant returns.
+
+#### 4. Test Coverage — PASS
+- (minor) No test covers the refusal reply itself failing.
+- (minor) `test_main_runs_bot_with_token` asserts bound-method internals (`__func__`).
+- (minor) No test asserts that `setup_hook` with `filing_check=None` logs no "github access" line.
+
+#### 5. Completeness & Cleanup — PASS
+- (minor) The plan's Step 8 Done line misstated the `example.env` status. **Fixed in this push.**
+- (minor) The `check_access` docstring is about 107 characters.
+
+#### 6. Consistency & Style — PASS
+- (minor) `_sync_commands` and `_check_github_access` have no docstrings.
+- (minor) The repeated except-branch tail is the same as the Simplicity finding.
+
+#### 7. Integration Risk — PASS
+- (minor) The 2 s check timeout means slow-GitHub periods refuse commands; note it in README Known limits.
+- (minor) The startup check delays `login()` by up to 30 s on a hung GitHub.
+- (none) The new `intake → github` import edge has no cycle.
+
+#### 8. Error Handling & Silent Failures — PASS
+- (minor) The startup check has no explicit timeout; this is the same as the Correctness and Integration findings.
+
+### To-Do: Required Changes
+
+- [ ] **Shield the pre-modal mint and give the startup check a timeout** — `issue_bot/intake.py`, `issue_bot/bot.py` — Wrap the check as `asyncio.wait_for(asyncio.shield(filing_check(target)), FILING_CHECK_TIMEOUT)` so a slow cold mint still warms the cache. Wrap `_check_github_access`'s call in `asyncio.wait_for(…, STARTUP_CHECK_TIMEOUT)` (for example 10 s) and log `timeout` by type only. Add a test for each.
+- [ ] **Briefly cache a failed access check** — `issue_bot/github.py` or `issue_bot/intake.py` — Remember a failed check for 10–30 s so repeated commands during an outage don't each mint a token; add a test.
+- [ ] **Collapse the repeated except tails** — `issue_bot/intake.py` (pre-modal check), `issue_bot/bot.py` (`_check_github_access`) — Keep the `GitHubError` branch for its stage and status; fold TimeoutError into the generic branch; send the reply once; use try/except/else.
+- [ ] **Test the refusal reply failing, and the no-check startup** — `tests/test_intake.py`, `tests/test_bot.py` — Cover `send_message` raising after a failed check, and assert that `setup_hook` with `filing_check=None` logs no "github access" line.
+- [ ] **Assert behavior, not bound-method internals** — `tests/test_bot.py` `test_main_runs_bot_with_token` — Patch `GitHubClient.check_access` with an AsyncMock and assert that calling `filing_check` awaits it.
+- [ ] **Docstrings and line length** — `issue_bot/bot.py` (`_sync_commands`, `_check_github_access`), `issue_bot/github.py` (`check_access`) — Add one-line docstrings stating the log-only, keep-running contract, and shorten `check_access`'s docstring to at most 100 columns.
+- [ ] **Note the slow-GitHub refusal in README Known limits** — `README.md` — "If GitHub takes over 2 s to answer the access check, the command refuses; try again."
+- [x] **Correct the Step 8 Done line's `example.env` claim** — `plans/feature/slash-command-intake/slash-command-intake.md` — Fixed in this push.
+
+6b: 0 misses. Review 2's findings are all on Step 8 code and docs, which were outside Review 1's diff.
