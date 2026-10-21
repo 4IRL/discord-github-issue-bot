@@ -11,7 +11,8 @@ from issue_bot.bot import IssueBot, build_intents, channel_problems, filing_hook
 from issue_bot.config import Config
 from issue_bot.github import FiledIssue, GitHubError
 from issue_bot.handler import IssueCandidate
-from issue_bot.tags import IssueType, MalformedTag
+from issue_bot.issue_type import IssueType
+from issue_bot.tags import MalformedTag
 from issue_bot.threads import FILING_ERROR_REPLY, format_hint
 from tests.conftest import MessageFactory
 

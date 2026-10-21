@@ -8,7 +8,7 @@ import logging
 
 import discord
 
-from issue_bot.tags import IssueType
+from issue_bot.issue_type import IssueType
 
 logger = logging.getLogger(__name__)
 

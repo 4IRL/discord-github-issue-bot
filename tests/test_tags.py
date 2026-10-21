@@ -1,6 +1,7 @@
 import pytest
 
-from issue_bot.tags import IssueType, MalformedTag, ParsedTag, parse_tag
+from issue_bot.issue_type import IssueType
+from issue_bot.tags import MalformedTag, ParsedTag, parse_tag
 
 
 def test_roadmap_feature_example() -> None:

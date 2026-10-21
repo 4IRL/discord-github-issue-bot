@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import discord
 import pytest
 
-from issue_bot.tags import IssueType
+from issue_bot.issue_type import IssueType
 from issue_bot.threads import (
     FILING_ERROR_REPLY,
     THREAD_NAME_LIMIT,

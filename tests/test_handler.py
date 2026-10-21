@@ -5,7 +5,8 @@ import pytest
 
 from issue_bot.config import Config
 from issue_bot.handler import IssueCandidate, candidate_from_message
-from issue_bot.tags import IssueType, MalformedTag
+from issue_bot.issue_type import IssueType
+from issue_bot.tags import MalformedTag
 from tests.conftest import MessageFactory
 
 

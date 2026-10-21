@@ -14,7 +14,8 @@ name; a repeated filled label is text inside the Body and is ignored elsewhere.
 
 import re
 from dataclasses import dataclass
-from enum import StrEnum
+
+from issue_bot.issue_type import IssueType
 
 TAG_PATTERN = re.compile(r"(?<![\w!/`])!(bug|feature)(?![\w`-])", re.IGNORECASE)
 FIELD_LABEL = re.compile(r"^\s*[*_]*(title|body)[*_]*\s*:[*_]*[ \t]*", re.IGNORECASE)
@@ -25,13 +26,6 @@ BRACKETED_TAG = re.compile(
     re.IGNORECASE,
 )
 TITLE_EDGE = " .,:;-|/"
-
-
-class IssueType(StrEnum):
-    """The kind of issue a tag files."""
-
-    BUG = "bug"
-    FEATURE = "feature"
 
 
 @dataclass(frozen=True)

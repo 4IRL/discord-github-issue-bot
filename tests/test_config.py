@@ -5,7 +5,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
 from issue_bot.config import Config, ConfigError, TargetConfig
-from issue_bot.tags import IssueType
+from issue_bot.issue_type import IssueType
 
 ALL_KEYS = [
     "DISCORD_TOKEN",

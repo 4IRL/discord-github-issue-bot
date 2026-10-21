@@ -16,7 +16,7 @@ from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
-from issue_bot.tags import IssueType
+from issue_bot.issue_type import IssueType
 
 REPO_PATTERN = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 ASCII_INTEGER_PATTERN = re.compile(r"-?[0-9]+")

@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 import discord
 
 from issue_bot.config import Config, TargetConfig
-from issue_bot.tags import IssueType, MalformedTag, parse_tag
+from issue_bot.issue_type import IssueType
+from issue_bot.tags import MalformedTag, parse_tag
 
 logger = logging.getLogger(__name__)
 
