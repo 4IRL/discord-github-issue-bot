@@ -43,10 +43,10 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 
 ## Where the work stands
 
-**★FOCUS: `F10` — Slash-command intake** (runnable; branch `feature/slash-command-intake`).
+**★FOCUS: `F7` — Post the issue link in the thread** (runnable; branch `feature/post-issue-link`).
 
-F1's listener, F2's threads and F5's issue filing are on `main`. F10 and F7 are runnable now
-(F10 first, owner's choice 2026-10-18); F8 needs both. F6 is also gated on creating the new
+F1's listener, F2's threads, F5's filing and F10's `/bug`/`/feature` modal intake are on `main`.
+F7 is runnable now and completes Phase 1; F8 then needs it. F6 is also gated on creating the new
 chores4irl roadmap Project.
 
 <!-- Two or three sentences at most: what is runnable today, what is gated and on what.
@@ -54,18 +54,16 @@ Shipped work is git's record (`gh pr list --state merged`), not this file's. -->
 
 ### Shortest path to the focus feature
 
-F10 has no open prerequisites: F1's `on_candidate` seam, F2's `open_thread` and F5's
-`filing_hook` are what its modal submit feeds.
+F7 has no open prerequisites: F5's `FiledIssue.html_url` and F10's summary-message thread are
+what it posts into.
 
-1. **Run F10** (`/run-feature F10`, effort L). It replaces the `!bug`/`!feature` tags with
-   `/bug` and `/feature` modals.
-2. **Run F7** (effort S) on F10's intake. It completes the Phase 1 skeleton.
+1. **Run F7** (`/run-feature F7`, effort S). It completes the Phase 1 skeleton.
+2. **Run F8** (effort L) on the finished Phase 1 flow.
 
-A live run needs F1's external setup (Discord application, bot token in `.env`, bot invited;
-F10 adds the `applications.commands` invite scope and drops the Message Content intent),
-F10's Send Messages and View Channel on the intake channel (for the public summary), F2's
-thread permissions (Create Public Threads, Send Messages in Threads) and F5's GitHub App
-(README § GitHub App setup; runbook `docs/SMOKE-TEST.md`).
+A live run needs the bot invited with the `bot` and `applications.commands` scopes and View
+Channel, Read Message History, Send Messages, Create Public Threads and Send Messages in Threads
+on the intake channel, plus F5's GitHub App (README § Setup and § GitHub App setup; runbook
+`docs/SMOKE-TEST.md`, which uses a separate test server).
 
 ---
 
@@ -80,7 +78,6 @@ thread permissions (Create Public Threads, Send Messages in Threads) and F5's Gi
 - [ ] **F6** (added 2026-10-16): Add the created issue to the chores4irl roadmap (split from "create the issue in the 4IRL/chores4irl GitHub repo and add it to its roadmap").
 - [ ] **F7** (added 2026-10-16): Post a direct link to the newly created issue in the same thread.
 - [ ] **F8** (added 2026-10-17): Multiple instances of the bot should be deployable: spool up multiple bots, or have multiple listeners that port issues to different repos based on the bot's instantiation settings/parameters; all channels come from the same Discord server and all issues go to repos in the 4IRL GitHub org (both a route table in one process and multi-container deployment).
-- [ ] **F10** (added 2026-10-18): Adapt or potentially replace `!bug` and `!feature` tags in Discord messages with slash commands (slash-command options, or a modal popup form for longer structured input); owner's choice: replace the tags outright with `/bug` and `/feature` opening a modal.
 
 ---
 
@@ -88,12 +85,11 @@ thread permissions (Create Public Threads, Send Messages in Threads) and F5's Gi
 
 | Order | Feature | Effort | Depends on | Phase |
 |---|---|---|---|---|
-| ★ 1 | **F10** — Slash-command intake: `/bug` and `/feature` open a modal **[FOCUS]** | L | F2, F5 | 1 |
-| 2 | **F7** — Post the issue link in the thread | S | F2, F5; soft: F10 | 1 |
-| 3 | **F8** — Multi-target routes and multi-instance deployment | L | F5, F7, F10 | 1.5 |
-| 4 | **F3** — Per-tag modal questions with preview and confirm | M | F5, F10; soft: F8 | 2 |
-| 5 | **F4** — Complexity triage (S/M/L/XL) | M | F3 | 3 |
-| 6 | **F6** — Add the issue to the chores4irl roadmap Project | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
+| ★ 1 | **F7** — Post the issue link in the thread **[FOCUS]** | S | F2, F5; soft: F10 | 1 |
+| 2 | **F8** — Multi-target routes and multi-instance deployment | L | F5, F7, F10 | 1.5 |
+| 3 | **F3** — Per-tag modal questions with preview and confirm | M | F5, F10; soft: F8 | 2 |
+| 4 | **F4** — Complexity triage (S/M/L/XL) | M | F3 | 3 |
+| 5 | **F6** — Add the issue to the chores4irl roadmap Project | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
 
 <!-- *Depends on* holds dependency edges in the grammar of
 /home/rmila/Code/_STRONGHOLD/plans/roadmap.md §3.1 *Dependency edges and `NEXT.md`*, which is
@@ -117,7 +113,7 @@ gate), unsplit like `cond:`; any other text not in the grammar is reported, neve
 superseded row (Feature cell struck through with `~~`, *Depends on* starting `**superseded`)
 holds its supersession note, not edges; readers skip it. -->
 
-**Effort tally (remaining).** 13 pts (S=1 / M=2 / L=3 / XL=5).
+**Effort tally (remaining).** 10 pts (S=1 / M=2 / L=3 / XL=5).
 
 ---
 
@@ -131,13 +127,12 @@ holds its supersession note, not edges; readers skip it. -->
 | **F3 — Per-tag modal questions with preview and confirm** | pending | `feature/clarifying-questions` | — |
 | **F4 — Complexity triage (S/M/L/XL)** | pending | `feature/complexity-triage` | — |
 | **F6 — Add the issue to the chores4irl roadmap Project** | pending | `feature/roadmap-project` | — |
-| **F7 — Post the issue link in the thread** | pending | `feature/post-issue-link` | — |
+| **F7 — Post the issue link in the thread** ★FOCUS | pending | `feature/post-issue-link` | — |
 | **F8 — Multi-target routes and multi-instance deployment** | pending | `feature/multi-target` | — |
-| **F10 — Slash-command intake** ★FOCUS | in-review | `feature/slash-command-intake` | [#13](https://github.com/4IRL/discord-github-issue-bot/pull/13) |
 
 ---
 
-## Baseline: the codebase as it exists today (`main` at PR #10, `ba53e2c`)
+## Baseline: the codebase as it exists today (`main` at PR #13, `9fee978`)
 
 > The Assumed starting state for every remaining feature unless its section says
 > otherwise. Describe what *is*, never what changed.
@@ -150,11 +145,11 @@ lists the pre-rename folder path.
 PyJWT + cryptography for GitHub App auth, packaged as a Docker image. Clarification and triage
 are planned as rule-based templates.
 
-**Domain model.** `issue_bot/tags.py`: `IssueType` (`bug`, `feature`); `parse_tag(text)`
-returns `ParsedTag(type, title, body)`, `MalformedTag(type)` (tagged, no usable `Title:`), or
-`None` (untagged). Tags are `!bug`/`!feature`, case-insensitive, anywhere in the text, first
-tag wins. `issue_bot/handler.py`: frozen `IssueCandidate` (type, title, body, content,
-author id/name, message id/url, target). Member text and names are `repr=False`.
+**Domain model.** `issue_bot/issue_type.py`: `IssueType` (`bug`, `feature`), a leaf module;
+each type is one slash command and one target label. `issue_bot/handler.py`: frozen
+`IssueCandidate` (type, title, body, author id/name, message id/url, target), built only by
+`candidate_from_submission(issue_type, title, description, reporter, message, target)` with the
+bot's summary message as `message`. Member text and names are `repr=False`.
 
 **Interfaces.** `issue_bot/config.py`: `Config` (instance-wide: `discord_token`, `guild_id`,
 `github_app_id`, `github_installation_id`, and `github_private_key`, an `RSAPrivateKey` loaded
@@ -165,53 +160,80 @@ both built by `from_env` with every key required
 and validated (`ConfigError`; an unreadable or non-RSA key names only the env key). The env
 keys are listed in `example.env`, the only place the 4irl/chores4irl values appear outside
 tests. chores4irl's `bug` and `enhancement` labels exist (checked by F5, 2026-10-18).
-`candidate_from_message(message, config)`
-accepts only new, human, non-webhook default/reply messages in the target channel (thread
-messages are dropped). For a tagged message without a usable title it logs the type, message
-id and URL (`malformed …`) and returns the `MalformedTag`; otherwise it returns the
-`IssueCandidate` or `None`.
+`DISCORD_GUILD_ID` is also the one guild the slash commands are synced to.
 
-**Key modules / UI.** `issue_bot/bot.py`: `IssueBot(discord.Client)` with Message Content
-intent. `on_ready` sanity-checks the channel once per process (Gateway reconnects refire
-it): a missing channel logs at ERROR, a name/category mismatch at WARNING; neither stops the
-bot. `IssueBot(config, on_candidate=open_issue_thread, on_malformed=reply_format_hint)`:
-`on_message` hands each candidate to `on_candidate` (default: opens the issue's thread and
-logs type, message id, URL and thread id) and each `MalformedTag` to `on_malformed` (default:
-opens a `Format help: !<tag>` thread and posts the format hint). Thread helpers live in
-`issue_bot/threads.py`: `thread_name` (title cut to 100 characters with `…`), `format_hint`,
-and `open_thread(message, name)`, which reuses `message.thread`, else calls
+**Key modules / UI.** Slash-command intake lives in `issue_bot/intake.py`.
+`intake_command(issue_type, target, on_candidate, filing_check=None)` builds one guild command
+per `IssueType` (`/bug`, `/feature`). Outside `target.channel_id` (thread channels included) it
+sends the private `INTAKE_REFUSAL`. Otherwise it runs `filing_check(target)` within
+`FILING_CHECK_TIMEOUT` (2 s): on a `GitHubError`, a timeout or any other error it sends the
+private `FILING_UNAVAILABLE_REPLY` and opens no modal. Then it opens `IntakeModal`: a required
+Title (`ui.Label`-wrapped `TextInput`, max 100 = `THREAD_NAME_LIMIT`), an optional paragraph
+Description (max 4000) and a 30-minute timeout. `IntakeModal.on_submit`:
+1. defers privately (`thinking=True`);
+2. normalizes the title (a title with no letter or digit gets `BLANK_TITLE_REPLY`);
+3. posts the public summary `**New <type>** from <@id>: <escaped title>` with
+   `AllowedMentions.none()` and `suppress_embeds=True` (a missing channel or Discord error gets
+   `SUMMARY_FAILED_REPLY` and files nothing);
+4. hands `(summary, candidate)` to `on_candidate`;
+5. confirms privately with `SUBMITTED_REPLY` and the summary link.
+
+`IntakeModal.on_error` logs type, interaction id, status and code (`discord_error_fields`),
+never `exc_info`, and replies privately with `INTAKE_ERROR_REPLY`. Every reply failure is
+caught and logged.
+
+`issue_bot/bot.py`: `IssueBot(discord.Client)` with the guilds intent only (no message
+intents, no `on_message`). `IssueBot(config, on_candidate=open_issue_thread,
+filing_check=None)` registers the two commands on `IntakeTree` (a `CommandTree` whose `on_error`
+logs type, command, interaction id, status and code) with `guild=` always set. `setup_hook`
+runs once per process. It syncs the commands to the configured guild (`synced N commands to
+guild …`; a failure is logged and the bot keeps running), then runs the startup GitHub check
+(`github access ok for repo_id=…` or `github access check failed …`; the bot keeps running).
+`on_ready` sanity-checks the channel once per process (Gateway reconnects refire it): a
+missing channel logs at ERROR, a name/category mismatch at WARNING; neither stops the bot.
+`on_error` logs the exception type and event name only.
+
+Thread helpers live in `issue_bot/threads.py`: `thread_name` (title cut to 100 characters with
+`…`) and `open_thread(message, name)`. `open_thread` reuses `message.thread`, else calls
 `create_thread(name=…)` (channel-default auto-archive), recovers a 160004 "already created"
 with `message.fetch_thread()`, and logs any other `HTTPException` by type, status and code,
-returning `None`. The bot needs Create Public Threads and Send Messages in Threads on the
-intake channel. `on_error` logs the exception type and event name, plus the message id
-for `on_message`.
+returning `None`.
+
+The bot needs the `bot` and `applications.commands` invite scopes and View Channel, Read
+Message History, Send Messages, Create Public Threads and Send Messages in Threads on the
+intake channel. Guild commands persist on Discord after the bot stops; a redeploy re-syncs
+them.
 
 GitHub filing: `issue_bot/github.py` `GitHubClient(app_id, installation_id, private_key)`
 mints an App JWT, then an installation token scoped to the target's repo id with
 `issues: write`, cached per repo id until 5 minutes before expiry (dropped on a 401).
 `create_issue(target, title, body, labels)` POSTs to `repos/<target.github_repo>/issues` and
 returns `FiledIssue(number, html_url)`, or raises `GitHubError(stage, status)` (`stage` is
-`token` or `issue`; `status` is None on a transport failure). The module never logs, and the
+`token` or `issue`; `status` is None on a transport failure). `check_access(target)` mints (or
+reuses) the target's token and raises `GitHubError` on failure; it is the `filing_check`. The module never logs, and the
 HTTP transport is injectable (tests pass a fake). `issue_bot/issues.py` builds the issue:
 `issue_title` (cut to 256 characters with `…`), `issue_body` (the only body formatter: an
-author line ``` Reported by `<author>` in Discord: <message url> ```, `---`, then the member's `Body:` or a
+author line ``` Reported by `<author>` in Discord: <summary message url> ```, `---`, then the modal's Description or a
 placeholder, with every `@` defanged by a zero-width space), `issue_labels` (the target's
 label for the type) and `file_candidate(github, candidate)`. `bot.filing_hook(github)` is the
 production `on_candidate`: it opens the issue's thread, files the issue even if no thread
 opened, logs `filed … issue=<html_url>` on success (posting nothing in the thread), and on a
 `GitHubError` logs type, stage and status and sends the fixed `threads.FILING_ERROR_REPLY` in
-the thread. Any other exception reaches `on_error`. `issue_bot/__main__.py` builds the client,
-wires `filing_hook`, and runs at INFO with `log_handler=None` (discord loggers never at DEBUG).
+the thread (`FILING_ERROR_REPLY` says to run the command again). Any other exception reaches
+`IntakeModal.on_error`. `issue_bot/__main__.py` builds the client, wires `filing_hook` and
+`filing_check=github.check_access`, and runs at INFO with `log_handler=None` (discord loggers never at DEBUG).
 
-**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 246 tests across
-`tests/test_{tags,handler,config,bot,threads,github,issues,smoke}.py`, with Discord and the
-GitHub transport fully mocked. No CI workflow.
+**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 212 tests across
+`tests/test_{handler,config,bot,intake,threads,github,issues,smoke}.py`, with Discord
+interactions and the GitHub transport fully mocked (`make_interaction`, `make_candidate`,
+`make_message` fixtures in `tests/conftest.py`). No CI workflow.
 
 **Deployment.** `Dockerfile` (`python:3.12.11-slim`, non-root uid 10001, `STOPSIGNAL SIGINT`,
 `python -m issue_bot`), built and run as image `discord-github-issue-bot` (README). The env comes from `.env` (gitignored; `example.env` is the template).
 The App private key is mounted read-only at `GITHUB_APP_PRIVATE_KEY_PATH`
 (`/run/secrets/github-app-key.pem` in the container). The owner's live smoke-test runbook is
-`docs/SMOKE-TEST.md`. Before PR #9 merged, the owner's run filed issues #1 and #2 in a private
+`docs/SMOKE-TEST.md` (it uses a separate test server, never the live one). The owner's smoke
+run of F10 passed before PR #13 merged (2026-10-21). Before PR #9 merged, the owner's run filed issues #1 and #2 in a private
 scratch repo, torn down on 2026-10-18 (recorded in PR #9's description).
 Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
 
@@ -222,13 +244,15 @@ Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
 1. No target identifier is a code default:
    `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot`
    prints nothing (F1).
-2. Logs and `repr`s never carry member message text or names: type, ids (message, thread)
-   and message URL only; a caught Discord API error is logged by exception type, HTTP status
-   and Discord error code, never its text (F2, PR #7); `on_error` logs the exception type,
-   event name and (for `on_message`) the integer message id only (F1, PR #4; CLAUDE.md rule).
-   A GitHub API error is logged by exception type, request stage and HTTP status, never its
-   response text; tokens, JWTs and the App private key are never logged (F5, PR #9). The
-   filed issue's URL may be logged.
+2. Logs and `repr`s never carry member message text or names; modal text and interaction
+   payloads are member text too. Logs carry the type, ids (guild, channel, message, thread,
+   interaction) and message URL only. A caught Discord API error is logged by exception type,
+   HTTP status and Discord error code, never its text (F2, PR #7). `on_error` logs the exception
+   type and event name only; the command and modal error handlers log type, command or modal
+   name, interaction id, status and code, never `exc_info` or an interaction's repr (F10,
+   PR #13; CLAUDE.md rule). A GitHub API error is logged by exception type, request stage and
+   HTTP status, never its response text; tokens, JWTs and the App private key are never logged
+   (F5, PR #9). The filed issue's URL may be logged.
 3. Every config key is required and validated at startup; a bad config exits with code 2
    before connecting (F1).
 
@@ -256,37 +280,34 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F1 — Channel listener and tag parsing · merged (#2)
 
-*Kept because F7, F8 and F10 build on it, and F10 removes its tag path.*
+*Kept because F7 and F8 build on it.*
 - `IssueBot(config, on_candidate=...)`: the `on_candidate(message, candidate)` hook is the
   single seam for candidates; F5's `filing_hook` plugs in there and F7's link extends it.
-  Don't add a second candidate dispatch path (F2's `on_malformed` handles only malformed tags).
-  F10's modal submit feeds this same seam, with the bot's summary message as `message`.
+  Don't add a second candidate dispatch path. F10's modal submit feeds it with the bot's
+  summary message as `message`.
 - `IssueCandidate` carries the `TargetConfig` it came from. Filing reads the repo, repo id
   and labels from `candidate.target`, never from a constant.
-- `candidate_from_message` returns the `MalformedTag` for a tagged message without a usable
-  title; `IssueBot`'s `on_malformed` hook (default `reply_format_hint`) answers it. F10
-  removes the tag parsing, `MalformedTag` and `on_malformed`.
 - `Config` keeps instance-wide values apart from its single `target`; F8 turns `target` into
   a list of routes.
 
 ## F2 — Thread per tagged message · merged (#7)
 
-*Kept because F7, F8 and F10 build on it, and F10 removes its format-hint path.*
+*Kept because F7 and F8 build on it.*
 - The default `on_candidate` (`open_issue_thread`) returns nothing. A hook that replaces or
   wraps it (F5's `filing_hook`, F7's link) gets the thread by calling
   `open_thread(message, thread_name(candidate.title))` again: its duplicate guard returns the
-  existing thread instead of creating a second one. F10 opens it on the bot's summary
-  message; the `Format help` thread and `format_hint` go away with the tags.
+  existing thread instead of creating a second one. Since F10 that message is the bot's
+  summary message.
 - Caught Discord API errors are logged by exception type, HTTP status and code, never their
-  text (Standing invariant 2); new thread sends follow the same pattern as
-  `reply_format_hint`.
+  text (Standing invariant 2); new thread sends follow the same pattern as `filing_hook`'s
+  `FILING_ERROR_REPLY` send.
 - The 160004 code and fetch-by-message-id recovery are documentation-derived; the owner's
   duplicate-path check (archived thread via `PartialMessage`, steps in
   `plans/feature/issue-thread/issue-thread.md` § Manual checks) confirms them.
 
 ## F5 — File the issue in 4IRL/chores4irl · merged (#9)
 
-*Kept because F3, F6, F7, F8 and F10 build on it.*
+*Kept because F3, F6, F7 and F8 build on it.*
 - `issue_bot/issues.py` `issue_body` is the only place an issue body is formatted; F3 extends
   it (one section per answered question) rather than formatting a second body.
 - `GitHubClient.create_issue` returns `FiledIssue(number, html_url)`; F7 posts that
@@ -294,10 +315,26 @@ Parallel features: `/worktree <F-ID>...`.
   `GitHubError(stage, status)`, which callers log by type, stage and status.
 - `filing_hook(github)` is the one production `on_candidate`: it opens the thread first and
   files even when no thread opened. Today it posts nothing on success and the fixed
-  `FILING_ERROR_REPLY` on a `GitHubError`; F7 adds the success message there.
+  `FILING_ERROR_REPLY` on a `GitHubError`; F7 adds the success message there. With no thread
+  and a failed filing, the reporter still gets F10's private "posted" confirmation (F10
+  DD-13); F7 takes that gap with the no-thread fallback.
 - Auth is one GitHub App installation (instance-wide `GITHUB_APP_*` config); each token is
   scoped to one target repo id with `issues: write` and cached per repo id. F8's extra target
   repos join that installation; F6 widens the token request's `permissions` for Projects.
+
+## F10 — Slash-command intake · merged (#13)
+
+*Kept because F3, F7 and F8 build on it.*
+- `intake_command(issue_type, target, on_candidate, filing_check=None)` is the registration
+  seam: one guild command per `IssueType`, its channel check bound to one `target`. F8
+  generalizes it per route. In multi-container mode every container receives every command,
+  so a container whose route doesn't match must stay silent rather than send
+  `INTAKE_REFUSAL`, or it races the right container (F10 DD-18).
+- `IntakeModal` is the one modal. Its Description field is the slot F3's per-type questions
+  replace (Discord caps a modal at five fields). Its submit always posts the summary before
+  calling `on_candidate`, and the summary is the message F7's link thread hangs off.
+- Commands sync only with `guild=`; never call `tree.sync()` without it (that overwrites the
+  global set).
 
 ## Deferred follow-ups (confirmed, unscheduled, no F-ID yet)
 
@@ -306,8 +343,8 @@ Parallel features: `/worktree <F-ID>...`.
 - **F9 push-review polish.** The unticked minor to-dos in
   `plans/chore/rename-repo/reviews/push-review-chore-rename-repo.md`, Review 1: restore
   `.claude/settings.json`'s trailing newline (owner edit), stricter zero-count and `ok`
-  wording in the plan's Owner checks, a one-sentence CLAUDE.md intro (folded into F10 risk
-  (d)), and a ROADMAP Sequencing reflow. The "rename F9's title" item was resolved by this
+  wording in the plan's Owner checks and a ROADMAP Sequencing reflow (the CLAUDE.md intro
+  item was done by F10, PR #13). The "rename F9's title" item was resolved by this
   fold-back. None blocks a remaining feature.
 - **F2 push-review polish.** The unticked minor to-dos in
   `plans/feature/issue-thread/reviews/push-review-feature-issue-thread.md`, Review 1: one
@@ -316,8 +353,8 @@ Parallel features: `/worktree <F-ID>...`.
   into a human-started thread, two test tightenings (101-character name, no false "format
   hint" line after a failed send) and a one-line `candidate_from_message` docstring summary.
   The META-PLAN and PR-description items were resolved by this fold-back and PR #7. None
-  blocks a remaining feature. The `format_hint` and hint-posting items lapse when F10
-  removes the tags.
+  blocks a remaining feature. The `format_hint`, hint-posting and `candidate_from_message`
+  items lapsed when F10 removed the tags (PR #13).
 - **F2 accepted risk: emoji thread names.** `thread_name` counts Python code points; if a
   `could not open thread … code=50035` ERROR ever appears, count as Discord does.
 - **F5 push-review polish.** The unticked minor to-dos in
@@ -332,6 +369,24 @@ Parallel features: `/worktree <F-ID>...`.
   troubleshooting rows). The plan's § Manual checks can be cut to a link to the runbook. None
   blocks a remaining feature; F7 may take the no-thread fallback since it touches the same
   hook.
+- **F10 push-review polish.** The unticked minor to-dos in
+  `plans/feature/slash-command-intake/reviews/push-review-feature-slash-command-intake.md`,
+  Reviews 1–2, include:
+  - reuse `discord_error_fields` and collapse the repeated except tails;
+  - an on_ready-does-not-sync test;
+  - drop the `DD-n` ids from source comments;
+  - shorten over-long docstrings and constants;
+  - README notes on the Message Content intent and on a slow-GitHub refusal;
+  - a private reply from `IntakeTree.on_error`;
+  - shield the pre-modal token mint, and give the startup check its own timeout;
+  - briefly cache a failed access check;
+  - a few test tightenings.
+
+  None blocks a remaining feature.
+- **`--clear-commands`.** A one-shot empty guild sync for a rollback or retirement. Until then,
+  removing `/bug` and `/feature` from a server means an empty sync for that guild or removing
+  the app from the server; neither is verified (the Server Settings → Integrations path didn't
+  list the bot in the owner's test, 2026-10-21).
 - **Drop the pre-rename `allowWrite` path.** `.claude/settings.json` still lists
   `/home/rmila/Code/c4i-issue-bot`; removing it is an optional owner edit in its own small
   PR (agents can't write that file).
@@ -539,104 +594,39 @@ must ignore channels outside its own routes, and the docs must warn against over
 routes (or recommend one Discord application per container). (c) Per-target question-set
 keys for F3 (no persisted state; F3's risk (a) drops its `data/` store), and per-target
 Project config for F6, are set here as the contract those features build on. (d) Hot
-reload of the route file: recommend restart-only.
+reload of the route file: recommend restart-only. (e) In multi-container mode a container
+must stay silent on a command outside its routes rather than send F10's refusal, or it races
+the right container (F10 DD-18; F10's kept contract).
 
 **Session.** `/run-feature F8` on branch `feature/multi-target`; plan at
 `plans/feature/multi-target/multi-target.md`.
-
-## F10 — Slash-command intake: `/bug` and `/feature` open a modal · Phase 1 · Effort L · (added 2026-10-18)
-
-**Goal.** Members report through `/bug` and `/feature` slash commands in the intake
-channel instead of `!bug`/`!feature` message tags, which are removed outright. Each command
-opens a modal with a required **Title** and an optional paragraph **Description**. On
-submit, the bot posts a public summary message in the intake channel (type, title,
-reporter), opens the issue's thread on it, and files the issue through F5's
-`filing_hook`. Feature-list line F10.
-
-**Rank rationale.** It is ★FOCUS ahead of F7 (owner's choice, 2026-10-18), so F7's link and
-F8's routes are built on the final intake rather than reworked. Discord validates the
-modal's fields, which removes F1's `Title:` parsing and F2's format-hint path. It splits
-the intake swap out of F3, which keeps the per-tag questions.
-
-**Dependencies.** F2, F5.
-
-**Sizing.** unscored (intake estimate L); split check pending.
-
-**Assumed starting state** = **Baseline**. Verify:
-- `on_candidate(message, candidate)` is the single candidate seam (F1's kept contract), and
-  `filing_hook` opens the thread with `open_thread(message, …)` (F2, F5).
-
-**Expected end state** (repo-checkable):
-- The bot registers `/bug` and `/feature` application commands, synced to the configured
-  guild only (no global commands), with command names derived from `IssueType`.
-- Submitting the modal posts one summary message, opens its thread, and files the issue
-  with the reporter and that message's URL in `issue_body`'s author line.
-- A command used outside the intake channel gets an ephemeral refusal and files nothing.
-- `parse_tag`, `MalformedTag`, `on_malformed`/`reply_format_hint` and `format_hint` are
-  gone, `on_message` no longer creates candidates, and the Message Content intent is no
-  longer requested; `grep -rnE '!bug|!feature' --include='*.py' issue_bot` prints nothing.
-- README's setup covers the `applications.commands` invite scope and drops the Message
-  Content intent.
-- The repo `CLAUDE.md` intro and `plans/ROADMAP.md` capabilities 1–2 and Phases 1, 1.5 and 2
-  describe the `/bug`/`/feature` modal intake, not `!bug`/`!feature` tags or a thread
-  conversation (risk (d)); `grep -nE '!bug|!feature' CLAUDE.md plans/ROADMAP.md` prints
-  nothing, or only lines naming the removed tags as history.
-- All suites green; Standing invariants untouched (invariant 2 covers modal text and
-  interaction payloads as member text).
-
-**Test-suite deltas.** Mocked `Interaction` tests: the command opens the modal; submit →
-summary message → thread → filed issue; a wrong channel is refused; a `GitHubError` still
-posts `FILING_ERROR_REPLY`; commands sync to the guild only. The tag-parsing and
-format-hint tests are removed.
-
-**Open risks / decisions.** (a) `IssueCandidate`'s message id and URL now point at the bot's
-summary message, and the author comes from `interaction.user`; decide whether the summary
-mentions the reporter (`<@id>` with mentions suppressed) or names them. (b) The submit
-must be acknowledged within 3 seconds: defer ephemerally, then follow up once the summary
-is posted. (c) Command sync runs once per process (`setup_hook`), not on every `on_ready`.
-(d) `plans/ROADMAP.md` capabilities 1–2 and Phases 1, 1.5 and 2, and the repo `CLAUDE.md`
-intro (`!bug`/`!feature` tags, clarifying questions in a thread), still describe the
-`!tag`/`Title:` intake and a thread conversation; update them (owner-approved) with or
-before F10, folding in the F9 polish item's one-sentence intro. (e) A five-field modal cap
-leaves four fields for F3's per-tag questions; F10's Description field is the slot F3
-replaces. (f) The public summary needs the intake-channel permissions in the ★FOCUS live-run
-note; if posting it fails, send a fixed private follow-up and file nothing. The
-owner posts a cutover notice in the channel when the `!bug`/`!feature` tags stop working (a
-tag then gets no reply; agents never post live). Cap the Title with `max_length` 100
-(`THREAD_NAME_LIMIT`) so `thread_name()` never truncates it, or allow 256
-(`ISSUE_TITLE_LIMIT`) and keep the cut. Optionally scope who may run the commands
-(`default_member_permissions`, or the server's Integrations settings).
-
-**Session.** `/run-feature F10` on branch `feature/slash-command-intake`; plan at
-`plans/feature/slash-command-intake/slash-command-intake.md`.
 
 ---
 
 ## Dependencies & couplings (remaining work)
 
 ```
-Phase 1:    ★ F10 ┄┄► F7       (soft; F1 shipped #2; F9 rename #5; F2 threads #7; F5 filing #9)
-Phase 1.5:  {F7, F10} ──► F8
-Phase 2:    {F5, F10} ──► F3       (soft: after F8)
+Phase 1:    ★ F7       (F1 #2; F9 rename #5; F2 threads #7; F5 filing #9; F10 intake #13 shipped)
+Phase 1.5:  F7 ──► F8
+Phase 2:    F5, F10 ──► F3       (soft: after F8)
 Phase 3:    F3 ──► F4
             F5 ──► F6   [cond: new roadmap Project] (couples F4; soft: after F8)
 ```
 
-- **Hard chains:** {F2, F5} → F10, {F2, F5} → F7, {F5, F7, F10} → F8, {F5, F10} → F3 → F4,
-  F5 → F6. F1, F2, F5 and F9 have shipped; refs to them stay valid, so F10 and F7 are
-  runnable, and {F7, F10} → F8, F10 → F3 → F4 and F6's roadmap-Project gate still wait.
-- **Soft preferences:** F10 before F7, so the link is posted on the final intake. F7 before
-  F3, so the skeleton is end-to-end usable before the question work. F8 before F3 and F6,
-  so question sets and Project config are per-target from the start. F6 could start any
-  time after F5 once its Project exists; the ROADMAP keeps it in Phase 3 so the Project
-  fields are designed alongside F4.
+- **Hard chains:** {F2, F5} → F7, {F5, F7, F10} → F8, {F5, F10} → F3 → F4, F5 → F6. F1, F2,
+  F5, F9 and F10 have shipped; refs to them stay valid, so F7 is runnable, and F7 → F8,
+  F3 → F4 and F6's roadmap-Project gate still wait. F3's hard deps are met, but it prefers to
+  follow F8.
+- **Soft preferences:** F7 before F3, so the skeleton is end-to-end usable before the
+  question work. F8 before F3 and F6, so question sets and Project config are per-target from
+  the start. F6 could start any time after F5 once its Project exists; the ROADMAP keeps it in
+  Phase 3 so the Project fields are designed alongside F4.
 - **Couplings to honor:** F3 ↔ F5: F3 reuses F5's single issue-body builder rather than
-  formatting a second body. F3 ↔ F10: F3's per-tag questions fill F10's modal (five-field
-  cap) and replace its Description field. F10 removes F1's tag path and F2's format-hint
-  path but keeps the `on_candidate` seam (F1's and F2's kept contracts). F8 turns F1's
-  single `TargetConfig` into a list (F1's kept contract) and routes F10's interactions by
-  channel. F4 ↔ F6: both use the same S/M/L/XL band names, one as a label and one as a
-  Project field.
+  formatting a second body. F3 ↔ F10: F3's per-type questions fill F10's `IntakeModal`
+  (five-field cap) and replace its Description field (F10's kept contract). F8 turns F1's
+  single `TargetConfig` into a list (F1's kept contract) and generalizes F10's
+  `intake_command` seam per route, staying silent outside its own routes. F4 ↔ F6: both use
+  the same S/M/L/XL band names, one as a label and one as a Project field.
 
 ---
 
