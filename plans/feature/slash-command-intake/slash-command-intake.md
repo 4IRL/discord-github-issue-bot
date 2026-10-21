@@ -259,6 +259,52 @@ Run the full test suite and the Expected-end-state checks.
 - [x] Add one final-report line for the fold-back: Standing invariant 2 must be updated to match the new CLAUDE.md log rule (ids: guild, channel, message, thread, interaction; `on_error` logs type and event name only; the command and modal error handlers log type, name, interaction id, status and code).
 - [x] Done 2026-10-21: `.venv/bin/pytest` gave 198 passed (unchanged from Step 6); every Expected-end-state grep gave the expected output (the only `tree.sync(` is `issue_bot/bot.py:169` with `guild=self._guild`; the README Setup invite line names `applications.commands`; the only `!bug`/`!feature` line in README.md and docs/SMOKE-TEST.md is the SMOKE-TEST cutover note at L181; all other greps printed nothing). No failures to fix. Owner checks and both fold-back lines went into the final report.
 
+### 8. Merge-gate follow-ups: fail before the modal, startup self-check, revert-path docs
+Owner smoke test, 2026-10-21. (1) With a broken GitHub setup (e.g. a wrong installation id), a member fills out the whole modal before learning that nothing can be filed. The owner chose a GitHub access check before the modal opens, plus a startup self-check. (2) The documented DD-12 revert path does not work: the bot is not listed under Server Settings → Integrations. The owner chose to fix the docs and defer a `--clear-commands` flag.
+
+**To-do:**
+- [ ] **`GitHubClient.check_access`, Red → Green.** In `issue_bot/github.py`, add `async def check_access(self, target: TargetConfig) -> None` (docstring: "Confirm a repo-scoped installation token can be had for the target; raise GitHubError otherwise."). It awaits `self._installation_token(target.github_repo_id)` and discards the token, so a cached token answers with no request. Tests in `tests/test_github.py`, following that file's fake-transport pattern:
+  - a cold call mints one token;
+  - a second call within the cache window makes no request;
+  - a non-201 token response raises `GitHubError("token", status)`;
+  - a transport failure raises `GitHubError("token", None)`.
+- [ ] **Check before the modal, Red → Green.** In `issue_bot/intake.py`:
+  - Add `FilingCheck = Callable[[TargetConfig], Awaitable[None]]` beside `CandidateHook`.
+  - Add `FILING_CHECK_TIMEOUT = 2.0  # Seconds; Discord needs the modal within 3 s of the command.`
+  - Add `FILING_UNAVAILABLE_REPLY = "Sorry, reports can't be filed to GitHub right now, so the form didn't open. Try again later."`
+  - Change `intake_command(issue_type, target, on_candidate, filing_check: FilingCheck | None = None)`. In `report`, after the channel check and before `send_modal`, when `filing_check` is set: `await asyncio.wait_for(filing_check(target), FILING_CHECK_TIMEOUT)`. On `GitHubError as exc`, log ERROR `"filing unavailable for %s interaction_id=%s: %s stage=%s status=%s"` (type, interaction id, `type(exc).__name__`, `exc.stage`, `exc.status`). On `TimeoutError`, log ERROR `"filing unavailable for %s interaction_id=%s: timeout"`. In both cases `await interaction.response.send_message(FILING_UNAVAILABLE_REPLY, ephemeral=True)` and return without opening the modal.
+  - Import `asyncio` and `GitHubError` (from `issue_bot.github`, which imports only `config`, so there is no cycle).
+
+  Tests in `tests/test_intake.py`:
+  - a passing check opens the modal (`send_modal` awaited, check awaited with `config.target`);
+  - a `GitHubError("token", 404)` check sends `FILING_UNAVAILABLE_REPLY` privately, opens no modal, and logs `stage=token status=404`;
+  - a check that never finishes (an `asyncio.Event().wait()`), with `FILING_CHECK_TIMEOUT` monkeypatched to `0.01`, gives the same refusal and logs `timeout`;
+  - no `filing_check` opens the modal as before;
+  - an out-of-channel command is refused before the check runs (the check is not awaited).
+- [ ] **Wire it through `IssueBot` and add the startup self-check, Red → Green.** In `issue_bot/bot.py`:
+  - `IssueBot.__init__(config, on_candidate=open_issue_thread, filing_check: FilingCheck | None = None)` stores it and passes it to each `intake_command`.
+  - In `setup_hook`, after the sync's `try` (whatever it returned), when `filing_check` is set, run `await self.filing_check(self.config.target)`. On success log INFO `"github access ok for repo_id=%s"` (`config.target.github_repo_id`). On `GitHubError as exc` log ERROR `"github access check failed for repo_id=%s: %s stage=%s status=%s"`. The bot keeps running either way, since the per-command check still guards members.
+  - In `issue_bot/__main__.py`, pass `filing_check=github.check_access`.
+
+  Tests in `tests/test_bot.py`:
+  - `setup_hook` with a passing check logs `github access ok for repo_id=222`;
+  - with `GitHubError("token", 401)` it logs ERROR `stage=token status=401`, returns normally, and still synced;
+  - the commands built by `IssueBot(config, filing_check=check)` refuse when the check fails (an end-to-end through `bot.tree.get_command`);
+  - `test_main_*` asserts `filing_check` is passed (extend the existing main test's kwargs assertion).
+- [ ] **Docs.**
+  - README Reporting: add the unavailable reply. README Known limits:
+    - replace the Integrations removal sentence with: commands are registered on Discord's side and persist when the bot stops (they then fail with "The application did not respond");
+    - a redeploy re-syncs them;
+    - rolling back to a build without slash commands leaves them registered but unanswered until an empty sync for the guild or removal of the app from the server. Neither path is verified yet; a `--clear-commands` flag is a deferred follow-up.
+  - `docs/SMOKE-TEST.md`:
+    - The failure check (§3, wrong `GITHUB_APP_INSTALLATION_ID`) now expects an ERROR `github access check failed … stage=token` at startup, and `/bug` answered with `FILING_UNAVAILABLE_REPLY` (quoted exactly) before any modal opens. Nothing is posted in the channel and nothing goes to GitHub.
+    - Note that `FILING_ERROR_REPLY` (a failure after submit) stays covered by the unit tests.
+    - Teardown: remove the Integrations instruction. The test server keeps `/bug` and `/feature`, which is harmless, or the test server can be deleted.
+    - Add a troubleshooting row: "`/bug` says reports can't be filed" → check the `github access check failed` log line and the App ids or key.
+  - Never touch `example.env`: it has the owner's uncommitted smoke-test edits.
+- [ ] **Final-report line for the fold-back:** META-PLAN Deferred follow-ups gain "`--clear-commands`: a one-shot empty guild sync for a rollback or retirement; until then removal is an empty sync or removing the app (unverified)". The baseline gains `GitHubClient.check_access` and the pre-modal and startup checks.
+- [ ] Verify: `.venv/bin/pytest` green; `grep -rnE --include='*.py' 'exc_info=|%r|logger\.exception' issue_bot` prints nothing; `grep -n 'Integrations' README.md docs/SMOKE-TEST.md` prints no line telling the reader to remove the app there; `git status --short example.env` still shows the owner's edit, unstaged.
+
 ## Owner checks (not executor tasks)
 - In a test guild, after the bot is re-invited with the `applications.commands` scope and Send Messages on the intake channel:
   - `/bug` and `/feature` appear only in the configured guild.
@@ -271,4 +317,4 @@ Run the full test suite and the Expected-end-state checks.
 - Before deploying to the live server: re-invite the bot there with the `bot` and `applications.commands` scopes (or confirm the scope is already granted), and grant View Channel and Send Messages on the live intake channel, alongside the existing thread permissions. Post the cutover notice in the intake channel that `!bug`/`!feature` no longer work (agents never post live). After the deploy, confirm the log shows `synced 2 commands to guild <DISCORD_GUILD_ID>` and that `/bug` opens the modal in the live intake channel.
 
 ## Status
-finished: true
+finished: false
