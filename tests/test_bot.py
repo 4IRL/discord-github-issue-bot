@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 import discord
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
+from discord import app_commands
 
 import issue_bot.__main__ as entry_point
 from issue_bot.bot import IssueBot, build_intents, channel_problems, filing_hook
@@ -16,6 +17,7 @@ from issue_bot.tags import MalformedTag
 from issue_bot.threads import FILING_ERROR_REPLY, format_hint
 from tests.conftest import (
     ISSUE_URL,
+    InteractionFactory,
     MessageFactory,
     assert_no_member_text,
     fake_github,
@@ -660,3 +662,112 @@ def test_main_builds_github_client(
     app_id, installation_id, private_key = recorded["args"]
     assert (app_id, installation_id) == (333, 444)
     assert isinstance(private_key, rsa.RSAPrivateKey)
+
+
+def test_commands_registered_for_guild_only(config: Config) -> None:
+    bot = IssueBot(config)
+    guild_commands = bot.tree.get_commands(guild=discord.Object(111))
+    assert sorted(command.name for command in guild_commands) == ["bug", "feature"]
+    assert bot.tree.get_commands() == []
+
+
+async def test_setup_hook_syncs_guild_once(
+    config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(config)
+    sync = AsyncMock(return_value=[SimpleNamespace(), SimpleNamespace()])
+    monkeypatch.setattr(bot.tree, "sync", sync)
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    sync.assert_awaited_once()
+    assert sync.await_args.args == ()
+    assert list(sync.await_args.kwargs) == ["guild"]
+    assert sync.await_args.kwargs["guild"].id == 111
+    for call in sync.await_args_list:
+        assert call.kwargs.get("guild") is not None
+    assert "synced 2 commands to guild 111" in [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.INFO
+    ]
+
+
+async def test_setup_hook_sync_failure_logged_without_text(
+    config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(config)
+    monkeypatch.setattr(
+        bot.tree, "sync", AsyncMock(side_effect=forbidden(50001, "Secret error words"))
+    )
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert any("Forbidden" in text and "403" in text and "50001" in text for text in errors)
+    for text in record_texts(caplog):
+        assert "Secret error words" not in text
+
+
+@pytest.mark.parametrize(
+    ("error_kind", "expected"),
+    [
+        (
+            "invoke_runtime",
+            "unhandled RuntimeError in command bug interaction_id=4242 status=None code=None",
+        ),
+        (
+            "check_failure",
+            "unhandled CheckFailure in command tree interaction_id=4242 status=None code=None",
+        ),
+        (
+            "invoke_forbidden",
+            "unhandled Forbidden in command bug interaction_id=4242 status=403 code=50013",
+        ),
+    ],
+)
+async def test_tree_on_error_logs_type_only(
+    config: Config, caplog: pytest.LogCaptureFixture, error_kind: str, expected: str
+) -> None:
+    bot = IssueBot(config)
+    command = bot.tree.get_command("bug", guild=discord.Object(111))
+    error: app_commands.AppCommandError
+    if error_kind == "invoke_runtime":
+        error = app_commands.CommandInvokeError(command, RuntimeError("Secret exception words"))
+        interaction = SimpleNamespace(id=4242, command=command)
+    elif error_kind == "check_failure":
+        error = app_commands.CheckFailure("Secret exception words")
+        interaction = SimpleNamespace(id=4242, command=None)
+    else:
+        error = app_commands.CommandInvokeError(command, forbidden(50013, "Secret error words"))
+        interaction = SimpleNamespace(id=4242, command=command)
+    with caplog.at_level(logging.INFO):
+        await bot.tree.on_error(interaction, error)
+    assert [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ] == [expected]
+    for text in record_texts(caplog):
+        assert "Secret exception words" not in text
+        assert "Secret error words" not in text
+
+
+async def test_command_callback_reaches_hook_end_to_end(
+    config: Config, make_interaction: InteractionFactory
+) -> None:
+    hook = AsyncMock()
+    # The command captures the hook at construction: assigning bot.on_candidate later
+    # would not reach it.
+    bot = IssueBot(config, on_candidate=hook)
+    command = bot.tree.get_command("bug", guild=discord.Object(111))
+    interaction = make_interaction()
+    await command.callback(interaction)
+    modal = interaction.response.send_modal.await_args.args[0]
+    # discord.py's own seed for a submitted value: a real submit needs the Gateway.
+    modal.title_input._value = "Fix it"
+    modal.description_input._value = "Steps"
+    await modal.on_submit(interaction)
+    hook.assert_awaited_once()
+    summary, candidate = hook.await_args.args
+    assert summary is interaction.channel.send.return_value
+    assert isinstance(candidate, IssueCandidate)
+    assert candidate.type is IssueType.BUG
+    assert candidate.title == "Fix it"
+    assert candidate.message_id == summary.id

@@ -139,6 +139,7 @@ async def test_submit_posts_summary_without_pings(
     send_call = interaction.channel.send.await_args
     assert send_call.args == (summary_text(IssueType.BUG, "Fix it", "<@7>"),)
     assert send_call.kwargs["allowed_mentions"] is NO_MENTIONS
+    assert send_call.kwargs["suppress_embeds"] is True
 
 
 async def test_submit_hands_summary_and_candidate_to_hook(
@@ -351,3 +352,20 @@ async def test_modal_on_error_reply_failure_swallowed(
     for text in record_texts(caplog):
         assert "Secret error words" not in text
 
+
+async def test_modal_on_error_reply_non_http_failure_swallowed(
+    config: Config,
+    make_interaction: InteractionFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    modal = IntakeModal(IssueType.BUG, config.target, AsyncMock())
+    interaction = make_interaction()
+    interaction.response.send_message.side_effect = RuntimeError("Secret exception words")
+    with caplog.at_level(logging.INFO):
+        await modal.on_error(interaction, RuntimeError("boom"))
+    assert (
+        "could not send bug reply interaction_id=4242: RuntimeError"
+        in intake_messages(caplog, logging.ERROR)
+    )
+    for text in record_texts(caplog):
+        assert "Secret exception words" not in text

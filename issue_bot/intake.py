@@ -102,6 +102,8 @@ class IntakeModal(discord.ui.Modal):
             summary = await interaction.channel.send(
                 summary_text(self.issue_type, title, interaction.user.mention),
                 allowed_mentions=NO_MENTIONS,
+                # A bare URL in a member's title must not unfurl under the bot's name.
+                suppress_embeds=True,
             )
         except discord.HTTPException as exc:
             logger.error(
@@ -159,6 +161,14 @@ class IntakeModal(discord.ui.Modal):
                 type(exc).__name__,
                 exc.status,
                 exc.code,
+            )
+        except Exception as exc:
+            # A network or timeout failure must not reach asyncio's traceback log.
+            logger.error(
+                "could not send %s reply interaction_id=%s: %s",
+                self.issue_type,
+                interaction.id,
+                type(exc).__name__,
             )
 
 

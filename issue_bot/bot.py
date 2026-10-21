@@ -6,17 +6,19 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import discord
+from discord import app_commands
 
 from issue_bot.config import Config
 from issue_bot.github import GitHubClient, GitHubError
 from issue_bot.handler import IssueCandidate, candidate_from_message
+from issue_bot.intake import CandidateHook, discord_error_fields, intake_command
+from issue_bot.issue_type import IssueType
 from issue_bot.issues import file_candidate
 from issue_bot.tags import MalformedTag
 from issue_bot.threads import FILING_ERROR_REPLY, format_hint, open_thread, thread_name
 
 logger = logging.getLogger(__name__)
 
-CandidateHook = Callable[[discord.Message, IssueCandidate], Awaitable[None]]
 MalformedHook = Callable[[discord.Message, MalformedTag], Awaitable[None]]
 
 
@@ -135,6 +137,29 @@ async def reply_format_hint(message: discord.Message, malformed: MalformedTag) -
     logger.info("format hint %s message_id=%s thread_id=%s", malformed.type, message.id, thread.id)
 
 
+class IntakeTree(app_commands.CommandTree):
+    """The bot's command tree, with a privacy-safe error handler."""
+
+    async def on_error(
+        self, interaction: discord.Interaction, error: app_commands.AppCommandError, /
+    ) -> None:
+        """Replace discord.py's default traceback log, which can quote member text.
+
+        Logs the exception type, the command name, the interaction id and a Discord API
+        error's status and code only; never the traceback or the interaction's repr.
+        """
+        cause = error.original if isinstance(error, app_commands.CommandInvokeError) else error
+        status, code = discord_error_fields(cause)
+        logger.error(
+            "unhandled %s in %s interaction_id=%s status=%s code=%s",
+            type(cause).__name__,
+            f"command {interaction.command.name}" if interaction.command else "command tree",
+            interaction.id,
+            status,
+            code,
+        )
+
+
 class IssueBot(discord.Client):
     """Hands new tagged messages in the intake channel to hooks.
 
@@ -154,6 +179,32 @@ class IssueBot(discord.Client):
         self.on_candidate = on_candidate
         self.on_malformed = on_malformed
         self._startup_checked: bool = False
+        self.tree = IntakeTree(self)
+        self._guild = discord.Object(id=config.guild_id)
+        for issue_type in IssueType:
+            # Always pass guild=: without it the command would be global.
+            self.tree.add_command(
+                intake_command(issue_type, config.target, self.on_candidate), guild=self._guild
+            )
+
+    async def setup_hook(self) -> None:
+        """Sync the intake commands to the configured guild.
+
+        login() calls this once per process, unlike on_ready. A failed sync is logged and
+        the bot still runs: commands from an earlier sync keep working.
+        """
+        try:
+            synced = await self.tree.sync(guild=self._guild)
+        except discord.HTTPException as exc:
+            logger.error(
+                "could not sync commands to guild %s: %s status=%s code=%s",
+                self.config.guild_id,
+                type(exc).__name__,
+                exc.status,
+                exc.code,
+            )
+            return
+        logger.info("synced %d commands to guild %s", len(synced), self.config.guild_id)
 
     async def on_ready(self) -> None:
         """Check the intake channel once: on_ready fires again after each Gateway reconnect.
