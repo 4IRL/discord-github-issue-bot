@@ -47,13 +47,14 @@ CONFIG_KEYS = (
 
 def make_channel(
     *,
+    channel_id: int = 555,
     guild_id: int = 111,
     name: str = "intake",
     category_name: str | None = "Intake",
 ) -> SimpleNamespace:
     category = SimpleNamespace(name=category_name) if category_name is not None else None
     return SimpleNamespace(
-        id=555, name=name, guild=SimpleNamespace(id=guild_id), category=category
+        id=channel_id, name=name, guild=SimpleNamespace(id=guild_id), category=category
     )
 
 
@@ -100,19 +101,19 @@ def test_channel_without_guild(config: Config, route: TargetConfig) -> None:
 
 def test_wrong_name(config: Config, route: TargetConfig) -> None:
     assert channel_problems(make_channel(name="general"), route, config.guild_id) == [
-        "channel name is 'general', expected 'intake'"
+        "channel 555 name is 'general', expected 'intake'"
     ]
 
 
 def test_wrong_category(config: Config, route: TargetConfig) -> None:
     assert channel_problems(make_channel(category_name="Other"), route, config.guild_id) == [
-        "channel category is 'Other', expected 'Intake'"
+        "channel 555 category is 'Other', expected 'Intake'"
     ]
 
 
 def test_no_category(config: Config, route: TargetConfig) -> None:
     assert channel_problems(make_channel(category_name=None), route, config.guild_id) == [
-        "channel category is None, expected 'Intake'"
+        "channel 555 category is None, expected 'Intake'"
     ]
 
 
@@ -486,7 +487,7 @@ async def test_on_ready_logs_channel_mismatch_as_warning(
         for record in bot_records(caplog)
         if record.levelno >= logging.WARNING
     ]
-    assert problems == [(logging.WARNING, "channel name is 'general', expected 'intake'")]
+    assert problems == [(logging.WARNING, "channel 555 name is 'general', expected 'intake'")]
 
 
 async def test_on_ready_matching_channel_logs_no_warning(
@@ -517,6 +518,50 @@ async def test_on_ready_checks_channel_once_across_reconnects(
     bot_messages = [record.getMessage() for record in bot_records(caplog)]
     assert sum(text.startswith("connected as") for text in bot_messages) == 1
     assert sum("not found or not visible" in text for text in bot_messages) == 1
+
+
+async def test_on_ready_checks_each_route_once(
+    two_route_config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(two_route_config)
+    lookups: list[int] = []
+
+    def get_channel(channel_id: int) -> SimpleNamespace | None:
+        lookups.append(channel_id)
+        return make_channel() if channel_id == 555 else None
+
+    monkeypatch.setattr(bot, "get_channel", get_channel)
+    with caplog.at_level(logging.INFO):
+        await bot.on_ready()
+        await bot.on_ready()
+    assert lookups == [555, 556]
+    problems = [
+        (record.levelno, record.getMessage())
+        for record in bot_records(caplog)
+        if record.levelno >= logging.WARNING
+    ]
+    assert problems == [(logging.ERROR, "channel 556 not found or not visible to the bot")]
+    assert_no_member_text(caplog)
+
+
+async def test_on_ready_checks_each_route_against_its_own_name_and_category(
+    two_route_config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(two_route_config)
+    channels = {555: make_channel(), 556: make_channel(channel_id=556)}
+    monkeypatch.setattr(bot, "get_channel", channels.get)
+    with caplog.at_level(logging.INFO):
+        await bot.on_ready()
+    problems = [
+        (record.levelno, record.getMessage())
+        for record in bot_records(caplog)
+        if record.levelno >= logging.WARNING
+    ]
+    assert problems == [
+        (logging.WARNING, "channel 556 name is 'intake', expected 'other-intake'"),
+        (logging.WARNING, "channel 556 category is 'Intake', expected 'Other'"),
+    ]
+    assert_no_member_text(caplog)
 
 
 async def test_on_error_hides_exception_text(
@@ -675,6 +720,13 @@ def test_commands_registered_for_guild_only(config: Config) -> None:
     assert bot.tree.get_commands() == []
 
 
+def test_two_routes_register_one_command_set(two_route_config: Config) -> None:
+    bot = IssueBot(two_route_config)
+    guild_commands = bot.tree.get_commands(guild=discord.Object(111))
+    assert sorted(command.name for command in guild_commands) == ["bug", "feature"]
+    assert bot.tree.get_commands() == []
+
+
 async def test_setup_hook_syncs_guild_once(
     config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -787,6 +839,57 @@ async def test_setup_hook_unexpected_check_failure_logged_type_only(
         assert "Secret exception words" not in text
 
 
+async def test_setup_hook_checks_every_route_in_order(
+    two_route_config: Config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    check = AsyncMock()
+    bot = IssueBot(two_route_config, filing_check=check)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    await bot.setup_hook()
+    assert [call.args for call in check.await_args_list] == [
+        (two_route_config.routes[555],),
+        (two_route_config.routes[556],),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("error", "first_line"),
+    [
+        (
+            GitHubError("token", 401),
+            "github access check failed for repo_id=222: GitHubError stage=token status=401",
+        ),
+        (
+            RuntimeError("Secret exception words"),
+            "github access check failed for repo_id=222: RuntimeError",
+        ),
+    ],
+    ids=["github-error", "unexpected-error"],
+)
+async def test_setup_hook_first_route_failure_still_checks_second(
+    two_route_config: Config,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    error: Exception,
+    first_line: str,
+) -> None:
+    check = AsyncMock(side_effect=[error, None])
+    bot = IssueBot(two_route_config, filing_check=check)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    assert check.await_count == 2
+    assert check.await_args_list[1].args == (two_route_config.routes[556],)
+    assert [
+        record.getMessage()
+        for record in bot_records(caplog)
+        if record.getMessage().startswith("github access")
+    ] == [first_line, "github access ok for repo_id=223"]
+    for text in record_texts(caplog):
+        assert "Secret exception words" not in text
+    assert_no_member_text(caplog)
+
+
 async def test_bot_commands_refuse_when_filing_check_fails(
     config: Config, make_interaction: InteractionFactory
 ) -> None:
@@ -869,3 +972,18 @@ async def test_command_callback_reaches_hook_end_to_end(
     assert candidate.type is IssueType.BUG
     assert candidate.title == "Fix it"
     assert candidate.message_id == summary.id
+
+
+async def test_silent_mode_through_real_tree(
+    test_env: dict[str, str], make_interaction: InteractionFactory
+) -> None:
+    bot = IssueBot(Config.from_env({**test_env, "UNROUTED_COMMANDS": "ignore"}))
+    command = bot.tree.get_command("bug", guild=discord.Object(id=111))
+    unrouted = make_interaction(channel_id=557)
+    await command.callback(unrouted)
+    unrouted.response.send_message.assert_not_awaited()
+    unrouted.response.send_modal.assert_not_awaited()
+    unrouted.response.defer.assert_not_awaited()
+    routed = make_interaction()
+    await command.callback(routed)
+    routed.response.send_modal.assert_awaited_once()

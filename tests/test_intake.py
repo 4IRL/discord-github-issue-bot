@@ -28,6 +28,7 @@ from issue_bot.threads import FILING_ERROR_REPLY, filed_reply
 from tests.conftest import (
     ISSUE_URL,
     InteractionFactory,
+    MessageFactory,
     assert_no_member_text,
     fake_github,
     forbidden,
@@ -237,6 +238,72 @@ async def test_command_refused_outside_channel_before_filing_check(
     interaction.response.send_message.assert_awaited_once_with(INTAKE_REFUSAL, ephemeral=True)
     check.assert_not_awaited()
     interaction.response.send_modal.assert_not_awaited()
+
+
+@pytest.mark.parametrize(("channel_id", "route_name"), [(555, "intake"), (556, "other")])
+async def test_two_routes_dispatch_by_channel(
+    two_route_config: Config,
+    make_interaction: InteractionFactory,
+    channel_id: int,
+    route_name: str,
+) -> None:
+    check = AsyncMock()
+    command = intake_command(
+        IssueType.BUG, two_route_config.routes, two_route_config.unrouted, AsyncMock(), check
+    )
+    interaction = make_interaction(channel_id=channel_id)
+    await command.callback(interaction)
+    route = two_route_config.routes[channel_id]
+    assert route.name == route_name
+    check.assert_awaited_once_with(route)
+    interaction.response.send_modal.assert_awaited_once()
+    modal = interaction.response.send_modal.await_args.args[0]
+    assert modal.target.name == route_name
+    interaction.response.send_message.assert_not_awaited()
+
+
+async def test_two_routes_refuse_unrouted_channel(
+    two_route_config: Config, make_interaction: InteractionFactory
+) -> None:
+    command = intake_command(
+        IssueType.BUG, two_route_config.routes, UnroutedCommands.REFUSE, AsyncMock()
+    )
+    interaction = make_interaction(channel_id=557)
+    await command.callback(interaction)
+    interaction.response.send_message.assert_awaited_once_with(INTAKE_REFUSAL, ephemeral=True)
+    interaction.response.send_modal.assert_not_awaited()
+
+
+async def test_two_routes_ignore_unrouted_channel(
+    two_route_config: Config, make_interaction: InteractionFactory
+) -> None:
+    command = intake_command(
+        IssueType.BUG, two_route_config.routes, UnroutedCommands.IGNORE, AsyncMock()
+    )
+    interaction = make_interaction(channel_id=557)
+    await command.callback(interaction)
+    interaction.response.send_message.assert_not_awaited()
+    interaction.response.send_modal.assert_not_awaited()
+    interaction.response.defer.assert_not_awaited()
+
+
+async def test_second_route_submit_files_to_its_repo_with_its_labels(
+    two_route_config: Config,
+    make_interaction: InteractionFactory,
+    make_message: MessageFactory,
+) -> None:
+    github = fake_github(FiledIssue(7, ISSUE_URL))
+    other = two_route_config.routes[556]
+    interaction = make_interaction(channel_id=556, summary=make_message(channel_id=556))
+    await filled_modal(other, filing_hook(github)).on_submit(interaction)
+    github.create_issue.assert_awaited_once()
+    target, _title, body, labels = github.create_issue.await_args.args
+    assert target is other
+    assert target.github_repo == "example-org/other-repo"
+    assert labels == ["defect"]
+    assert body.startswith(
+        "Reported by `Alice` in Discord: https://discord.com/channels/111/556/99"
+    )
 
 
 async def test_submit_defers_privately_first(

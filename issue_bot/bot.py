@@ -42,10 +42,10 @@ def channel_problems(channel: Any, route: TargetConfig, guild_id: int) -> list[s
     if guild.id != guild_id:
         problems.append(f"channel {channel.id} is in guild {guild.id}, expected {guild_id}")
     if channel.name != route.channel_name:
-        problems.append(f"channel name is {channel.name!r}, expected {route.channel_name!r}")
+        problems.append(f"channel {channel.id} name is {channel.name!r}, expected {route.channel_name!r}")
     actual = channel.category.name if channel.category else None
     if actual != route.category:
-        problems.append(f"channel category is {actual!r}, expected {route.category!r}")
+        problems.append(f"channel {channel.id} category is {actual!r}, expected {route.category!r}")
     return problems
 
 

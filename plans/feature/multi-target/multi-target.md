@@ -328,7 +328,8 @@ test to routes, and add the `ignore` branch.
     record contains the missing file's path, and calls `assert_no_member_text(caplog)`.
 - [x] **Green: bot.** (2026-10-22) In `issue_bot/bot.py`:
   - The new signature is `channel_problems(channel: Any, route: TargetConfig, guild_id: int)`,
-    with the same message strings, reading `route.channel_id`/`channel_name`/`category` and
+    with the same message strings, except that the name and category problems gain a `channel <id>`
+    prefix (Step 3 review, dd-261022-023), reading `route.channel_id`/`channel_name`/`category` and
     `guild_id`. The import becomes `from issue_bot.config import Config, TargetConfig`
     (`IssueBot` still takes `Config`).
   - Registration becomes `intake_command(issue_type, config.routes, config.unrouted,
@@ -372,11 +373,11 @@ Pin the multi-route contract with two mocked routes filing to two mocked repos. 
 exercise Step 2's generalization; if one fails, fix the code, not the test.
 
 **To-do:**
-- [ ] In `tests/conftest.py`, add a `two_route_config(test_env, tmp_path) -> Config` fixture
+- [x] (2026-10-22) In `tests/conftest.py`, add a `two_route_config(test_env, tmp_path) -> Config` fixture
       that writes `path = write_routes(tmp_path / "two", TWO_ROUTE_TOML)` (`write_routes`
       creates the directory, which keeps it clear of `routes_file`) and returns
       `Config.from_env({**test_env, "ROUTES_PATH": str(path)})`, leaving `test_env` unchanged.
-- [ ] `tests/test_intake.py`: dispatch tests with `two_route_config`.
+- [x] (2026-10-22) `tests/test_intake.py`: dispatch tests with `two_route_config`.
   - `/bug` in channel 555 opens a modal whose `.target.name == "intake"`, and in 556 one
     whose target is `"other"`. The filing check is awaited with the matching route each time.
   - Channel 557 with `REFUSE` gets `INTAKE_REFUSAL`. Channel 557 with `IGNORE` gets no
@@ -388,7 +389,7 @@ exercise Step 2's generalization; if one fails, fix the code, not the test.
     `filled_modal(two_route_config.routes[556], filing_hook(fake_github(…)))` on it (the
     route dispatch itself is the first sub-bullet's). The test takes the `make_message`
     fixture; add `MessageFactory` to the file's `tests.conftest` import.
-- [ ] `tests/test_github.py`: one `GitHubClient` and two routes (repo ids 222 and 223).
+- [x] (2026-10-22) `tests/test_github.py`: one `GitHubClient` and two routes (repo ids 222 and 223).
       `create_issue` on each mints two tokens, with `repository_ids` `[222]` then `[223]`, and
       POSTs to `/repos/example-org/example-repo/issues` and
       `/repos/example-org/other-repo/issues`. A second `create_issue` for 222 reuses its
@@ -400,7 +401,7 @@ exercise Step 2's generalization; if one fails, fix the code, not the test.
       token payloads' `repository_ids` `[222]` then `[223]`. The two routes come from the
       `two_route_config: Config` fixture, so import `Config` again beside `TargetConfig`
       (Step 2 swapped it out).
-- [ ] `tests/test_bot.py`: `setup_hook` with `two_route_config` awaits the check for both
+- [x] (2026-10-22) `tests/test_bot.py`: `setup_hook` with `two_route_config` awaits the check for both
       routes in file order (`check.await_args_list`). Mock `bot.tree.sync` with
       `AsyncMock(return_value=[])`, as `test_setup_hook_logs_github_access_ok` does. When the
       first route's check raises, the second is still checked. Parametrize this over two
@@ -432,10 +433,12 @@ exercise Step 2's generalization; if one fails, fix the code, not the test.
     `id=channel_id` instead of the fixed `id=555`). An `on_ready` test with
     `two_route_config`, where `get_channel` returns `make_channel()` for 555 and
     `make_channel(channel_id=556)` for 556, asserts the WARNING-or-higher `bot_records` are
-    exactly `[(logging.WARNING, "channel name is 'intake', expected 'other-intake'"),
-    (logging.WARNING, "channel category is 'Intake', expected 'Other'")]`.
-- [ ] Run `.venv/bin/pytest` and confirm all green. Every new log test also calls
-      `assert_no_member_text(caplog)` (Standing invariant 2).
+    exactly `[(logging.WARNING, "channel 556 name is 'intake', expected 'other-intake'"),
+    (logging.WARNING, "channel 556 category is 'Intake', expected 'Other'")]`.
+- [x] Run `.venv/bin/pytest` and confirm all green. Every new log test also calls
+      `assert_no_member_text(caplog)` (Standing invariant 2). (2026-10-22: 268 passed, after
+      prefixing the name and category problems with the channel id.)
+      Review decision: channel name/category warnings prefixed with the channel id (asked, dd-261022-023).
 
 ### 4. Example config, drift tests and docs
 

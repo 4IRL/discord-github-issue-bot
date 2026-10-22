@@ -8,7 +8,7 @@ import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from issue_bot.config import TargetConfig
+from issue_bot.config import Config, TargetConfig
 from issue_bot.github import FiledIssue, GitHubClient, GitHubError, Transport, app_jwt
 
 TOKEN_URL = "https://api.github.com/app/installations/444/access_tokens"
@@ -100,6 +100,39 @@ async def test_token_reused_until_near_expiry(
         ISSUE_URL,
         ISSUE_URL,
     ]
+
+
+async def test_two_routes_mint_separate_tokens(
+    github_private_key: rsa.RSAPrivateKey, two_route_config: Config
+) -> None:
+    first, second = two_route_config.routes.values()
+    transport = AsyncMock(
+        side_effect=[
+            token_response(),
+            issue_response(),
+            token_response(),
+            issue_response(),
+            issue_response(),
+        ]
+    )
+    client = make_client(github_private_key, transport)
+
+    await create(client, first)
+    await create(client, second)
+    await create(client, first)
+
+    assert transport.await_count == 5
+    assert [call.args[1] for call in transport.call_args_list] == [
+        TOKEN_URL,
+        ISSUE_URL,
+        TOKEN_URL,
+        "https://api.github.com/repos/example-org/other-repo/issues",
+        ISSUE_URL,
+    ]
+    token_payloads = [
+        call.args[3] for call in transport.call_args_list if call.args[1] == TOKEN_URL
+    ]
+    assert [payload["repository_ids"] for payload in token_payloads] == [[222], [223]]
 
 
 async def test_token_refreshed_near_expiry(

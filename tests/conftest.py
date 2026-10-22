@@ -142,6 +142,13 @@ def config(test_env: dict[str, str]) -> Config:
 
 
 @pytest.fixture
+def two_route_config(test_env: dict[str, str], tmp_path: Path) -> Config:
+    """A config with two routes (channels 555 and 556), leaving ``test_env`` unchanged."""
+    path = write_routes(tmp_path / "two", TWO_ROUTE_TOML)
+    return Config.from_env({**test_env, "ROUTES_PATH": str(path)})
+
+
+@pytest.fixture
 def route(config: Config) -> TargetConfig:
     """The test config's only route."""
     return next(iter(config.routes.values()))
