@@ -1,12 +1,12 @@
 # discord-github-issue-bot
 
-A Discord bot that turns `/bug` and `/feature` reports, made through a modal in a configured intake channel of a Discord server, into GitHub issues in a configured repo of the 4IRL GitHub org. Each report becomes a public summary message, a thread on it and a filed issue. Posting the issue's link back in the thread, clarifying questions and roadmap placement are planned features. Its first target (an example) is `#c4i-github-issues` in the 4irl server → `4IRL/chores4irl`.
+A Discord bot that turns `/bug` and `/feature` reports, made through a modal in a configured intake channel of a Discord server, into GitHub issues in a configured repo of the 4IRL GitHub org. Each report becomes a public summary message, a thread on it and a filed issue whose link is posted in the thread. Clarifying questions and roadmap placement are planned features. Its first target (an example) is `#c4i-github-issues` in the 4irl server → `4IRL/chores4irl`.
 
 The code itself is target-agnostic: it holds no 4irl values (never as a code default), and their config home is the committed [`example.env`](example.env).
 
 ## Status
 
-F2 (thread per report), F5 (issue filing) and F10 (slash-command intake) exist: the bot registers `/bug` and `/feature` and files each report as described under [Reporting](#reporting). The thread is named from the title, and the issue gets its type's label. A filed issue is logged by issue type, message id, message URL, thread id and issue URL. If filing fails, the bot posts a fixed error reply in the thread, when the thread was opened. Posting the issue's link back in the thread comes with F7.
+F2 (thread per report), F5 (issue filing), F7 (issue link in the thread) and F10 (slash-command intake) exist: the bot registers `/bug` and `/feature` and files each report as described under [Reporting](#reporting). The thread is named from the title, and the issue gets its type's label. A filed issue is logged by issue type, message id, message URL, thread id and issue URL. On success the bot posts the issue number, title and link in the thread (`Filed as GitHub issue #<number>: <title>` with the link on the next line, no preview card); if filing fails it posts a fixed error reply there. With no thread, either goes as a reply to the summary message.
 
 - The commands are synced to the `DISCORD_GUILD_ID` guild only, once per start, and are refused outside the intake channel.
 - The intake channel is matched by `DISCORD_CHANNEL_ID`; its name, category and guild are only checked at startup (a mismatch logs a warning; a channel the bot cannot see logs an error).
@@ -15,7 +15,7 @@ F2 (thread per report), F5 (issue filing) and F10 (slash-command intake) exist: 
 
 1. Run `/bug` or `/feature` in the intake channel. A "New bug" or "New feature" form opens.
 2. Fill in **Title** (required, up to 100 characters) and, optionally, **Description** (up to 4000 characters, line breaks kept), then submit.
-3. The bot posts a public summary in the channel: the type, the title and you as a mention that pings nobody. It opens a thread on the summary and files the issue.
+3. The bot posts a public summary in the channel: the type, the title and you as a mention that pings nobody. It opens a thread on the summary, files the issue, then posts the issue's number, title and link in the thread.
 4. You get a private confirmation linking the summary. Only you see it.
 
 - A title with no letter or digit posts nothing; you get a private reply asking you to run the command again.
@@ -30,7 +30,7 @@ Direction: [`plans/ROADMAP.md`](plans/ROADMAP.md). Next work: [`plans/META-PLAN.
 - No retry or dedup until Phase 4, so a timeout can leave an issue filed after an error reply.
 - `/bug` and `/feature` are registered on Discord's side and persist when the bot stops: a command run while the bot is down fails in Discord ("The application did not respond") and files nothing. A redeploy re-syncs them.
 - An open modal expires after 30 minutes, and a bot restart drops every open modal: its submit fails in Discord, and nothing is filed or logged.
-- The private confirmation means the summary was posted, not that the issue was filed. A filing failure is reported in the thread; if the thread could not be opened either, it shows only in the log.
+- The private confirmation means only that the summary was posted, not that the issue was filed. The filing outcome (link or error) appears in the thread, or as a reply to the summary when no thread opened; if that post fails too, the outcome shows only in the log (`could not send issue link …` or `could not send filing error …`).
 - If GitHub filing fails, the Description typed in the modal is not kept anywhere in Discord; the reporter must type it again (F3's preview step addresses this).
 - Rolling back to a build without slash commands leaves `/bug` and `/feature` registered in the guild but unanswered, until an empty command sync for the guild or removal of the app from the server. Neither path is verified yet; a `--clear-commands` flag is a deferred follow-up.
 
@@ -44,7 +44,7 @@ Direction: [`plans/ROADMAP.md`](plans/ROADMAP.md). Next work: [`plans/META-PLAN.
 ### Discord setup
 
 1. In the [Discord Developer Portal](https://discord.com/developers/applications), create an application and add a bot to it. Copy the bot token.
-2. Invite the bot to the server with the `bot` and `applications.commands` scopes, and the **View Channel**, **Read Message History**, **Send Messages**, **Create Public Threads** and **Send Messages in Threads** permissions on the intake channel. Read Message History is kept for opening and fetching threads on the summary message. Threads use the channel's default auto-archive duration.
+2. Invite the bot to the server with the `bot` and `applications.commands` scopes, and the **View Channel**, **Read Message History**, **Send Messages**, **Create Public Threads** and **Send Messages in Threads** permissions on the intake channel. Read Message History is kept for opening and fetching threads on the summary message, and for replying to the summary when no thread could be opened. Threads use the channel's default auto-archive duration.
 
 ### GitHub App setup
 

@@ -8,7 +8,7 @@ The run happens against a **private scratch repo** and a **test channel**, never
 
 - **Startup:** the bot registers `/bug` and `/feature` in the guild `DISCORD_GUILD_ID` names. It overwrites them on every start, and they stay after teardown (see section 5).
 - **Probe:** one installation token on GitHub, which expires within an hour. Nothing else.
-- **Success checks:** two issues in the scratch repo (three with the optional `@someone` check), and one summary message plus one public thread per submission in the test channel.
+- **Success checks:** two issues in the scratch repo (three with the optional `@someone` check), and one summary message plus one public thread with one link post in it per submission in the test channel.
 - **Failure check:** one private reply to you. It posts nothing in the test channel and writes nothing to GitHub.
 - **Re-runs:** every re-run repeats its writes.
 
@@ -40,7 +40,7 @@ The run happens against a **private scratch repo** and a **test channel**, never
    ```
 
    Create any label that returns 404.
-4. Pick a Discord test channel in a separate test guild, never the live server: the commands are registered in the whole guild and stay there after teardown. The bot needs View Channel, Send Messages, Create Public Threads and Send Messages in Threads there, and must have been invited with the `bot` and `applications.commands` scopes.
+4. Pick a Discord test channel in a separate test guild, never the live server: the commands are registered in the whole guild and stay there after teardown. The bot needs View Channel, Read Message History, Send Messages, Create Public Threads and Send Messages in Threads there, and must have been invited with the `bot` and `applications.commands` scopes.
 
 ### `.env` for a local run
 
@@ -107,7 +107,7 @@ The log shows `synced 2 commands to guild <DISCORD_GUILD_ID>`. In the test chann
    | Where | What to see |
    |---|---|
    | Discord summary | A message reading "New bug from @\<you\>: \<Title\>" ("New feature" for `/feature`), with the type in bold; the mention does not ping |
-   | Discord thread | A thread on each summary, with **nothing** posted in it (the link post comes with F7) |
+   | Discord thread | A thread on each summary, with one bot message `Filed as GitHub issue #<n>: <title>` and the issue link on the next line, and no preview card |
    | Discord confirmation | A private "Thanks! Your report is posted: <summary link>" that only you see |
    | Issue title | The modal's Title |
    | Issue body | Opens with ``Reported by `<display name>` in Discord: <summary message link>``, then `---`, then the Description |
@@ -125,7 +125,7 @@ The log shows `synced 2 commands to guild <DISCORD_GUILD_ID>`. In the test chann
 2. Run one `/bug`. No form opens; you get the private reply "Sorry, reports can't be filed to GitHub right now, so the form didn't open. Try again later." The log shows `filing unavailable for bug interaction_id=…: GitHubError stage=token status=…` with no member text. Nothing is posted in the channel and nothing goes to GitHub.
 3. Restore the right ID.
 
-A filing failure after a submit (the thread's `FILING_ERROR_REPLY`) can't be triggered this way, since the check now stops the form first; the unit tests cover it.
+A filing failure after a submit (the `FILING_ERROR_REPLY` posted in the thread, or as a reply to the summary when no thread opened) can't be triggered this way, since the check now stops the form first; the unit tests cover it.
 
 Restart the bot after every `.env` change. It reads its configuration only at startup.
 
@@ -191,7 +191,8 @@ For a quick test, add `--user "$(id -u)"` instead and mount the original `github
 | `/bug` and `/feature` are missing | The commands weren't synced to this guild. The bot must be invited with the `applications.commands` scope, `DISCORD_GUILD_ID` must be the test channel's guild, and the startup log must show `synced 2 commands to guild …` (a `could not sync commands …` ERROR names the failure). If the log is right, reload the Discord client, which caches the command list. |
 | The command is refused in the right channel | A command run inside a thread, including a summary's thread, is refused: run it in the channel itself. Otherwise `DISCORD_CHANNEL_ID` doesn't match the channel: copy the channel ID again and restart the bot. |
 | `/bug` says reports can't be filed | The bot can't get a GitHub token for the repo. Check the startup log's `github access check failed …` line (its `status`) and the `filing unavailable …` lines, then the App ID, installation ID, `GITHUB_REPO_ID` and private key; the token probe in section 1 shows the same failure. Restart the bot after fixing `.env`. |
-| A submit gets a private error and no summary | The bot can't post in the channel. Check the startup log for `connected as …` with no channel ERROR or WARNING after it, and that the bot has View Channel, Send Messages, Create Public Threads and Send Messages in Threads there. |
+| A submit gets a private error and no summary | The bot can't post in the channel. Check the startup log for `connected as …` with no channel ERROR or WARNING after it, and that the bot has View Channel, Read Message History, Send Messages, Create Public Threads and Send Messages in Threads there. |
+| The issue is filed but no link appears in the thread | The bot couldn't post it. Check the log for `could not send issue link …` (its status and code): the thread post needs Send Messages in Threads; the reply on the summary (when no thread opened) needs Send Messages and Read Message History. |
 | The probe prints `JWT generation failed` | The key couldn't be loaded. Check the `<KEY_PATH>` argument and the Python error above that line. |
 | The probe returns 401 | The JWT was rejected. The App ID may be wrong, the key may belong to another App, or the system clock may be off by more than a minute. |
 | The probe returns 400 | A `<…>` placeholder was left in the command, or the JSON body is malformed. |

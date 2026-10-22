@@ -1,4 +1,4 @@
-"""Open the public thread on a report's summary message, and the helpers that name and fill it.
+"""Open the public thread on a report's summary message, name it, and format the replies posted in it.
 
 Thread names hold member text (the issue title), so they are never logged; logs carry
 message and thread ids, and a caught Discord API error's type, HTTP status and code only.
@@ -8,12 +8,22 @@ import logging
 
 import discord
 
+from issue_bot.github import FiledIssue
+
 logger = logging.getLogger(__name__)
 
 THREAD_NAME_LIMIT = 100  # Discord's maximum thread-name length.
 THREAD_ALREADY_CREATED = 160004  # Discord error code: the message already has a thread.
 # Fixed text: it carries no member text and no GitHub response text.
 FILING_ERROR_REPLY = "Sorry, I couldn't file this as a GitHub issue. Check the repo before reporting it again; to retry, run the command again."
+FILED_REPLY = "Filed as GitHub issue #{number}: {title}\n{url}"
+
+
+def filed_reply(issue: FiledIssue, title: str) -> str:
+    """Return the issue-link reply; the title is member text: escaped here, sent with no mentions, never logged."""
+    return FILED_REPLY.format(
+        number=issue.number, title=discord.utils.escape_markdown(title), url=issue.html_url
+    )
 
 
 def thread_name(title: str) -> str:

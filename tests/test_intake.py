@@ -24,7 +24,7 @@ from issue_bot.intake import (
     summary_text,
 )
 from issue_bot.issue_type import IssueType
-from issue_bot.threads import FILING_ERROR_REPLY
+from issue_bot.threads import FILING_ERROR_REPLY, filed_reply
 from tests.conftest import (
     ISSUE_URL,
     InteractionFactory,
@@ -289,6 +289,15 @@ async def test_submit_files_issue_through_filing_hook(
     assert body.startswith(
         "Reported by `Alice` in Discord: https://discord.com/channels/111/555/99"
     )
+    summary.create_thread.return_value.send.assert_awaited_once_with(
+        filed_reply(FiledIssue(7, ISSUE_URL), "Fix it"),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
+    summary.reply.assert_not_awaited()
+    interaction.followup.send.assert_awaited_once_with(
+        SUBMITTED_REPLY.format(url=summary.jump_url), ephemeral=True
+    )
 
 
 async def test_submit_logs_ids_not_text(
@@ -367,7 +376,10 @@ async def test_github_error_still_posts_filing_error_reply(
     await filled_modal(config, filing_hook(fake_github(GitHubError("issue", 422)))).on_submit(
         interaction
     )
-    summary.create_thread.return_value.send.assert_awaited_once_with(FILING_ERROR_REPLY)
+    summary.create_thread.return_value.send.assert_awaited_once_with(
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
+    )
+    summary.reply.assert_not_awaited()
     interaction.followup.send.assert_awaited_once_with(
         SUBMITTED_REPLY.format(url=summary.jump_url), ephemeral=True
     )

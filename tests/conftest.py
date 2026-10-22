@@ -127,6 +127,7 @@ def make_message() -> MessageFactory:
                 return_value=SimpleNamespace(id=created_thread_id, send=AsyncMock())
             ),
             fetch_thread=AsyncMock(return_value=SimpleNamespace(id=message_id, send=AsyncMock())),
+            reply=AsyncMock(),
         )
 
     return factory

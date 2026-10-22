@@ -4,13 +4,15 @@ from types import SimpleNamespace
 import discord
 import pytest
 
+from issue_bot.github import FiledIssue
 from issue_bot.threads import (
     FILING_ERROR_REPLY,
     THREAD_NAME_LIMIT,
+    filed_reply,
     open_thread,
     thread_name,
 )
-from tests.conftest import MessageFactory
+from tests.conftest import ISSUE_URL, MessageFactory
 
 
 def already_created_error() -> discord.HTTPException:
@@ -118,4 +120,10 @@ def test_filing_error_reply_is_fixed_text() -> None:
     assert FILING_ERROR_REPLY == (
         "Sorry, I couldn't file this as a GitHub issue. Check the repo before reporting it "
         "again; to retry, run the command again."
+    )
+
+
+def test_filed_reply_has_number_title_and_url() -> None:
+    assert filed_reply(FiledIssue(7, ISSUE_URL), "Fix *it*") == (
+        f"Filed as GitHub issue #7: Fix \\*it\\*\n{ISSUE_URL}"
     )

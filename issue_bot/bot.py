@@ -10,10 +10,16 @@ from discord import app_commands
 from issue_bot.config import Config
 from issue_bot.github import GitHubClient, GitHubError
 from issue_bot.handler import IssueCandidate
-from issue_bot.intake import CandidateHook, FilingCheck, discord_error_fields, intake_command
+from issue_bot.intake import (
+    NO_MENTIONS,
+    CandidateHook,
+    FilingCheck,
+    discord_error_fields,
+    intake_command,
+)
 from issue_bot.issue_type import IssueType
 from issue_bot.issues import file_candidate
-from issue_bot.threads import FILING_ERROR_REPLY, open_thread, thread_name
+from issue_bot.threads import FILING_ERROR_REPLY, filed_reply, open_thread, thread_name
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +68,33 @@ async def open_issue_thread(message: discord.Message, candidate: IssueCandidate)
     )
 
 
+async def _post_outcome(
+    message: discord.Message, thread: discord.Thread | None, text: str, what: str
+) -> None:
+    """Post in the thread, else as a reply to the summary; log a Discord failure by type, status and code only."""
+    try:
+        if thread is not None:
+            await thread.send(text, allowed_mentions=NO_MENTIONS, suppress_embeds=True)
+        else:
+            await message.reply(text, allowed_mentions=NO_MENTIONS, suppress_embeds=True)
+    except discord.HTTPException as exc:
+        logger.error(
+            "could not send %s for message_id=%s thread_id=%s: %s status=%s code=%s",
+            what,
+            message.id,
+            thread.id if thread else None,
+            type(exc).__name__,
+            exc.status,
+            exc.code,
+        )
+
+
 def filing_hook(github: GitHubClient) -> CandidateHook:
     """Return the production hook: open the issue's thread, then file the issue on GitHub.
 
-    The issue is filed even when the thread could not be opened. On a ``GitHubError`` it
-    replies in the thread with the fixed ``FILING_ERROR_REPLY``. It never logs member text
+    The issue is filed even when the thread could not be opened. On success it posts
+    ``filed_reply`` and on a ``GitHubError`` the fixed ``FILING_ERROR_REPLY``, in the thread
+    or, with no thread, as a reply to the summary message. It never logs member text
     or GitHub response text: only the type, ids, URLs, error type, stage and status.
     """
 
@@ -86,18 +114,7 @@ def filing_hook(github: GitHubClient) -> CandidateHook:
                 exc.stage,
                 exc.status,
             )
-            if thread is not None:
-                try:
-                    await thread.send(FILING_ERROR_REPLY)
-                except discord.HTTPException as send_exc:
-                    logger.error(
-                        "could not send filing error for message_id=%s thread_id=%s: %s status=%s code=%s",
-                        message.id,
-                        thread.id,
-                        type(send_exc).__name__,
-                        send_exc.status,
-                        send_exc.code,
-                    )
+            await _post_outcome(message, thread, FILING_ERROR_REPLY, "filing error")
             return
         logger.info(
             "filed %s message_id=%s (%s) thread_id=%s issue=%s",
@@ -107,6 +124,7 @@ def filing_hook(github: GitHubClient) -> CandidateHook:
             thread_id,
             issue.html_url,
         )
+        await _post_outcome(message, thread, filed_reply(issue, candidate.title), "issue link")
 
     return file_and_report
 
