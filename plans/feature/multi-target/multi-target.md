@@ -207,7 +207,7 @@ Replace `Config.target` with `Config.routes` and the new env keys, move every co
 test to routes, and add the `ignore` branch.
 
 **To-do:**
-- [ ] **Red: config tests.** In `tests/conftest.py`, add a `routes_file(tmp_path: Path) -> Path`
+- [x] **Red: config tests.** (2026-10-22) In `tests/conftest.py`, add a `routes_file(tmp_path: Path) -> Path`
       fixture that calls `write_routes(tmp_path, ONE_ROUTE_TOML)`. Make `test_env` take it,
       delete the seven target keys (`DISCORD_CHANNEL_ID`, `DISCORD_CHANNEL_NAME`,
       `DISCORD_CATEGORY`, `GITHUB_REPO`, `GITHUB_REPO_ID`, `GITHUB_LABEL_BUG`,
@@ -238,12 +238,12 @@ test to routes, and add the `ignore` branch.
   - Imports: make the file's `issue_bot.config` import
     `Config, ConfigError, TargetConfig, UnroutedCommands, load_routes`, and
     `import dataclasses` to the stdlib group.
-- [ ] Run `.venv/bin/pytest tests/test_config.py` and confirm it fails:
+- [x] Run `.venv/bin/pytest tests/test_config.py` and confirm it fails (2026-10-22: 17 failed, 3 errors, 98 passed):
       `test_full_env_loads`, the new `UNROUTED_COMMANDS`/`GITHUB_ORG`/`config.routes` tests and
       every test that builds a `Config` from `test_env` fail (the old `Config` still reads
       `DISCORD_CHANNEL_ID`). Cases for keys the old `Config` reads before its target keys, such
       as `test_each_key_required[DISCORD_TOKEN]`, and Step 1's `load_routes` tests still pass.
-- [ ] **Green: `Config`.** In `issue_bot/config.py`:
+- [x] **Green: `Config`.** (2026-10-22) In `issue_bot/config.py`:
   - Delete `TargetConfig.from_env` and its "keys are read in order" comment. `_required` and
     `_positive_int` keep their other callers.
   - Add `_owner(env, key) -> str`, which is `_required` plus `OWNER_PATTERN.fullmatch` and the
@@ -269,9 +269,9 @@ test to routes, and add the `ignore` branch.
     environment, that the routes come from the TOML file at `ROUTES_PATH`, and that nothing
     has a code default. Change `Config`'s docstring to "Instance-wide settings plus the
     routes, keyed by intake channel id."
-- [ ] Run `.venv/bin/pytest tests/test_config.py` and confirm it passes (the other test files
+- [x] Run `.venv/bin/pytest tests/test_config.py` and confirm it passes (2026-10-22: 118 passed) (the other test files
       still read `config.target` until the migration below).
-- [ ] **Red: intake.** In `tests/test_intake.py`, migrate every
+- [x] **Red: intake.** (2026-10-22: 11 failed before the green) In `tests/test_intake.py`, migrate every
       `intake_command(issue_type, config.target, hook[, check])` call to
       `intake_command(issue_type, config.routes, config.unrouted, hook[, check])`. Migrate
       every `IntakeModal(…, config.target, …)` and every `config.target` assertion to the
@@ -288,7 +288,7 @@ test to routes, and add the `ignore` branch.
     `refused bug outside the intake channel …`) stay as they are.
   - The file's config import becomes
     `from issue_bot.config import Config, TargetConfig, UnroutedCommands`.
-- [ ] **Green: `intake_command`.** In `issue_bot/intake.py`, the new signature is
+- [x] **Green: `intake_command`.** (2026-10-22) In `issue_bot/intake.py`, the new signature is
       `intake_command(issue_type: IssueType, routes: Mapping[int, TargetConfig],
       unrouted: UnroutedCommands, on_candidate: CandidateHook, filing_check: FilingCheck |
       None = None)`. The imports become
@@ -306,7 +306,7 @@ test to routes, and add the `ignore` branch.
   - Change the docstring to "…opens the report modal in a routed intake channel; elsewhere
     it refuses privately or, with ``UnroutedCommands.IGNORE``, stays silent." The modal and
     its callers stay unchanged.
-- [ ] **Red: bot.** In `tests/test_bot.py`:
+- [x] **Red: bot.** (2026-10-22: 40 failed before the green) In `tests/test_bot.py`:
   - The config import becomes `from issue_bot.config import Config, TargetConfig`, for the
     migrated tests' `route: TargetConfig` parameters.
   - Set `CONFIG_KEYS` to the same eight keys as `ALL_KEYS`.
@@ -326,7 +326,7 @@ test to routes, and add the `ignore` branch.
     record in `record_texts(caplog)` is
     `configuration error: ROUTES_PATH must name a readable TOML route file`, and that no
     record contains the missing file's path, and calls `assert_no_member_text(caplog)`.
-- [ ] **Green: bot.** In `issue_bot/bot.py`:
+- [x] **Green: bot.** (2026-10-22) In `issue_bot/bot.py`:
   - The new signature is `channel_problems(channel: Any, route: TargetConfig, guild_id: int)`,
     with the same message strings, reading `route.channel_id`/`channel_name`/`category` and
     `guild_id`. The import becomes `from issue_bot.config import Config, TargetConfig`
@@ -341,7 +341,7 @@ test to routes, and add the `ignore` branch.
     `channel_problems(channel, route, self.config.guild_id)`.
   - Update the docstrings: `on_ready` checks "each route's intake channel once", and
     `IssueBot` posts the summary "in the route's intake channel".
-- [ ] **Migrate the remaining tests.** In `tests/conftest.py`, `make_candidate` takes
+- [x] **Migrate the remaining tests.** (2026-10-22: grep prints nothing, exit 1) In `tests/conftest.py`, `make_candidate` takes
       `route: TargetConfig` instead of `config`, and its default is `target or route`. In
       `tests/test_github.py`, the `create(client, config)` helper becomes
       `create(client, route: TargetConfig)` and every `create(client, config)` caller (with
@@ -362,7 +362,9 @@ test to routes, and add the `ignore` branch.
       `grep -rnE 'config\.target|TargetConfig\.from_env|DISCORD_CHANNEL_ID|DISCORD_CHANNEL_NAME|DISCORD_CATEGORY|GITHUB_REPO\b|GITHUB_REPO_ID|GITHUB_LABEL_' --include='*.py' issue_bot tests`
       prints nothing (no output; grep exits 1, which is the pass; `--include='*.py'` keeps
       stale `__pycache__` files out).
-- [ ] Run `.venv/bin/pytest` and confirm the whole suite is green.
+- [x] Run `.venv/bin/pytest` and confirm the whole suite is green. (2026-10-22: 255 passed;
+      grep clean. Its one review triage question has been resolved.)
+      Review decision: per-route startup checks stay sequential (asked, dd-261022-022).
 
 ### 3. Two-route behaviour and per-repo tokens
 

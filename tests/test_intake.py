@@ -6,7 +6,7 @@ import discord
 import pytest
 
 from issue_bot.bot import filing_hook
-from issue_bot.config import Config, TargetConfig
+from issue_bot.config import Config, TargetConfig, UnroutedCommands
 from issue_bot.github import FiledIssue, GitHubError
 from issue_bot.intake import (
     BLANK_TITLE_REPLY,
@@ -44,22 +44,22 @@ def intake_messages(caplog: pytest.LogCaptureFixture, level: int) -> list[str]:
 
 
 def filled_modal(
-    config: Config,
+    route: TargetConfig,
     hook: CandidateHook,
     *,
     issue_type: IssueType = IssueType.BUG,
     title: str = "Fix it",
     description: str = "Steps",
 ) -> IntakeModal:
-    modal = IntakeModal(issue_type, config.target, hook)
+    modal = IntakeModal(issue_type, route, hook)
     # discord.py's own seed for a submitted value: a real submit needs the Gateway.
     modal.title_input._value = title
     modal.description_input._value = description
     return modal
 
 
-def test_modal_fields(config: Config) -> None:
-    modal = IntakeModal(IssueType.FEATURE, config.target, AsyncMock())
+def test_modal_fields(route: TargetConfig) -> None:
+    modal = IntakeModal(IssueType.FEATURE, route, AsyncMock())
     assert modal.title == "New feature"
     assert modal.timeout == MODAL_TIMEOUT
     assert len(modal.children) == 2
@@ -75,7 +75,7 @@ def test_modal_fields(config: Config) -> None:
 
 def test_command_names_follow_issue_type(config: Config) -> None:
     for issue_type in IssueType:
-        command = intake_command(issue_type, config.target, AsyncMock())
+        command = intake_command(issue_type, config.routes, config.unrouted, AsyncMock())
         assert command.name == str(issue_type)
         assert len(command.description) < 100
 
@@ -83,7 +83,7 @@ def test_command_names_follow_issue_type(config: Config) -> None:
 async def test_command_opens_modal_in_intake_channel(
     config: Config, make_interaction: InteractionFactory
 ) -> None:
-    command = intake_command(IssueType.FEATURE, config.target, AsyncMock())
+    command = intake_command(IssueType.FEATURE, config.routes, config.unrouted, AsyncMock())
     interaction = make_interaction()
     await command.callback(interaction)
     interaction.response.send_modal.assert_awaited_once()
@@ -101,7 +101,7 @@ async def test_command_refused_outside_intake_channel(
     channel_id: int | None,
 ) -> None:
     hook = AsyncMock()
-    command = intake_command(IssueType.BUG, config.target, hook)
+    command = intake_command(IssueType.BUG, config.routes, config.unrouted, hook)
     interaction = make_interaction(channel_id=channel_id)
     with caplog.at_level(logging.INFO):
         await command.callback(interaction)
@@ -113,14 +113,52 @@ async def test_command_refused_outside_intake_channel(
     ]
 
 
-async def test_command_opens_modal_when_filing_check_passes(
+@pytest.mark.parametrize("channel_id", [556, None])
+async def test_command_ignored_outside_routes(
+    config: Config,
+    make_interaction: InteractionFactory,
+    caplog: pytest.LogCaptureFixture,
+    channel_id: int | None,
+) -> None:
+    hook = AsyncMock()
+    check = AsyncMock()
+    command = intake_command(IssueType.BUG, config.routes, UnroutedCommands.IGNORE, hook, check)
+    interaction = make_interaction(channel_id=channel_id)
+    with caplog.at_level(logging.INFO):
+        await command.callback(interaction)
+    interaction.response.send_message.assert_not_awaited()
+    interaction.response.send_modal.assert_not_awaited()
+    interaction.response.defer.assert_not_awaited()
+    check.assert_not_awaited()
+    hook.assert_not_awaited()
+    assert [(record.levelno, record.getMessage()) for record in intake_records(caplog)] == [
+        (
+            logging.INFO,
+            "ignored bug outside this instance's routes "
+            f"interaction_id=4242 channel_id={channel_id}",
+        )
+    ]
+    assert_no_member_text(caplog)
+
+
+async def test_command_opens_modal_in_routed_channel_when_ignoring(
     config: Config, make_interaction: InteractionFactory
 ) -> None:
-    check = AsyncMock()
-    command = intake_command(IssueType.BUG, config.target, AsyncMock(), check)
+    command = intake_command(IssueType.BUG, config.routes, UnroutedCommands.IGNORE, AsyncMock())
     interaction = make_interaction()
     await command.callback(interaction)
-    check.assert_awaited_once_with(config.target)
+    interaction.response.send_modal.assert_awaited_once()
+    interaction.response.send_message.assert_not_awaited()
+
+
+async def test_command_opens_modal_when_filing_check_passes(
+    config: Config, route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    check = AsyncMock()
+    command = intake_command(IssueType.BUG, config.routes, config.unrouted, AsyncMock(), check)
+    interaction = make_interaction()
+    await command.callback(interaction)
+    check.assert_awaited_once_with(route)
     interaction.response.send_modal.assert_awaited_once()
     interaction.response.send_message.assert_not_awaited()
 
@@ -130,7 +168,7 @@ async def test_command_refused_when_filing_check_fails(
 ) -> None:
     hook = AsyncMock()
     check = AsyncMock(side_effect=GitHubError("token", 404))
-    command = intake_command(IssueType.BUG, config.target, hook, check)
+    command = intake_command(IssueType.BUG, config.routes, config.unrouted, hook, check)
     interaction = make_interaction()
     with caplog.at_level(logging.INFO):
         await command.callback(interaction)
@@ -155,7 +193,9 @@ async def test_command_refused_when_filing_check_times_out(
     async def never_finishes(_target: TargetConfig) -> None:
         await asyncio.Event().wait()
 
-    command = intake_command(IssueType.FEATURE, config.target, AsyncMock(), never_finishes)
+    command = intake_command(
+        IssueType.FEATURE, config.routes, config.unrouted, AsyncMock(), never_finishes
+    )
     interaction = make_interaction()
     with caplog.at_level(logging.INFO):
         await command.callback(interaction)
@@ -172,7 +212,7 @@ async def test_command_refused_when_filing_check_raises_unexpectedly(
     config: Config, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
     check = AsyncMock(side_effect=ValueError("Secret exception words"))
-    command = intake_command(IssueType.BUG, config.target, AsyncMock(), check)
+    command = intake_command(IssueType.BUG, config.routes, config.unrouted, AsyncMock(), check)
     interaction = make_interaction()
     with caplog.at_level(logging.INFO):
         await command.callback(interaction)
@@ -191,7 +231,7 @@ async def test_command_refused_outside_channel_before_filing_check(
     config: Config, make_interaction: InteractionFactory
 ) -> None:
     check: FilingCheck = AsyncMock()
-    command = intake_command(IssueType.BUG, config.target, AsyncMock(), check)
+    command = intake_command(IssueType.BUG, config.routes, config.unrouted, AsyncMock(), check)
     interaction = make_interaction(channel_id=556)
     await command.callback(interaction)
     interaction.response.send_message.assert_awaited_once_with(INTAKE_REFUSAL, ephemeral=True)
@@ -200,13 +240,13 @@ async def test_command_refused_outside_channel_before_filing_check(
 
 
 async def test_submit_defers_privately_first(
-    config: Config, make_interaction: InteractionFactory
+    route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
     interaction = make_interaction()
     order = Mock()
     order.attach_mock(interaction.response.defer, "defer")
     order.attach_mock(interaction.channel.send, "send")
-    await filled_modal(config, AsyncMock()).on_submit(interaction)
+    await filled_modal(route, AsyncMock()).on_submit(interaction)
     interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
     call_names = [name for name, _args, _kwargs in order.mock_calls]
     assert call_names.index("defer") < call_names.index("send")
@@ -220,10 +260,10 @@ def test_summary_text_escapes_markdown() -> None:
 
 
 async def test_submit_posts_summary_without_pings(
-    config: Config, make_interaction: InteractionFactory
+    route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
     interaction = make_interaction()
-    await filled_modal(config, AsyncMock()).on_submit(interaction)
+    await filled_modal(route, AsyncMock()).on_submit(interaction)
     interaction.channel.send.assert_awaited_once()
     send_call = interaction.channel.send.await_args
     assert send_call.args == (summary_text(IssueType.BUG, "Fix it", "<@7>"),)
@@ -232,12 +272,12 @@ async def test_submit_posts_summary_without_pings(
 
 
 async def test_submit_hands_summary_and_candidate_to_hook(
-    config: Config, make_interaction: InteractionFactory
+    route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
     hook = AsyncMock()
     interaction = make_interaction()
     summary = interaction.channel.send.return_value
-    await filled_modal(config, hook).on_submit(interaction)
+    await filled_modal(route, hook).on_submit(interaction)
     hook.assert_awaited_once()
     awaited_message, candidate = hook.await_args.args
     assert awaited_message is summary
@@ -248,25 +288,25 @@ async def test_submit_hands_summary_and_candidate_to_hook(
     assert candidate.author_id == 7
     assert candidate.message_id == 99
     assert candidate.message_url == summary.jump_url
-    assert candidate.target is config.target
+    assert candidate.target is route
 
 
 async def test_submit_confirms_privately(
-    config: Config, make_interaction: InteractionFactory
+    route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
     interaction = make_interaction()
     summary = interaction.channel.send.return_value
-    await filled_modal(config, AsyncMock()).on_submit(interaction)
+    await filled_modal(route, AsyncMock()).on_submit(interaction)
     interaction.followup.send.assert_awaited_once_with(
         SUBMITTED_REPLY.format(url=summary.jump_url), ephemeral=True
     )
 
 
 async def test_submit_normalizes_title_and_description(
-    config: Config, make_interaction: InteractionFactory
+    route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
     hook = AsyncMock()
-    modal = filled_modal(config, hook, title="  Fix   it \n", description="\n Steps \n more \n")
+    modal = filled_modal(route, hook, title="  Fix   it \n", description="\n Steps \n more \n")
     await modal.on_submit(make_interaction())
     _message, candidate = hook.await_args.args
     assert candidate.title == "Fix it"
@@ -274,16 +314,16 @@ async def test_submit_normalizes_title_and_description(
 
 
 async def test_submit_files_issue_through_filing_hook(
-    config: Config, make_interaction: InteractionFactory
+    route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
     github = fake_github(FiledIssue(7, ISSUE_URL))
     interaction = make_interaction()
     summary = interaction.channel.send.return_value
-    await filled_modal(config, filing_hook(github)).on_submit(interaction)
+    await filled_modal(route, filing_hook(github)).on_submit(interaction)
     summary.create_thread.assert_awaited_once_with(name="Fix it")
     github.create_issue.assert_awaited_once()
     target, title, body, labels = github.create_issue.await_args.args
-    assert target is config.target
+    assert target is route
     assert title == "Fix it"
     assert labels == ["bug"]
     assert body.startswith(
@@ -301,9 +341,9 @@ async def test_submit_files_issue_through_filing_hook(
 
 
 async def test_submit_logs_ids_not_text(
-    config: Config, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+    route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
-    modal = filled_modal(config, AsyncMock(), title="Secret title words", description="Secret body words")
+    modal = filled_modal(route, AsyncMock(), title="Secret title words", description="Secret body words")
     with caplog.at_level(logging.INFO):
         await modal.on_submit(make_interaction())
     messages = intake_messages(caplog, logging.INFO)
@@ -312,24 +352,24 @@ async def test_submit_logs_ids_not_text(
 
 
 async def test_blank_title_files_nothing(
-    config: Config, make_interaction: InteractionFactory
+    route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
     hook = AsyncMock()
     interaction = make_interaction()
-    await filled_modal(config, hook, title="  ...  ").on_submit(interaction)
+    await filled_modal(route, hook, title="  ...  ").on_submit(interaction)
     interaction.channel.send.assert_not_awaited()
     hook.assert_not_awaited()
     interaction.followup.send.assert_awaited_once_with(BLANK_TITLE_REPLY, ephemeral=True)
 
 
 async def test_summary_failure_files_nothing(
-    config: Config, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+    route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
     hook = AsyncMock()
     interaction = make_interaction()
     interaction.channel.send.side_effect = forbidden(50013, "Secret error words")
     with caplog.at_level(logging.INFO):
-        await filled_modal(config, hook).on_submit(interaction)
+        await filled_modal(route, hook).on_submit(interaction)
     hook.assert_not_awaited()
     interaction.followup.send.assert_awaited_once_with(SUMMARY_FAILED_REPLY, ephemeral=True)
     errors = intake_messages(caplog, logging.ERROR)
@@ -341,12 +381,12 @@ async def test_summary_failure_files_nothing(
 
 
 async def test_missing_channel_files_nothing(
-    config: Config, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+    route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
     hook = AsyncMock()
     interaction = make_interaction(channel_id=None)
     with caplog.at_level(logging.INFO):
-        await filled_modal(config, hook).on_submit(interaction)
+        await filled_modal(route, hook).on_submit(interaction)
     hook.assert_not_awaited()
     interaction.followup.send.assert_awaited_once_with(SUMMARY_FAILED_REPLY, ephemeral=True)
     assert intake_messages(caplog, logging.ERROR) == [
@@ -355,12 +395,12 @@ async def test_missing_channel_files_nothing(
 
 
 async def test_followup_failure_logged_without_text(
-    config: Config, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+    route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
     interaction = make_interaction()
     interaction.followup.send.side_effect = forbidden(50001, "Secret error words")
     with caplog.at_level(logging.INFO):
-        await filled_modal(config, AsyncMock()).on_submit(interaction)
+        await filled_modal(route, AsyncMock()).on_submit(interaction)
     assert intake_messages(caplog, logging.ERROR) == [
         "could not send bug reply interaction_id=4242: Forbidden status=403 code=50001"
     ]
@@ -369,11 +409,11 @@ async def test_followup_failure_logged_without_text(
 
 
 async def test_github_error_still_posts_filing_error_reply(
-    config: Config, make_interaction: InteractionFactory
+    route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
     interaction = make_interaction()
     summary = interaction.channel.send.return_value
-    await filled_modal(config, filing_hook(fake_github(GitHubError("issue", 422)))).on_submit(
+    await filled_modal(route, filing_hook(fake_github(GitHubError("issue", 422)))).on_submit(
         interaction
     )
     summary.create_thread.return_value.send.assert_awaited_once_with(
@@ -399,13 +439,13 @@ async def test_github_error_still_posts_filing_error_reply(
     ],
 )
 async def test_modal_on_error_logs_type_only(
-    config: Config,
+    route: TargetConfig,
     make_interaction: InteractionFactory,
     caplog: pytest.LogCaptureFixture,
     error: Exception,
     expected: str,
 ) -> None:
-    modal = IntakeModal(IssueType.BUG, config.target, AsyncMock())
+    modal = IntakeModal(IssueType.BUG, route, AsyncMock())
     with caplog.at_level(logging.INFO):
         await modal.on_error(make_interaction(), error)
     assert intake_messages(caplog, logging.ERROR) == [expected]
@@ -416,9 +456,9 @@ async def test_modal_on_error_logs_type_only(
 
 @pytest.mark.parametrize("is_done", [True, False])
 async def test_modal_on_error_replies_privately(
-    config: Config, make_interaction: InteractionFactory, is_done: bool
+    route: TargetConfig, make_interaction: InteractionFactory, is_done: bool
 ) -> None:
-    modal = IntakeModal(IssueType.BUG, config.target, AsyncMock())
+    modal = IntakeModal(IssueType.BUG, route, AsyncMock())
     interaction = make_interaction()
     interaction.response.is_done.return_value = is_done
     await modal.on_error(interaction, RuntimeError("boom"))
@@ -434,12 +474,12 @@ async def test_modal_on_error_replies_privately(
 
 @pytest.mark.parametrize("is_done", [True, False])
 async def test_modal_on_error_reply_failure_swallowed(
-    config: Config,
+    route: TargetConfig,
     make_interaction: InteractionFactory,
     caplog: pytest.LogCaptureFixture,
     is_done: bool,
 ) -> None:
-    modal = IntakeModal(IssueType.BUG, config.target, AsyncMock())
+    modal = IntakeModal(IssueType.BUG, route, AsyncMock())
     interaction = make_interaction()
     interaction.response.is_done.return_value = is_done
     failing = interaction.followup.send if is_done else interaction.response.send_message
@@ -455,11 +495,11 @@ async def test_modal_on_error_reply_failure_swallowed(
 
 
 async def test_modal_on_error_reply_non_http_failure_swallowed(
-    config: Config,
+    route: TargetConfig,
     make_interaction: InteractionFactory,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    modal = IntakeModal(IssueType.BUG, config.target, AsyncMock())
+    modal = IntakeModal(IssueType.BUG, route, AsyncMock())
     interaction = make_interaction()
     interaction.response.send_message.side_effect = RuntimeError("Secret exception words")
     with caplog.at_level(logging.INFO):

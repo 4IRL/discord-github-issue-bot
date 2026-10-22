@@ -116,27 +116,35 @@ def github_private_key(github_private_key_pem: Path) -> rsa.RSAPrivateKey:
 
 
 @pytest.fixture
-def test_env(github_private_key_pem: Path) -> dict[str, str]:
+def routes_file(tmp_path: Path) -> Path:
+    """The one-route test route file, written under pytest's temp directory."""
+    return write_routes(tmp_path, ONE_ROUTE_TOML)
+
+
+@pytest.fixture
+def test_env(github_private_key_pem: Path, routes_file: Path) -> dict[str, str]:
     """A fresh environment with neutral values for every required config key."""
     return {
         "DISCORD_TOKEN": "test-token",
         "DISCORD_GUILD_ID": "111",
+        "UNROUTED_COMMANDS": "refuse",
+        "GITHUB_ORG": "example-org",
         "GITHUB_APP_ID": "333",
         "GITHUB_APP_INSTALLATION_ID": "444",
         "GITHUB_APP_PRIVATE_KEY_PATH": str(github_private_key_pem),
-        "DISCORD_CHANNEL_ID": "555",
-        "DISCORD_CHANNEL_NAME": "intake",
-        "DISCORD_CATEGORY": "Intake",
-        "GITHUB_REPO": "example-org/example-repo",
-        "GITHUB_REPO_ID": "222",
-        "GITHUB_LABEL_BUG": "bug",
-        "GITHUB_LABEL_FEATURE": "enhancement",
+        "ROUTES_PATH": str(routes_file),
     }
 
 
 @pytest.fixture
 def config(test_env: dict[str, str]) -> Config:
     return Config.from_env(test_env)
+
+
+@pytest.fixture
+def route(config: Config) -> TargetConfig:
+    """The test config's only route."""
+    return next(iter(config.routes.values()))
 
 
 MessageFactory = Callable[..., SimpleNamespace]
@@ -171,8 +179,8 @@ def make_message() -> MessageFactory:
 
 
 @pytest.fixture
-def make_candidate(config: Config) -> CandidateFactory:
-    """Build an ``IssueCandidate`` for a report; ``target`` defaults to the test config's."""
+def make_candidate(route: TargetConfig) -> CandidateFactory:
+    """Build an ``IssueCandidate`` for a report; ``target`` defaults to the test config's route."""
 
     def factory(
         *,
@@ -193,7 +201,7 @@ def make_candidate(config: Config) -> CandidateFactory:
             author_name=author_name,
             message_id=message_id,
             message_url=message_url,
-            target=target or config.target,
+            target=target or route,
         )
 
     return factory

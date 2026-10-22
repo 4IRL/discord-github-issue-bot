@@ -7,12 +7,12 @@ type, HTTP status and Discord error code.
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 
 import discord
 from discord import app_commands
 
-from issue_bot.config import TargetConfig
+from issue_bot.config import TargetConfig, UnroutedCommands
 from issue_bot.github import GitHubError
 from issue_bot.handler import IssueCandidate, candidate_from_submission
 from issue_bot.issue_type import IssueType
@@ -179,11 +179,14 @@ class IntakeModal(discord.ui.Modal):
 
 def intake_command(
     issue_type: IssueType,
-    target: TargetConfig,
+    routes: Mapping[int, TargetConfig],
+    unrouted: UnroutedCommands,
     on_candidate: CandidateHook,
     filing_check: FilingCheck | None = None,
 ) -> app_commands.Command:
-    """Return the slash command that opens the report modal in the intake channel only.
+    """Return the slash command that opens the report modal in a routed intake channel.
+
+    Elsewhere it refuses privately or, with ``UnroutedCommands.IGNORE``, stays silent.
 
     When ``filing_check`` is set, it must pass within ``FILING_CHECK_TIMEOUT`` before the
     modal opens; otherwise the member gets ``FILING_UNAVAILABLE_REPLY`` privately.
@@ -191,7 +194,17 @@ def intake_command(
 
     # A closure: Command needs a real function, and functools.partial has no __globals__.
     async def report(interaction: discord.Interaction) -> None:
-        if interaction.channel_id != target.channel_id:
+        target = routes.get(interaction.channel_id)
+        if target is None and unrouted is UnroutedCommands.IGNORE:
+            # Another instance on this bot token may own the channel; any reply here would race it.
+            logger.info(
+                "ignored %s outside this instance's routes interaction_id=%s channel_id=%s",
+                issue_type,
+                interaction.id,
+                interaction.channel_id,
+            )
+            return
+        if target is None:
             logger.info(
                 "refused %s outside the intake channel interaction_id=%s channel_id=%s",
                 issue_type,

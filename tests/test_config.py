@@ -1,3 +1,4 @@
+import dataclasses
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -5,50 +6,42 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
-from issue_bot.config import Config, ConfigError, TargetConfig, load_routes
+from issue_bot.config import Config, ConfigError, TargetConfig, UnroutedCommands, load_routes
 from issue_bot.issue_type import IssueType
 from tests.conftest import ONE_ROUTE_TOML, TWO_ROUTE_TOML, write_routes
 
 ALL_KEYS = [
     "DISCORD_TOKEN",
     "DISCORD_GUILD_ID",
+    "UNROUTED_COMMANDS",
+    "GITHUB_ORG",
     "GITHUB_APP_ID",
     "GITHUB_APP_INSTALLATION_ID",
     "GITHUB_APP_PRIVATE_KEY_PATH",
-    "DISCORD_CHANNEL_ID",
-    "DISCORD_CHANNEL_NAME",
-    "DISCORD_CATEGORY",
-    "GITHUB_REPO",
-    "GITHUB_REPO_ID",
-    "GITHUB_LABEL_BUG",
-    "GITHUB_LABEL_FEATURE",
+    "ROUTES_PATH",
 ]
-ID_KEYS = [
-    "DISCORD_GUILD_ID",
-    "GITHUB_APP_ID",
-    "GITHUB_APP_INSTALLATION_ID",
-    "DISCORD_CHANNEL_ID",
-    "GITHUB_REPO_ID",
-]
+ID_KEYS = ["DISCORD_GUILD_ID", "GITHUB_APP_ID", "GITHUB_APP_INSTALLATION_ID"]
 PRIVATE_KEY_ERROR = "GITHUB_APP_PRIVATE_KEY_PATH must name a readable RSA private key"
 
 
 def test_full_env_loads(test_env: dict[str, str]) -> None:
     config = Config.from_env(test_env)
     assert config.guild_id == 111
+    assert config.unrouted is UnroutedCommands.REFUSE
+    assert config.github_org == "example-org"
     assert config.github_app_id == 333
     assert config.github_installation_id == 444
     assert isinstance(config.github_private_key, rsa.RSAPrivateKey)
-    assert isinstance(config.target, TargetConfig)
-    assert config.target.channel_id == 555
-    assert config.target.channel_name == "intake"
-    assert config.target.category == "Intake"
-    assert config.target.github_repo == "example-org/example-repo"
-    assert config.target.github_repo_id == 222
-    assert dict(config.target.labels) == {
-        IssueType.BUG: "bug",
-        IssueType.FEATURE: "enhancement",
-    }
+    assert list(config.routes) == [555]
+    assert config.routes[555] == TargetConfig(
+        name="intake",
+        channel_id=555,
+        channel_name="intake",
+        category="Intake",
+        github_repo="example-org/example-repo",
+        github_repo_id=222,
+        labels={IssueType.BUG: "bug", IssueType.FEATURE: "enhancement"},
+    )
 
 
 @pytest.mark.parametrize("key", ALL_KEYS)
@@ -71,10 +64,10 @@ def test_first_missing_key_in_order_is_reported(
 
 
 def test_blank_value_counts_as_missing(test_env: dict[str, str]) -> None:
-    test_env["DISCORD_CHANNEL_NAME"] = "  "
+    test_env["GITHUB_ORG"] = "  "
     with pytest.raises(ConfigError) as excinfo:
         Config.from_env(test_env)
-    assert str(excinfo.value) == "DISCORD_CHANNEL_NAME is required"
+    assert str(excinfo.value) == "GITHUB_ORG is required"
 
 
 @pytest.mark.parametrize("value", ["abc", "١٢٣", "+5", "1_000", "9" * 5000])
@@ -87,9 +80,9 @@ def test_non_integer_id_raises(test_env: dict[str, str], key: str, value: str) -
 
 
 def test_padded_id_is_stripped(test_env: dict[str, str]) -> None:
-    test_env["DISCORD_CHANNEL_ID"] = " 555 "
+    test_env["DISCORD_GUILD_ID"] = " 111 "
     config = Config.from_env(test_env)
-    assert config.target.channel_id == 555
+    assert config.guild_id == 111
 
 
 @pytest.mark.parametrize("value", ["0", "-5"])
@@ -101,14 +94,50 @@ def test_non_positive_id_raises(test_env: dict[str, str], key: str, value: str) 
     assert str(excinfo.value) == f"{key} must be a positive integer"
 
 
-@pytest.mark.parametrize(
-    "repo", ["noslash", "a/b/c", "own er/repo", "../..", "./x", "a/..", "../x"]
-)
-def test_bad_repo_format(test_env: dict[str, str], repo: str) -> None:
-    test_env["GITHUB_REPO"] = repo
+@pytest.mark.parametrize("value", ["silent", "Refuse"])
+def test_bad_unrouted_commands_raises(test_env: dict[str, str], value: str) -> None:
+    test_env["UNROUTED_COMMANDS"] = value
     with pytest.raises(ConfigError) as excinfo:
         Config.from_env(test_env)
-    assert str(excinfo.value) == "GITHUB_REPO must be owner/name"
+    assert str(excinfo.value) == "UNROUTED_COMMANDS must be refuse or ignore"
+
+
+def test_padded_unrouted_commands_loads(test_env: dict[str, str]) -> None:
+    test_env["UNROUTED_COMMANDS"] = " ignore "
+    assert Config.from_env(test_env).unrouted is UnroutedCommands.IGNORE
+
+
+@pytest.mark.parametrize("value", ["a/b", ".."])
+def test_bad_github_org_raises(test_env: dict[str, str], value: str) -> None:
+    test_env["GITHUB_ORG"] = value
+    with pytest.raises(ConfigError) as excinfo:
+        Config.from_env(test_env)
+    assert str(excinfo.value) == "GITHUB_ORG must be an owner name"
+
+
+def test_route_repo_outside_github_org_raises(test_env: dict[str, str], tmp_path: Path) -> None:
+    path = write_routes(
+        tmp_path / "foreign",
+        ONE_ROUTE_TOML.replace("example-org/example-repo", "other-org/example-repo"),
+    )
+    test_env["ROUTES_PATH"] = str(path)
+    with pytest.raises(ConfigError) as excinfo:
+        Config.from_env(test_env)
+    assert str(excinfo.value) == "routes.intake.repo must be in GITHUB_ORG"
+
+
+def test_config_routes_read_only(config: Config, route: TargetConfig) -> None:
+    with pytest.raises(TypeError):
+        config.routes[556] = route  # type: ignore[index]
+
+
+def test_direct_construction_makes_routes_read_only(config: Config, route: TargetConfig) -> None:
+    routes = {555: route}
+    direct = dataclasses.replace(config, routes=routes)
+    routes[556] = route
+    assert list(direct.routes) == [555]
+    with pytest.raises(TypeError):
+        direct.routes[556] = route  # type: ignore[index]
 
 
 def test_token_not_in_repr(test_env: dict[str, str]) -> None:
@@ -194,9 +223,9 @@ def test_private_key_encrypted_raises(
     load_with_key_file(test_env, key_path)
 
 
-def test_labels_read_only(config: Config) -> None:
+def test_labels_read_only(route: TargetConfig) -> None:
     with pytest.raises(TypeError):
-        config.target.labels[IssueType.BUG] = "x"  # type: ignore[index]
+        route.labels[IssueType.BUG] = "x"  # type: ignore[index]
 
 
 def make_target(labels: dict[IssueType, str]) -> TargetConfig:

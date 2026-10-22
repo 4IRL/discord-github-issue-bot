@@ -8,7 +8,7 @@ import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from issue_bot.config import Config
+from issue_bot.config import TargetConfig
 from issue_bot.github import FiledIssue, GitHubClient, GitHubError, Transport, app_jwt
 
 TOKEN_URL = "https://api.github.com/app/installations/444/access_tokens"
@@ -34,17 +34,17 @@ def issue_response() -> tuple[int, dict[str, Any]]:
     return 201, {"number": 7, "html_url": HTML_URL}
 
 
-async def create(client: GitHubClient, config: Config) -> FiledIssue:
-    return await client.create_issue(config.target, "Title", "Body", ["bug"])
+async def create(client: GitHubClient, route: TargetConfig) -> FiledIssue:
+    return await client.create_issue(route, "Title", "Body", ["bug"])
 
 
 async def test_create_issue_success(
-    github_private_key: rsa.RSAPrivateKey, config: Config
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     transport = AsyncMock(side_effect=[token_response(), issue_response()])
     client = make_client(github_private_key, transport)
 
-    result = await client.create_issue(config.target, "Title", "Body", ["bug"])
+    result = await client.create_issue(route, "Title", "Body", ["bug"])
 
     assert result == FiledIssue(7, HTML_URL)
     assert transport.await_count == 2
@@ -86,13 +86,13 @@ def test_app_jwt_claims(github_private_key: rsa.RSAPrivateKey) -> None:
 
 
 async def test_token_reused_until_near_expiry(
-    github_private_key: rsa.RSAPrivateKey, config: Config
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     transport = AsyncMock(side_effect=[token_response(), issue_response(), issue_response()])
     client = make_client(github_private_key, transport, clock=lambda: EXPIRES_AT_EPOCH - 301)
 
-    await create(client, config)
-    await create(client, config)
+    await create(client, route)
+    await create(client, route)
 
     assert transport.await_count == 3
     assert [call.args[1] for call in transport.call_args_list] == [
@@ -103,7 +103,7 @@ async def test_token_reused_until_near_expiry(
 
 
 async def test_token_refreshed_near_expiry(
-    github_private_key: rsa.RSAPrivateKey, config: Config
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     transport = AsyncMock(
         side_effect=[token_response(), issue_response(), token_response(), issue_response()]
@@ -111,9 +111,9 @@ async def test_token_refreshed_near_expiry(
     now = [EXPIRES_AT_EPOCH - 3600]
     client = make_client(github_private_key, transport, clock=lambda: now[0])
 
-    await create(client, config)
+    await create(client, route)
     now[0] = EXPIRES_AT_EPOCH - 299
-    await create(client, config)
+    await create(client, route)
 
     assert transport.await_count == 4
     assert [call.args[1] for call in transport.call_args_list] == [
@@ -125,13 +125,13 @@ async def test_token_refreshed_near_expiry(
 
 
 async def test_token_request_401_raises(
-    github_private_key: rsa.RSAPrivateKey, config: Config
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     transport = AsyncMock(return_value=(401, {"message": "Secret error words"}))
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
-        await create(client, config)
+        await create(client, route)
 
     assert exc_info.value.stage == "token"
     assert exc_info.value.status == 401
@@ -140,14 +140,14 @@ async def test_token_request_401_raises(
 
 @pytest.mark.parametrize("status", [403, 404, 410, 422, 500, 502])
 async def test_issue_request_error_raises_without_text(
-    github_private_key: rsa.RSAPrivateKey, config: Config, status: int
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig, status: int
 ) -> None:
     error_body = {"message": "Validation Failed", "errors": [{"value": "Secret title words"}]}
     transport = AsyncMock(side_effect=[token_response(), (status, error_body)])
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
-        await create(client, config)
+        await create(client, route)
 
     exc = exc_info.value
     assert exc.stage == "issue"
@@ -158,7 +158,7 @@ async def test_issue_request_error_raises_without_text(
 
 
 async def test_issue_request_401_drops_cached_token(
-    github_private_key: rsa.RSAPrivateKey, config: Config
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     transport = AsyncMock(
         side_effect=[token_response(), (401, None), token_response(), issue_response()]
@@ -166,9 +166,9 @@ async def test_issue_request_401_drops_cached_token(
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
-        await create(client, config)
+        await create(client, route)
     assert (exc_info.value.stage, exc_info.value.status) == ("issue", 401)
-    assert await create(client, config) == FiledIssue(7, HTML_URL)
+    assert await create(client, route) == FiledIssue(7, HTML_URL)
 
     assert [call.args[1] for call in transport.call_args_list] == [
         TOKEN_URL,
@@ -179,14 +179,14 @@ async def test_issue_request_401_drops_cached_token(
 
 
 async def test_issue_request_404_keeps_cached_token(
-    github_private_key: rsa.RSAPrivateKey, config: Config
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     transport = AsyncMock(side_effect=[token_response(), (404, None), issue_response()])
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError):
-        await create(client, config)
-    assert await create(client, config) == FiledIssue(7, HTML_URL)
+        await create(client, route)
+    assert await create(client, route) == FiledIssue(7, HTML_URL)
 
     assert [call.args[1] for call in transport.call_args_list] == [
         TOKEN_URL,
@@ -206,13 +206,13 @@ async def test_issue_request_404_keeps_cached_token(
     ],
 )
 async def test_bad_token_shape_raises(
-    github_private_key: rsa.RSAPrivateKey, config: Config, response: tuple[int, Any]
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig, response: tuple[int, Any]
 ) -> None:
     transport = AsyncMock(return_value=response)
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
-        await create(client, config)
+        await create(client, route)
 
     exc = exc_info.value
     assert exc.stage == "token"
@@ -228,13 +228,13 @@ async def test_bad_token_shape_raises(
 )
 @pytest.mark.parametrize("stage", ["token", "issue"])
 async def test_transport_error_raises_status_none(
-    github_private_key: rsa.RSAPrivateKey, config: Config, error: Exception, stage: str
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig, error: Exception, stage: str
 ) -> None:
     side_effect = error if stage == "token" else [token_response(), error]
     client = make_client(github_private_key, AsyncMock(side_effect=side_effect))
 
     with pytest.raises(GitHubError) as exc_info:
-        await create(client, config)
+        await create(client, route)
 
     exc = exc_info.value
     assert exc.stage == stage
@@ -255,24 +255,24 @@ async def test_transport_error_raises_status_none(
     ],
 )
 async def test_bad_success_shape_raises(
-    github_private_key: rsa.RSAPrivateKey, config: Config, response: tuple[int, Any]
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig, response: tuple[int, Any]
 ) -> None:
     transport = AsyncMock(side_effect=[token_response(), response])
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
-        await create(client, config)
+        await create(client, route)
 
     assert exc_info.value.stage == "issue"
     assert exc_info.value.status == 201
 
 
 async def test_client_repr_hides_secrets(
-    github_private_key: rsa.RSAPrivateKey, config: Config
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     transport = AsyncMock(side_effect=[token_response(), issue_response()])
     client = make_client(github_private_key, transport)
-    await create(client, config)
+    await create(client, route)
 
     text = repr(client)
     assert text == "GitHubClient(app_id=333, installation_id=444)"
@@ -282,21 +282,21 @@ async def test_client_repr_hides_secrets(
 
 
 async def test_default_transport_is_guarded(
-    github_private_key: rsa.RSAPrivateKey, config: Config
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     client = GitHubClient(333, 444, github_private_key)
 
     with pytest.raises(AssertionError, match="live GitHub call in a test"):
-        await create(client, config)
+        await create(client, route)
 
 
 async def test_check_access_mints_a_token(
-    github_private_key: rsa.RSAPrivateKey, config: Config
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     transport = AsyncMock(side_effect=[token_response()])
     client = make_client(github_private_key, transport)
 
-    await client.check_access(config.target)
+    await client.check_access(route)
 
     assert transport.await_count == 1
     method, url, _headers, payload = transport.call_args.args
@@ -305,37 +305,37 @@ async def test_check_access_mints_a_token(
 
 
 async def test_check_access_reuses_cached_token(
-    github_private_key: rsa.RSAPrivateKey, config: Config
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     transport = AsyncMock(side_effect=[token_response()])
     client = make_client(github_private_key, transport, clock=lambda: EXPIRES_AT_EPOCH - 301)
 
-    await client.check_access(config.target)
-    await client.check_access(config.target)
+    await client.check_access(route)
+    await client.check_access(route)
 
     assert transport.await_count == 1
 
 
 async def test_check_access_token_error_raises(
-    github_private_key: rsa.RSAPrivateKey, config: Config
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     transport = AsyncMock(return_value=(404, {"message": "Secret error words"}))
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
-        await client.check_access(config.target)
+        await client.check_access(route)
 
     assert (exc_info.value.stage, exc_info.value.status) == ("token", 404)
     assert "Secret error words" not in str(exc_info.value)
 
 
 async def test_check_access_transport_error_raises_status_none(
-    github_private_key: rsa.RSAPrivateKey, config: Config
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     transport = AsyncMock(side_effect=aiohttp.ClientConnectionError("Secret error words"))
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
-        await client.check_access(config.target)
+        await client.check_access(route)
 
     assert (exc_info.value.stage, exc_info.value.status) == ("token", None)

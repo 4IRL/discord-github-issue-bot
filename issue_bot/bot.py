@@ -7,7 +7,7 @@ from typing import Any
 import discord
 from discord import app_commands
 
-from issue_bot.config import Config
+from issue_bot.config import Config, TargetConfig
 from issue_bot.github import GitHubClient, GitHubError
 from issue_bot.handler import IssueCandidate
 from issue_bot.intake import (
@@ -31,25 +31,21 @@ def build_intents() -> discord.Intents:
     return intents
 
 
-def channel_problems(channel: Any, config: Config) -> list[str]:
-    """Describe how the resolved intake channel differs from the configuration."""
+def channel_problems(channel: Any, route: TargetConfig, guild_id: int) -> list[str]:
+    """Describe how a route's resolved intake channel differs from its configuration."""
     if channel is None:
-        return [f"channel {config.target.channel_id} not found or not visible to the bot"]
+        return [f"channel {route.channel_id} not found or not visible to the bot"]
     guild = getattr(channel, "guild", None)
     if guild is None:
-        return [f"channel {channel.id} is not in a guild, expected guild {config.guild_id}"]
+        return [f"channel {channel.id} is not in a guild, expected guild {guild_id}"]
     problems: list[str] = []
-    if guild.id != config.guild_id:
-        problems.append(
-            f"channel {channel.id} is in guild {guild.id}, expected {config.guild_id}"
-        )
-    if channel.name != config.target.channel_name:
-        problems.append(
-            f"channel name is {channel.name!r}, expected {config.target.channel_name!r}"
-        )
+    if guild.id != guild_id:
+        problems.append(f"channel {channel.id} is in guild {guild.id}, expected {guild_id}")
+    if channel.name != route.channel_name:
+        problems.append(f"channel name is {channel.name!r}, expected {route.channel_name!r}")
     actual = channel.category.name if channel.category else None
-    if actual != config.target.category:
-        problems.append(f"channel category is {actual!r}, expected {config.target.category!r}")
+    if actual != route.category:
+        problems.append(f"channel category is {actual!r}, expected {route.category!r}")
     return problems
 
 
@@ -155,7 +151,7 @@ class IntakeTree(app_commands.CommandTree):
 class IssueBot(discord.Client):
     """Registers ``/bug`` and ``/feature`` in the configured guild.
 
-    Each submitted report is posted as a public summary message in the intake channel, and
+    Each submitted report is posted as a public summary message in the route's intake channel, and
     that message and its candidate go to ``on_candidate`` (default: open its thread).
     ``filing_check``, when set, guards each command before its modal opens and runs once
     at startup. Production wires ``filing_hook`` as ``on_candidate`` and
@@ -178,7 +174,13 @@ class IssueBot(discord.Client):
         for issue_type in IssueType:
             # Always pass guild=: without it the command would be global.
             self.tree.add_command(
-                intake_command(issue_type, config.target, self.on_candidate, self.filing_check),
+                intake_command(
+                    issue_type,
+                    config.routes,
+                    config.unrouted,
+                    self.on_candidate,
+                    self.filing_check,
+                ),
                 guild=self._guild,
             )
 
@@ -217,28 +219,29 @@ class IssueBot(discord.Client):
     async def _check_github_access(self) -> None:
         if self.filing_check is None:
             return
-        repo_id = self.config.target.github_repo_id
-        try:
-            await self.filing_check(self.config.target)
-        except GitHubError as exc:
-            logger.error(
-                "github access check failed for repo_id=%s: %s stage=%s status=%s",
-                repo_id,
-                type(exc).__name__,
-                exc.stage,
-                exc.status,
-            )
-            return
-        except Exception as exc:
-            # A key or JWT failure must not stop the bot or log a traceback.
-            logger.error(
-                "github access check failed for repo_id=%s: %s", repo_id, type(exc).__name__
-            )
-            return
-        logger.info("github access ok for repo_id=%s", repo_id)
+        for route in self.config.routes.values():
+            repo_id = route.github_repo_id
+            try:
+                await self.filing_check(route)
+            except GitHubError as exc:
+                logger.error(
+                    "github access check failed for repo_id=%s: %s stage=%s status=%s",
+                    repo_id,
+                    type(exc).__name__,
+                    exc.stage,
+                    exc.status,
+                )
+                continue
+            except Exception as exc:
+                # A key or JWT failure must not stop the bot or log a traceback.
+                logger.error(
+                    "github access check failed for repo_id=%s: %s", repo_id, type(exc).__name__
+                )
+                continue
+            logger.info("github access ok for repo_id=%s", repo_id)
 
     async def on_ready(self) -> None:
-        """Check the intake channel once: on_ready fires again after each Gateway reconnect.
+        """Check each route's intake channel once: on_ready fires again after each Gateway reconnect.
 
         The flag is set before the check, so a check that raises is logged once and not retried.
         """
@@ -246,11 +249,12 @@ class IssueBot(discord.Client):
             return
         self._startup_checked = True
         logger.info("connected as %s", self.user)
-        channel = self.get_channel(self.config.target.channel_id)
-        # A missing channel leaves the bot unable to work; a mismatched one still works.
-        log_problem = logger.error if channel is None else logger.warning
-        for problem in channel_problems(channel, self.config):
-            log_problem("%s", problem)
+        for route in self.config.routes.values():
+            channel = self.get_channel(route.channel_id)
+            # A missing channel leaves the route unable to work; a mismatched one still works.
+            log_problem = logger.error if channel is None else logger.warning
+            for problem in channel_problems(channel, route, self.config.guild_id):
+                log_problem("%s", problem)
 
     async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:
         """Log the exception type and event name only: tracebacks and args can quote member text."""

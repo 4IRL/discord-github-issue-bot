@@ -1,7 +1,8 @@
-"""Load the bot's configuration from environment variables.
+"""Load the bot's configuration.
 
-Every key is required and nothing has a default in code: the deployment's
-values live in its environment (see ``example.env``).
+Instance-wide settings and secrets come from the environment, and the routes
+come from the TOML file at ``ROUTES_PATH``. Every key is required and nothing
+has a default in code.
 """
 
 from __future__ import annotations
@@ -56,6 +57,13 @@ def _positive_int(env: Mapping[str, str], key: str) -> int:
     return number
 
 
+def _owner(env: Mapping[str, str], key: str) -> str:
+    owner = _required(env, key)
+    if not OWNER_PATTERN.fullmatch(owner) or owner in DOT_SEGMENTS:
+        raise ConfigError(f"{key} must be an owner name")
+    return owner
+
+
 def _rsa_private_key(env: Mapping[str, str], key: str) -> RSAPrivateKey:
     path = _required(env, key)
     # The error names the key only: no path, no file contents, no library text.
@@ -80,6 +88,13 @@ class UnroutedCommands(StrEnum):
     IGNORE = "ignore"
 
 
+def _unrouted(env: Mapping[str, str], key: str) -> UnroutedCommands:
+    try:
+        return UnroutedCommands(_required(env, key))
+    except ValueError:
+        raise ConfigError(f"{key} must be refuse or ignore") from None
+
+
 @dataclass(frozen=True)
 class TargetConfig:
     """One route: an intake channel and the GitHub repo its issues go to."""
@@ -97,31 +112,6 @@ class TargetConfig:
             raise ConfigError("labels must have one entry per IssueType")
         # Copy before wrapping, so a caller's dict can't change the labels later.
         object.__setattr__(self, "labels", MappingProxyType(dict(self.labels)))
-
-    @classmethod
-    def from_env(cls, env: Mapping[str, str]) -> TargetConfig:
-        # Keys are read in order, so the first bad one is reported; the
-        # values ahead of the repo check stay locals to keep that order.
-        channel_id = _positive_int(env, "DISCORD_CHANNEL_ID")
-        channel_name = _required(env, "DISCORD_CHANNEL_NAME")
-        category = _required(env, "DISCORD_CATEGORY")
-        github_repo = _required(env, "GITHUB_REPO")
-        if not REPO_PATTERN.fullmatch(github_repo) or any(
-            segment in DOT_SEGMENTS for segment in github_repo.split("/")
-        ):
-            raise ConfigError("GITHUB_REPO must be owner/name")
-        return cls(
-            name="env",
-            channel_id=channel_id,
-            channel_name=channel_name,
-            category=category,
-            github_repo=github_repo,
-            github_repo_id=_positive_int(env, "GITHUB_REPO_ID"),
-            labels={
-                issue_type: _required(env, f"GITHUB_LABEL_{issue_type.name}")
-                for issue_type in IssueType
-            },
-        )
 
 
 def _route_value(route: Mapping[str, object], where: str, key: str) -> object:
@@ -229,22 +219,35 @@ def load_routes(path: str, org: str) -> Mapping[int, TargetConfig]:
 
 @dataclass(frozen=True)
 class Config:
-    """Instance-wide settings plus the target route."""
+    """Instance-wide settings plus the routes, keyed by intake channel id."""
 
     discord_token: str = field(repr=False)
     guild_id: int
+    unrouted: UnroutedCommands
+    github_org: str
     github_app_id: int
     github_installation_id: int
     github_private_key: RSAPrivateKey = field(repr=False)
-    target: TargetConfig
+    routes: Mapping[int, TargetConfig]
+
+    def __post_init__(self) -> None:
+        # Copy before wrapping (dict() keeps file order), so the routes stay read-only.
+        object.__setattr__(self, "routes", MappingProxyType(dict(self.routes)))
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> Config:
+        # Keys are read in order, so the first bad one is reported.
+        discord_token = _required(env, "DISCORD_TOKEN")
+        guild_id = _positive_int(env, "DISCORD_GUILD_ID")
+        unrouted = _unrouted(env, "UNROUTED_COMMANDS")
+        github_org = _owner(env, "GITHUB_ORG")
         return cls(
-            discord_token=_required(env, "DISCORD_TOKEN"),
-            guild_id=_positive_int(env, "DISCORD_GUILD_ID"),
+            discord_token=discord_token,
+            guild_id=guild_id,
+            unrouted=unrouted,
+            github_org=github_org,
             github_app_id=_positive_int(env, "GITHUB_APP_ID"),
             github_installation_id=_positive_int(env, "GITHUB_APP_INSTALLATION_ID"),
             github_private_key=_rsa_private_key(env, "GITHUB_APP_PRIVATE_KEY_PATH"),
-            target=TargetConfig.from_env(env),
+            routes=load_routes(_required(env, "ROUTES_PATH"), github_org),
         )
