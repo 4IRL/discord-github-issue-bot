@@ -446,7 +446,7 @@ Give the 4irl values their new config home and document the single-process route
 the shared-token multi-container mode.
 
 **To-do:**
-- [ ] **Red: drift tests** in `tests/test_config.py`, reading files relative to the repo root
+- [x] **Red: drift tests** (2026-10-22) in `tests/test_config.py`, reading files relative to the repo root
       via `Path(__file__).resolve().parent.parent`:
   - `test_example_env_lists_every_key`: the `KEY` of every non-comment, non-blank `KEY=…` line
     in `example.env` equals `set(ALL_KEYS)`.
@@ -457,9 +457,9 @@ the shared-token multi-container mode.
   - Imports: add `import tomllib` to the file's stdlib group, and make its `issue_bot.config`
     import `ROUTE_KEYS, Config, ConfigError, TargetConfig, UnroutedCommands, load_routes`
     (constants, classes, functions, as the other test files order them).
-- [ ] Run `.venv/bin/pytest tests/test_config.py -k example_` and confirm both fail:
+- [x] Run `.venv/bin/pytest tests/test_config.py -k example_` and confirm both fail (2026-10-22: 2 failed, an AssertionError and a FileNotFoundError):
       `example.env` still has the old keys, and `example.routes.toml` doesn't exist.
-- [ ] **Green: `example.env`.** Drop the `# Target: …` section and its seven keys. Under
+- [x] **Green: `example.env`.** (2026-10-22) Drop the `# Target: …` section and its seven keys. Under
       `# Instance-wide`, add these, each with a one-line how-to comment in the file's style:
   - `UNROUTED_COMMANDS=refuse`, commented "refuse: a command outside the routes gets a
     private refusal; ignore: no reply (every container sharing a bot token, see README)".
@@ -468,7 +468,7 @@ the shared-token multi-container mode.
 
   Under `# GitHub App (instance-wide)`, add `GITHUB_ORG=4IRL`, commented "The org the App is
   installed in; every route's repo must be in it".
-- [ ] **Green: `example.routes.toml`** (new, committed, secret-free). A header comment
+- [x] **Green: `example.routes.toml`** (2026-10-22) (new, committed, secret-free). A header comment
       explains: copy it outside the repo, one `[routes.<name>]` table per intake channel,
       lowercase names that later per-route settings key off, read once at startup, and
       restart after a change. Then one route, `[routes.c4i]`:
@@ -484,8 +484,8 @@ the shared-token multi-container mode.
   comment line, "# All config arrives through the environment at run time.", to
   "# All config arrives at run time: the environment, plus the route file mounted at
   ROUTES_PATH." (one line).
-- [ ] Run `.venv/bin/pytest` and confirm green.
-- [ ] **`README.md`.**
+- [x] Run `.venv/bin/pytest` and confirm green. (2026-10-22: 270 passed)
+- [x] **`README.md`.** (2026-10-22)
   - Intro paragraph ("made through a modal in a configured intake channel … in a configured
     repo"): one intake channel per route, each report filed in that route's repo.
   - The "The code itself is target-agnostic" paragraph: the 4irl values' config home is
@@ -545,7 +545,7 @@ the shared-token multi-container mode.
     - Close with: "One process can also serve several channels from one route file, which is
       the simpler setup."
   - § Known limits: add "Route file changes need a restart."
-- [ ] **`docs/SMOKE-TEST.md`.**
+- [x] **`docs/SMOKE-TEST.md`.** (2026-10-22; locator one-liner run: outputs as documented)
   - §0 "`.env` for a local run" block: replace the five target lines with `GITHUB_ORG=4IRL`,
     `UNROUTED_COMMANDS=refuse` and
     `ROUTES_PATH=/home/<you>/.config/discord-github-issue-bot/routes.smoke.toml`, plus a
@@ -580,20 +580,24 @@ the shared-token multi-container mode.
     Note that a file saved with a UTF-8 BOM fails at line 1, column 1
     (`TOMLDecodeError: Invalid statement (at line 1, column 1)`): re-save it as UTF-8 without
     a BOM.
-- [ ] **`CLAUDE.md`**, the "Identifiers are config, not code" rule: "their config home is
+- [x] **`CLAUDE.md`** (2026-10-22), the "Identifiers are config, not code" rule: "their config home is
       `example.env`" becomes "their config homes
       are `example.env` and `example.routes.toml`". In the opening sentence, "in a configured
       intake channel of a Discord server, into fleshed-out GitHub issues in a configured repo
       of the 4IRL GitHub org" becomes "in one of its configured intake channels of a Discord
       server, into fleshed-out GitHub issues in that channel's route repo in the 4IRL GitHub
       org". Leave everything else unchanged.
-- [ ] Confirm `grep -nE 'DISCORD_CHANNEL_ID|DISCORD_CHANNEL_NAME|DISCORD_CATEGORY|GITHUB_REPO\b|GITHUB_REPO_ID|GITHUB_LABEL_' README.md docs/SMOKE-TEST.md example.env CLAUDE.md`
+- [x] Confirm `grep -nE 'DISCORD_CHANNEL_ID|DISCORD_CHANNEL_NAME|DISCORD_CATEGORY|GITHUB_REPO\b|GITHUB_REPO_ID|GITHUB_LABEL_' README.md docs/SMOKE-TEST.md example.env CLAUDE.md`
       prints nothing (no output; grep exits 1, which is the pass). Then confirm the new
       passages landed (each exits 0): `grep -n '^### Run several instances' README.md`
       prints the heading line; `grep -l ':/run/config/routes.toml:ro' README.md docs/SMOKE-TEST.md`
       lists both files; `grep -l 'example.routes.toml' CLAUDE.md .dockerignore` lists both
       files (in any order). A file missing from a `grep -l` listing is a missed edit, even
-      though grep still exits 0 when the other file matches.
+      though grep still exits 0 when the other file matches. (2026-10-22: stale-key grep exit 1;
+      heading found; both `grep -l` listings name both files. Review fixes: the README route-file
+      copy uses `install -m 0644` so uid 10001 can read it, the route-name rule says "starting
+      with a letter or digit", and the `example.env` drift test also rejects duplicate keys and
+      lines without `=`; 270 passed.)
 
 ### 5. Verify all tests pass
 
