@@ -125,7 +125,7 @@ holds its supersession note, not edges; readers skip it. -->
 | **F3 — Per-tag modal questions with preview and confirm** | pending | `feature/clarifying-questions` | — |
 | **F4 — Complexity triage (S/M/L/XL)** | pending | `feature/complexity-triage` | — |
 | **F6 — Add the issue to the chores4irl roadmap Project** | pending | `feature/roadmap-project` | — |
-| **F8 — Multi-target routes and multi-instance deployment** ★FOCUS | in-progress | `feature/multi-target` | — |
+| **F8 — Multi-target routes and multi-instance deployment** ★FOCUS | in-review | `feature/multi-target` | [#17](https://github.com/4IRL/discord-github-issue-bot/pull/17) |
 
 ---
 
