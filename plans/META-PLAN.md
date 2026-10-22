@@ -43,22 +43,22 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 
 ## Where the work stands
 
-**★FOCUS: `F7` — Post the issue link in the thread** (runnable; branch `feature/post-issue-link`).
+**★FOCUS: `F8` — Multi-target routes and multi-instance deployment** (runnable; branch `feature/multi-target`).
 
-F1's listener, F2's threads, F5's filing and F10's `/bug`/`/feature` modal intake are on `main`.
-F7 is runnable now and completes Phase 1; F8 then needs it. F6 is also gated on creating the new
-chores4irl roadmap Project.
+Phase 1 is complete on `main`: the `/bug`/`/feature` modal, summary thread, filed issue and the
+issue link posted back (F7). F8 is runnable now and opens Phase 1.5; F3 prefers to follow it. F6
+is also gated on creating the new chores4irl roadmap Project.
 
 <!-- Two or three sentences at most: what is runnable today, what is gated and on what.
 Shipped work is git's record (`gh pr list --state merged`), not this file's. -->
 
 ### Shortest path to the focus feature
 
-F7 has no open prerequisites: F5's `FiledIssue.html_url` and F10's summary-message thread are
-what it posts into.
+F8 has no open prerequisites: F5's GitHub client, F7's end-to-end flow and F10's slash-command
+intake are what it generalizes per route.
 
-1. **Run F7** (`/run-feature F7`, effort S). It completes the Phase 1 skeleton.
-2. **Run F8** (effort L) on the finished Phase 1 flow.
+1. **Run F8** (`/run-feature F8`, effort L). It turns the single target into a route table.
+2. **Run F3** (effort M) on per-target question sets.
 
 A live run needs the bot invited with the `bot` and `applications.commands` scopes and View
 Channel, Read Message History, Send Messages, Create Public Threads and Send Messages in Threads
@@ -76,7 +76,6 @@ on the intake channel, plus F5's GitHub App (README § Discord setup and § GitH
 - [ ] **F3** (added 2026-10-16): In the thread, ask the clarifying questions needed to flesh out the idea (rule-based, per tag). (amended 2026-10-18: the per-tag questions become the fields of F10's modal, then a private preview with File/Edit; no thread conversation.)
 - [ ] **F4** (added 2026-10-16): Evaluate the issue's complexity (triage).
 - [ ] **F6** (added 2026-10-16): Add the created issue to the chores4irl roadmap (split from "create the issue in the 4IRL/chores4irl GitHub repo and add it to its roadmap").
-- [ ] **F7** (added 2026-10-16): Post a direct link to the newly created issue in the same thread.
 - [ ] **F8** (added 2026-10-17): Multiple instances of the bot should be deployable: spool up multiple bots, or have multiple listeners that port issues to different repos based on the bot's instantiation settings/parameters; all channels come from the same Discord server and all issues go to repos in the 4IRL GitHub org (both a route table in one process and multi-container deployment).
 
 ---
@@ -85,11 +84,10 @@ on the intake channel, plus F5's GitHub App (README § Discord setup and § GitH
 
 | Order | Feature | Effort | Depends on | Phase |
 |---|---|---|---|---|
-| ★ 1 | **F7** — Post the issue link in the thread **[FOCUS]** | S | F2, F5; soft: F10 | 1 |
-| 2 | **F8** — Multi-target routes and multi-instance deployment | L | F5, F7, F10 | 1.5 |
-| 3 | **F3** — Per-tag modal questions with preview and confirm | M | F5, F10; soft: F8 | 2 |
-| 4 | **F4** — Complexity triage (S/M/L/XL) | M | F3 | 3 |
-| 5 | **F6** — Add the issue to the chores4irl roadmap Project | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
+| ★ 1 | **F8** — Multi-target routes and multi-instance deployment **[FOCUS]** | L | F5, F7, F10 | 1.5 |
+| 2 | **F3** — Per-tag modal questions with preview and confirm | M | F5, F10; soft: F8 | 2 |
+| 3 | **F4** — Complexity triage (S/M/L/XL) | M | F3 | 3 |
+| 4 | **F6** — Add the issue to the chores4irl roadmap Project | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
 
 <!-- *Depends on* holds dependency edges in the grammar of
 /home/rmila/Code/_STRONGHOLD/plans/roadmap.md §3.1 *Dependency edges and `NEXT.md`*, which is
@@ -113,7 +111,7 @@ gate), unsplit like `cond:`; any other text not in the grammar is reported, neve
 superseded row (Feature cell struck through with `~~`, *Depends on* starting `**superseded`)
 holds its supersession note, not edges; readers skip it. -->
 
-**Effort tally (remaining).** 10 pts (S=1 / M=2 / L=3 / XL=5).
+**Effort tally (remaining).** 9 pts (S=1 / M=2 / L=3 / XL=5).
 
 ---
 
@@ -127,12 +125,11 @@ holds its supersession note, not edges; readers skip it. -->
 | **F3 — Per-tag modal questions with preview and confirm** | pending | `feature/clarifying-questions` | — |
 | **F4 — Complexity triage (S/M/L/XL)** | pending | `feature/complexity-triage` | — |
 | **F6 — Add the issue to the chores4irl roadmap Project** | pending | `feature/roadmap-project` | — |
-| **F7 — Post the issue link in the thread** ★FOCUS | in-review | `feature/post-issue-link` | [#15](https://github.com/4IRL/discord-github-issue-bot/pull/15) |
-| **F8 — Multi-target routes and multi-instance deployment** | pending | `feature/multi-target` | — |
+| **F8 — Multi-target routes and multi-instance deployment** ★FOCUS | pending | `feature/multi-target` | — |
 
 ---
 
-## Baseline: the codebase as it exists today (`main` at PR #13, `9fee978`)
+## Baseline: the codebase as it exists today (`main` at PR #15, `7e4c9c5`)
 
 > The Assumed starting state for every remaining feature unless its section says
 > otherwise. Describe what *is*, never what changed.
@@ -197,11 +194,13 @@ Thread helpers live in `issue_bot/threads.py`: `thread_name` (title cut to 100 c
 `…`) and `open_thread(message, name)`. `open_thread` reuses `message.thread`, else calls
 `create_thread(name=…)` (channel-default auto-archive), recovers a 160004 "already created"
 with `message.fetch_thread()`, and logs any other `HTTPException` by type, status and code,
-returning `None`.
+returning `None`. `filed_reply(issue, title)` formats the link message,
+`Filed as GitHub issue #<number>: <escaped title>` with the `html_url` on the next line
+(`FILED_REPLY`).
 
 The bot needs the `bot` and `applications.commands` invite scopes and View Channel, Read
 Message History, Send Messages, Create Public Threads and Send Messages in Threads on the
-intake channel. Guild commands persist on Discord after the bot stops; a redeploy re-syncs
+intake channel. Read Message History also covers replying to the summary message. Guild commands persist on Discord after the bot stops; a redeploy re-syncs
 them.
 
 GitHub filing: `issue_bot/github.py` `GitHubClient(app_id, installation_id, private_key)`
@@ -217,13 +216,16 @@ author line ``` Reported by `<author>` in Discord: <summary message url> ```, `-
 placeholder, with every `@` defanged by a zero-width space), `issue_labels` (the target's
 label for the type) and `file_candidate(github, candidate)`. `bot.filing_hook(github)` is the
 production `on_candidate`: it opens the issue's thread, files the issue even if no thread
-opened, logs `filed … issue=<html_url>` on success (posting nothing in the thread), and on a
-`GitHubError` logs type, stage and status and sends the fixed `threads.FILING_ERROR_REPLY` in
-the thread (`FILING_ERROR_REPLY` says to run the command again). Any other exception reaches
-`IntakeModal.on_error`. `issue_bot/__main__.py` builds the client, wires `filing_hook` and
+opened, and on success logs `filed … issue=<html_url>` and then posts `filed_reply`. On a
+`GitHubError` it logs type, stage and status and posts the fixed `threads.FILING_ERROR_REPLY`
+(which says to run the command again). Both posts go through `bot._post_outcome(message,
+thread, text, what)`: in the thread, or as a reply to the summary message when no thread
+opened, always with `AllowedMentions.none()` and `suppress_embeds=True`. A
+`discord.HTTPException` on that post is logged as `could not send <issue link|filing error> …`
+by type, status, code and ids. Any other exception reaches `IntakeModal.on_error`. `issue_bot/__main__.py` builds the client, wires `filing_hook` and
 `filing_check=github.check_access`, and runs at INFO with `log_handler=None` (discord loggers never at DEBUG).
 
-**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 212 tests across
+**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 216 tests across
 `tests/test_{handler,config,bot,intake,threads,github,issues,smoke}.py`, with Discord
 interactions and the GitHub transport fully mocked (`make_interaction`, `make_candidate`,
 `make_message` fixtures in `tests/conftest.py`). No CI workflow.
@@ -233,7 +235,8 @@ interactions and the GitHub transport fully mocked (`make_interaction`, `make_ca
 The App private key is mounted read-only at `GITHUB_APP_PRIVATE_KEY_PATH`
 (`/run/secrets/github-app-key.pem` in the container). The owner's live smoke-test runbook is
 `docs/SMOKE-TEST.md` (it uses a separate test server, never the live one). The owner's smoke
-run of F10 passed before PR #13 merged (2026-10-21). Before PR #9 merged, the owner's run filed issues #1 and #2 in a private
+run of F10 passed before PR #13 merged (2026-10-21). The owner confirmed F7 works on its branch
+before PR #15 merged (2026-10-21). Before PR #9 merged, the owner's run filed issues #1 and #2 in a private
 scratch repo, torn down on 2026-10-18 (recorded in PR #9's description).
 Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
 
@@ -280,9 +283,9 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F1 — Channel listener and tag parsing · merged (#2)
 
-*Kept because F7 and F8 build on it.*
+*Kept because F8 builds on it.*
 - `IssueBot(config, on_candidate=...)`: the `on_candidate(message, candidate)` hook is the
-  single seam for candidates; F5's `filing_hook` plugs in there and F7's link extends it.
+  single seam for candidates; F5's `filing_hook`, with F7's link post, plugs in there.
   Don't add a second candidate dispatch path. F10's modal submit feeds it with the bot's
   summary message as `message`.
 - `IssueCandidate` carries the `TargetConfig` it came from. Filing reads the repo, repo id
@@ -292,9 +295,9 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F2 — Thread per tagged message · merged (#7)
 
-*Kept because F7 and F8 build on it.*
+*Kept because F8 builds on it.*
 - The default `on_candidate` (`open_issue_thread`) returns nothing. A hook that replaces or
-  wraps it (F5's `filing_hook`, F7's link) gets the thread by calling
+  wraps it (F5's `filing_hook`) gets the thread by calling
   `open_thread(message, thread_name(candidate.title))` again: its duplicate guard returns the
   existing thread instead of creating a second one. Since F10 that message is the bot's
   summary message.
@@ -307,24 +310,22 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F5 — File the issue in 4IRL/chores4irl · merged (#9)
 
-*Kept because F3, F6, F7 and F8 build on it.*
+*Kept because F3, F6 and F8 build on it.*
 - `issue_bot/issues.py` `issue_body` is the only place an issue body is formatted; F3 extends
   it (one section per answered question) rather than formatting a second body.
-- `GitHubClient.create_issue` returns `FiledIssue(number, html_url)`; F7 posts that
+- `GitHubClient.create_issue` returns `FiledIssue(number, html_url)`; the posted link is that
   `html_url`, never a URL built from config. Failures surface only as
   `GitHubError(stage, status)`, which callers log by type, stage and status.
 - `filing_hook(github)` is the one production `on_candidate`: it opens the thread first and
-  files even when no thread opened. Today it posts nothing on success and the fixed
-  `FILING_ERROR_REPLY` on a `GitHubError`; F7 adds the success message there. With no thread
-  and a failed filing, the reporter still gets F10's private "posted" confirmation (F10
-  DD-13); F7 may take that gap with the no-thread fallback.
+  files even when no thread opened. F3's preview step moves filing behind File, and F6 adds
+  roadmap placement after filing; both stay inside this hook.
 - Auth is one GitHub App installation (instance-wide `GITHUB_APP_*` config); each token is
   scoped to one target repo id with `issues: write` and cached per repo id. F8's extra target
   repos join that installation; F6 widens the token request's `permissions` for Projects.
 
 ## F10 — Slash-command intake · merged (#13)
 
-*Kept because F3, F7 and F8 build on it.*
+*Kept because F3 and F8 build on it.*
 - `intake_command(issue_type, target, on_candidate, filing_check=None)` is the registration
   seam: one guild command per `IssueType`, its channel check bound to one `target`. F8
   generalizes it per route. In multi-container mode every container receives every command,
@@ -332,9 +333,21 @@ Parallel features: `/worktree <F-ID>...`.
   `INTAKE_REFUSAL`, or it races the right container (F10 DD-18).
 - `IntakeModal` is the one modal. Its Description field is the slot F3's per-type questions
   replace (Discord caps a modal at five fields). Its submit always posts the summary before
-  calling `on_candidate`, and the summary is the message F7's link thread hangs off.
+  calling `on_candidate`, and the summary is the message the thread and the issue link hang off.
 - Commands sync only with `guild=`; never call `tree.sync()` without it (that overwrites the
   global set).
+
+## F7 — Post the issue link in the thread · merged (#15)
+
+*Kept because F3 and F8 build on it.*
+- `bot._post_outcome(message, thread, text, what)` is the one path that posts a filing
+  outcome: in the thread, else as a reply to the summary message, always with
+  `AllowedMentions.none()` and `suppress_embeds=True`, logging a Discord failure by type,
+  status, code and ids. F3's preview and any new outcome message reuse it rather than adding a
+  second send path.
+- The link message is `threads.filed_reply(issue, title)`, built from the route's own
+  `FiledIssue.html_url`; F8's per-route filing posts it unchanged. It is posted after the
+  `filed … issue=<url>` log line, so a failed post never hides the issue URL.
 
 ## Deferred follow-ups (confirmed, unscheduled, no F-ID yet)
 
@@ -360,15 +373,18 @@ Parallel features: `/worktree <F-ID>...`.
 - **F5 push-review polish.** The unticked minor to-dos in
   `plans/feature/file-issue/reviews/push-review-feature-file-issue.md`, Reviews 1–4: an
   owner decision on replying to unexpected (non-`GitHubError`) filing errors, which a test
-  currently pins as reaching `on_error`; a message-reply fallback when filing fails and no
-  thread opened; title-boundary (256/257) and non-201 2xx tests; a `Literal` stage type and a
+  currently pins as reaching `on_error`; title-boundary (256/257) and non-201 2xx tests; a `Literal` stage type and a
   named token-cache entry; whether to keep the redundant `from None` and the `issue_labels`
   wrapper; an empty-author placeholder and a separator assertion in
   `issue_body`'s tests; `example.env`, `FILING_ERROR_REPLY` and `.dockerignore` tidies; and
   `docs/SMOKE-TEST.md` / README runbook tidies (one home for the container-key command, more
   troubleshooting rows). The plan's § Manual checks can be cut to a link to the runbook. None
-  blocks a remaining feature; F7 may take the no-thread fallback since it touches the same
-  hook.
+  blocks a remaining feature. The message-reply fallback with no thread was done by F7
+  (PR #15).
+- **F7 push-review polish.** The two unticked minor to-dos in
+  `plans/feature/post-issue-link/reviews/push-review-feature-post-issue-link.md`, Review 1:
+  a `filing_hook` test with a mention/URL title, and a test of the link post on the
+  `fetch_thread` (160004) recovery path. Neither blocks a remaining feature.
 - **F10 push-review polish.** The unticked minor to-dos in
   `plans/feature/slash-command-intake/reviews/push-review-feature-slash-command-intake.md`,
   Reviews 1–2, include:
@@ -511,40 +527,6 @@ S/M/L/XL) are designed when it is created.
 **Session.** `/run-feature F6` on branch `feature/roadmap-project`; plan at
 `plans/feature/roadmap-project/roadmap-project.md`.
 
-## F7 — Post the issue link in the thread · Phase 1 · Effort S · (added 2026-10-16)
-
-**Goal.** After F5 files the issue, the bot posts its direct URL (the `html_url` GitHub
-returns, e.g. `https://github.com/4IRL/chores4irl/issues/<n>`, never built from a
-hardcoded repo) in the message's thread, which completes the Phase 1 skeleton.
-Feature-list line F7.
-
-**Rank rationale.** It closes the Phase 1 loop and is tiny once F2 and F5 exist. It runs
-after F10 (owner's choice, 2026-10-18) so the link is posted in the thread on the bot's
-summary message rather than reworked later.
-
-**Dependencies.** F2, F5; soft: F10.
-
-**Sizing.** unscored (intake estimate S); split check pending.
-
-**Assumed starting state** = **Baseline** (which includes F2's thread, F5's returned issue and
-F10's slash-command intake). Verify:
-- F5's client returns the created issue's `html_url`.
-- F10's modal submit reaches `filing_hook` through `on_candidate`.
-
-**Expected end state** (repo-checkable):
-- The handler test shows one thread message containing the mocked issue URL. A failed
-  filing still posts F5's `FILING_ERROR_REPLY` and no link.
-- All suites green; Standing invariants untouched.
-
-**Test-suite deltas.** End-to-end handler test (message → thread → mocked issue → link
-posted) and a failure-path test.
-
-**Open risks / decisions.** (a) Recommend a short confirmation that includes the issue
-number and title, not only the bare URL.
-
-**Session.** `/run-feature F7` on branch `feature/post-issue-link`; plan at
-`plans/feature/post-issue-link/post-issue-link.md`.
-
 ## F8 — Multi-target routes and multi-instance deployment · Phase 1.5 · Effort L · (added 2026-10-17)
 
 **Goal.** One bot process serves several targets: a route table in a config file maps each
@@ -562,8 +544,8 @@ start; owner's choice, 2026-10-18).
 
 **Sizing.** unscored (intake estimate L); split check pending.
 
-**Assumed starting state** = **Baseline** plus F7 (the rest of Phase 1, F1, F2, F5 and F10, is
-already in the Baseline) and F1's target config object. Verify:
+**Assumed starting state** = **Baseline** (all of Phase 1: F1, F2, F5, F10 and F7) and F1's
+target config object. Verify:
 - F1's config has one target object, separate from instance-wide values, and
   `grep -rnE 'chores4irl|969373970' --include='*.py' .` outside `tests/` prints nothing.
 - F10's `/bug` and `/feature` interaction intake exists: the commands open their modals,
@@ -606,19 +588,17 @@ the right container (F10 DD-18; F10's kept contract).
 ## Dependencies & couplings (remaining work)
 
 ```
-Phase 1:    ★ F7       (F1 #2; F9 rename #5; F2 threads #7; F5 filing #9; F10 intake #13 shipped)
-Phase 1.5:  F7 ──► F8
+Phase 1:    done       (F1 #2; F9 rename #5; F2 threads #7; F5 filing #9; F10 intake #13; F7 link #15)
+Phase 1.5:  ★ F8       (F5, F7, F10 shipped)
 Phase 2:    F5, F10 ──► F3       (soft: after F8)
 Phase 3:    F3 ──► F4
             F5 ──► F6   [cond: new roadmap Project] (couples F4; soft: after F8)
 ```
 
-- **Hard chains:** {F2, F5} → F7, {F5, F7, F10} → F8, {F5, F10} → F3 → F4, F5 → F6. F1, F2,
-  F5, F9 and F10 have shipped; refs to them stay valid, so F7 is runnable, and F7 → F8,
-  F3 → F4 and F6's roadmap-Project gate still wait. F3's hard deps are met, but it prefers to
-  follow F8.
-- **Soft preferences:** F7 before F3, so the skeleton is end-to-end usable before the
-  question work. F8 before F3 and F6, so question sets and Project config are per-target from
+- **Hard chains:** {F5, F7, F10} → F8, {F5, F10} → F3 → F4, F5 → F6. F1, F2, F5, F7, F9 and
+  F10 have shipped; refs to them stay valid, so F8 is runnable, and F3 → F4 and F6's
+  roadmap-Project gate still wait. F3's hard deps are met, but it prefers to follow F8.
+- **Soft preferences:** F8 before F3 and F6, so question sets and Project config are per-target from
   the start. F6 could start any time after F5 once its Project exists; the ROADMAP keeps it in
   Phase 3 so the Project fields are designed alongside F4.
 - **Couplings to honor:** F3 ↔ F5: F3 reuses F5's single issue-body builder rather than
