@@ -7,8 +7,10 @@ values live in its environment (see ``example.env``).
 from __future__ import annotations
 
 import re
+import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from types import MappingProxyType
 
@@ -21,6 +23,9 @@ from issue_bot.issue_type import IssueType
 REPO_PATTERN = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 ASCII_INTEGER_PATTERN = re.compile(r"-?[0-9]+")
 DOT_SEGMENTS = frozenset({".", ".."})
+ROUTE_NAME_PATTERN = re.compile(r"[a-z0-9][a-z0-9_-]*")
+OWNER_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
+ROUTE_KEYS = ("channel_id", "channel_name", "category", "repo", "repo_id", "labels")
 
 
 class ConfigError(Exception):
@@ -64,10 +69,22 @@ def _rsa_private_key(env: Mapping[str, str], key: str) -> RSAPrivateKey:
     return private_key
 
 
+class UnroutedCommands(StrEnum):
+    """What a command run outside this instance's routes gets.
+
+    ``REFUSE`` replies with a private refusal; ``IGNORE`` sends no response at
+    all, so another instance sharing the bot token can answer instead.
+    """
+
+    REFUSE = "refuse"
+    IGNORE = "ignore"
+
+
 @dataclass(frozen=True)
 class TargetConfig:
-    """One intake channel and the GitHub repo its issues go to."""
+    """One route: an intake channel and the GitHub repo its issues go to."""
 
+    name: str
     channel_id: int
     channel_name: str
     category: str
@@ -94,6 +111,7 @@ class TargetConfig:
         ):
             raise ConfigError("GITHUB_REPO must be owner/name")
         return cls(
+            name="env",
             channel_id=channel_id,
             channel_name=channel_name,
             category=category,
@@ -104,6 +122,109 @@ class TargetConfig:
                 for issue_type in IssueType
             },
         )
+
+
+def _route_value(route: Mapping[str, object], where: str, key: str) -> object:
+    if key not in route:
+        raise ConfigError(f"{where}.{key} is required")
+    return route[key]
+
+
+def _route_int(route: Mapping[str, object], where: str, key: str) -> int:
+    value = _route_value(route, where, key)
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ConfigError(f"{where}.{key} must be a positive integer")
+    return value
+
+
+def _route_str(route: Mapping[str, object], where: str, key: str) -> str:
+    value = _route_value(route, where, key)
+    if not isinstance(value, str):
+        raise ConfigError(f"{where}.{key} must be a string")
+    value = value.strip()
+    if not value:
+        raise ConfigError(f"{where}.{key} is required")
+    return value
+
+
+def _route_labels(route: Mapping[str, object], where: str) -> dict[IssueType, str]:
+    labels = _route_value(route, where, "labels")
+    error_message = f"{where}.labels must map bug and feature to label names"
+    if not isinstance(labels, dict) or set(labels) != {
+        issue_type.value for issue_type in IssueType
+    }:
+        raise ConfigError(error_message)
+    stripped_labels: dict[IssueType, str] = {}
+    for type_name, label in labels.items():
+        if not isinstance(label, str) or not label.strip():
+            raise ConfigError(error_message)
+        stripped_labels[IssueType(type_name)] = label.strip()
+    return stripped_labels
+
+
+def _route(name: str, route: object, org: str) -> TargetConfig:
+    where = f"routes.{name}"
+    if not isinstance(route, dict):
+        raise ConfigError(f"{where} must be a table")
+    unknown_keys = sorted(set(route) - set(ROUTE_KEYS))
+    if unknown_keys:
+        raise ConfigError(f"{where} has unknown key {unknown_keys[0]!r}")
+    # Keys are read in ROUTE_KEYS order, so the first bad one is reported.
+    channel_id = _route_int(route, where, "channel_id")
+    channel_name = _route_str(route, where, "channel_name")
+    category = _route_str(route, where, "category")
+    github_repo = _route_str(route, where, "repo")
+    if not REPO_PATTERN.fullmatch(github_repo) or any(
+        segment in DOT_SEGMENTS for segment in github_repo.split("/")
+    ):
+        raise ConfigError(f"{where}.repo must be owner/name")
+    owner = github_repo.split("/")[0]
+    if owner.casefold() != org.casefold():
+        raise ConfigError(f"{where}.repo must be in GITHUB_ORG")
+    github_repo_id = _route_int(route, where, "repo_id")
+    return TargetConfig(
+        name=name,
+        channel_id=channel_id,
+        channel_name=channel_name,
+        category=category,
+        github_repo=github_repo,
+        github_repo_id=github_repo_id,
+        labels=_route_labels(route, where),
+    )
+
+
+def load_routes(path: str, org: str) -> Mapping[int, TargetConfig]:
+    """Load the route file: one ``[routes.<name>]`` table per intake channel.
+
+    Each table holds ``channel_id``, ``channel_name``, ``category``, ``repo``
+    (``owner/name``, owned by ``org``), ``repo_id`` and a ``labels`` table
+    keyed ``bug``/``feature``. Returns a read-only mapping keyed by channel
+    id, in file order. Errors name the key, never the value or file text.
+    """
+    try:
+        with open(path, "rb") as file:
+            document = tomllib.load(file)
+    except (OSError, ValueError):
+        raise ConfigError("ROUTES_PATH must name a readable TOML route file") from None
+    unknown_keys = sorted(set(document) - {"routes"})
+    if unknown_keys:
+        raise ConfigError(f"ROUTES_PATH has unknown key {unknown_keys[0]!r}")
+    route_tables = document.get("routes")
+    if not isinstance(route_tables, dict) or not route_tables:
+        raise ConfigError("ROUTES_PATH must define at least one [routes.<name>] table")
+    routes: dict[int, TargetConfig] = {}
+    seen: dict[int, str] = {}
+    for name, route_table in route_tables.items():
+        if not ROUTE_NAME_PATTERN.fullmatch(name):
+            raise ConfigError("route names must be lowercase letters, digits, - or _")
+        route = _route(name, route_table, org)
+        if route.channel_id in seen:
+            raise ConfigError(
+                f"routes.{seen[route.channel_id]} and routes.{name} share channel_id"
+            )
+        seen[route.channel_id] = name
+        routes[route.channel_id] = route
+    return MappingProxyType(routes)
 
 
 @dataclass(frozen=True)

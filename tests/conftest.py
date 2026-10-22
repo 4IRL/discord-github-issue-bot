@@ -16,6 +16,43 @@ from issue_bot.issue_type import IssueType
 
 ISSUE_URL = "https://github.com/example-org/example-repo/issues/7"
 
+ONE_ROUTE_TOML = """\
+[routes.intake]
+channel_id = 555
+channel_name = "intake"
+category = "Intake"
+repo = "example-org/example-repo"
+repo_id = 222
+
+[routes.intake.labels]
+bug = "bug"
+feature = "enhancement"
+"""
+
+TWO_ROUTE_TOML = (
+    ONE_ROUTE_TOML
+    + """
+[routes.other]
+channel_id = 556
+channel_name = "other-intake"
+category = "Other"
+repo = "example-org/other-repo"
+repo_id = 223
+
+[routes.other.labels]
+bug = "defect"
+feature = "idea"
+"""
+)
+
+
+def write_routes(directory: Path, text: str) -> Path:
+    """Write ``text`` as ``routes.toml`` in ``directory`` (created if needed); returns its path."""
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / "routes.toml"
+    path.write_text(text, encoding="utf-8")
+    return path
+
 
 def record_texts(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [record.getMessage() + (record.exc_text or "") for record in caplog.records]

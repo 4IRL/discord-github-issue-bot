@@ -1,11 +1,13 @@
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
-from issue_bot.config import Config, ConfigError, TargetConfig
+from issue_bot.config import Config, ConfigError, TargetConfig, load_routes
 from issue_bot.issue_type import IssueType
+from tests.conftest import ONE_ROUTE_TOML, TWO_ROUTE_TOML, write_routes
 
 ALL_KEYS = [
     "DISCORD_TOKEN",
@@ -199,6 +201,7 @@ def test_labels_read_only(config: Config) -> None:
 
 def make_target(labels: dict[IssueType, str]) -> TargetConfig:
     return TargetConfig(
+        name="intake",
         channel_id=555,
         channel_name="intake",
         category="Intake",
@@ -229,3 +232,202 @@ def test_direct_construction_makes_labels_read_only() -> None:
     assert target.labels[IssueType.BUG] == "bug"
     with pytest.raises(TypeError):
         target.labels[IssueType.BUG] = "x"  # type: ignore[index]
+
+
+ORG = "example-org"
+READABLE_ERROR = "ROUTES_PATH must name a readable TOML route file"
+NO_ROUTES_ERROR = "ROUTES_PATH must define at least one [routes.<name>] table"
+NAME_ERROR = "route names must be lowercase letters, digits, - or _"
+LABELS_ERROR = "routes.intake.labels must map bug and feature to label names"
+ONE_ROUTE_LINES = ONE_ROUTE_TOML.splitlines()
+LABELS_HEADER = "[routes.intake.labels]"
+# File-key order of the route's keys; "labels" is the trailing [routes.intake.labels] table.
+ROUTE_FILE_KEYS = ["channel_id", "channel_name", "category", "repo", "repo_id", "labels"]
+
+
+def load_text(tmp_path: Path, text: str) -> Mapping[int, TargetConfig]:
+    return load_routes(str(write_routes(tmp_path, text)), ORG)
+
+
+def route_error(tmp_path: Path, text: str) -> str:
+    with pytest.raises(ConfigError) as excinfo:
+        load_text(tmp_path, text)
+    return str(excinfo.value)
+
+
+def with_route_line(key: str, value: str) -> str:
+    """ONE_ROUTE_TOML with ``key``'s line replaced by ``key = value``."""
+    prefix = f"{key} = "
+    assert sum(line.startswith(prefix) for line in ONE_ROUTE_LINES) == 1
+    lines = [prefix + value if line.startswith(prefix) else line for line in ONE_ROUTE_LINES]
+    return "\n".join(lines) + "\n"
+
+
+def without_route_keys(keys: list[str]) -> str:
+    """ONE_ROUTE_TOML with the named route keys removed (``labels`` drops its whole table)."""
+    lines = list(ONE_ROUTE_LINES)
+    if "labels" in keys:
+        lines = lines[: lines.index(LABELS_HEADER)]
+    lines = [line for line in lines if line.split(" = ")[0] not in keys]
+    return "\n".join(lines) + "\n"
+
+
+def test_one_route_loads(tmp_path: Path) -> None:
+    routes = load_text(tmp_path, ONE_ROUTE_TOML)
+    assert routes == {
+        555: TargetConfig(
+            name="intake",
+            channel_id=555,
+            channel_name="intake",
+            category="Intake",
+            github_repo="example-org/example-repo",
+            github_repo_id=222,
+            labels={IssueType.BUG: "bug", IssueType.FEATURE: "enhancement"},
+        )
+    }
+
+
+def test_two_routes_load_in_file_order(tmp_path: Path) -> None:
+    routes = load_text(tmp_path, TWO_ROUTE_TOML)
+    assert list(routes) == [555, 556]
+    assert routes[556].name == "other"
+    assert routes[556].github_repo == "example-org/other-repo"
+    assert routes[556].github_repo_id == 223
+    assert dict(routes[556].labels) == {IssueType.BUG: "defect", IssueType.FEATURE: "idea"}
+
+
+def test_routes_mapping_is_read_only(tmp_path: Path) -> None:
+    routes = load_text(tmp_path, ONE_ROUTE_TOML)
+    with pytest.raises(TypeError):
+        routes[556] = routes[555]  # type: ignore[index]
+
+
+def test_missing_route_file_raises(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError) as excinfo:
+        load_routes(str(tmp_path / "missing.toml"), ORG)
+    assert str(excinfo.value) == READABLE_ERROR
+
+
+def test_route_file_is_directory_raises(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError) as excinfo:
+        load_routes(str(tmp_path), ORG)
+    assert str(excinfo.value) == READABLE_ERROR
+
+
+def test_malformed_toml_raises_without_quoting_file(tmp_path: Path) -> None:
+    error = route_error(tmp_path, "[routes.intake]\nchannel_id = Secret words\n")
+    assert error == READABLE_ERROR
+
+
+def test_invalid_utf8_raises(tmp_path: Path) -> None:
+    path = tmp_path / "routes.toml"
+    path.write_bytes(b'[routes.intake]\nchannel_name = "\xff"\n')
+    with pytest.raises(ConfigError) as excinfo:
+        load_routes(str(path), ORG)
+    assert str(excinfo.value) == READABLE_ERROR
+
+
+@pytest.mark.parametrize("text", ["", "# no routes\n", "[routes]\n", "routes = 1\n"])
+def test_no_routes_raises(tmp_path: Path, text: str) -> None:
+    assert route_error(tmp_path, text) == NO_ROUTES_ERROR
+
+
+def test_unknown_top_level_key_raises(tmp_path: Path) -> None:
+    error = route_error(tmp_path, "extra = 1\n" + ONE_ROUTE_TOML)
+    assert error == "ROUTES_PATH has unknown key 'extra'"
+
+
+@pytest.mark.parametrize("header", ["[routes.Intake]", '[routes."a b"]'])
+def test_bad_route_name_raises(tmp_path: Path, header: str) -> None:
+    text = ONE_ROUTE_TOML.replace("[routes.intake]", header).replace(
+        LABELS_HEADER, header[:-1] + ".labels]"
+    )
+    assert route_error(tmp_path, text) == NAME_ERROR
+
+
+def test_non_table_route_raises(tmp_path: Path) -> None:
+    assert route_error(tmp_path, "routes.intake = 1\n") == "routes.intake must be a table"
+
+
+@pytest.mark.parametrize("key", ROUTE_FILE_KEYS)
+def test_each_route_key_required(tmp_path: Path, key: str) -> None:
+    assert route_error(tmp_path, without_route_keys([key])) == f"routes.intake.{key} is required"
+
+
+@pytest.mark.parametrize("position", range(len(ROUTE_FILE_KEYS)))
+def test_first_missing_route_key_in_order_is_reported(tmp_path: Path, position: int) -> None:
+    text = without_route_keys(ROUTE_FILE_KEYS[position:])
+    assert route_error(tmp_path, text) == f"routes.intake.{ROUTE_FILE_KEYS[position]} is required"
+
+
+def test_unknown_route_key_raises(tmp_path: Path) -> None:
+    text = ONE_ROUTE_TOML.replace("[routes.intake]\n", "[routes.intake]\nchanel_id = 1\n")
+    assert route_error(tmp_path, text) == "routes.intake has unknown key 'chanel_id'"
+
+
+@pytest.mark.parametrize("key", ["channel_id", "repo_id"])
+@pytest.mark.parametrize("value", ["0", "-1", '"555"', "true", "1.5"])
+def test_route_id_must_be_positive_integer(tmp_path: Path, key: str, value: str) -> None:
+    error = route_error(tmp_path, with_route_line(key, value))
+    assert error == f"routes.intake.{key} must be a positive integer"
+
+
+@pytest.mark.parametrize("key", ["channel_name", "category", "repo"])
+def test_blank_route_string_is_required(tmp_path: Path, key: str) -> None:
+    assert route_error(tmp_path, with_route_line(key, '"  "')) == f"routes.intake.{key} is required"
+
+
+@pytest.mark.parametrize("key", ["channel_name", "category", "repo"])
+def test_route_string_must_be_string(tmp_path: Path, key: str) -> None:
+    error = route_error(tmp_path, with_route_line(key, "5"))
+    assert error == f"routes.intake.{key} must be a string"
+
+
+def test_padded_route_strings_are_stripped(tmp_path: Path) -> None:
+    text = (
+        with_route_line("channel_name", '" intake "')
+        .replace('category = "Intake"', 'category = " Intake "')
+        .replace('repo = "example-org/example-repo"', 'repo = " example-org/example-repo "')
+        .replace('bug = "bug"', 'bug = " bug "')
+    )
+    route = load_text(tmp_path, text)[555]
+    assert route.channel_name == "intake"
+    assert route.category == "Intake"
+    assert route.github_repo == "example-org/example-repo"
+    assert route.labels[IssueType.BUG] == "bug"
+
+
+@pytest.mark.parametrize("repo", ['"example-org"', '"a/b/c"', '"example-org/.."'])
+def test_bad_route_repo_format(tmp_path: Path, repo: str) -> None:
+    error = route_error(tmp_path, with_route_line("repo", repo))
+    assert error == "routes.intake.repo must be owner/name"
+
+
+def test_route_repo_outside_org_raises(tmp_path: Path) -> None:
+    error = route_error(tmp_path, with_route_line("repo", '"other-org/example-repo"'))
+    assert error == "routes.intake.repo must be in GITHUB_ORG"
+
+
+def test_route_repo_owner_matches_org_case_insensitively(tmp_path: Path) -> None:
+    routes = load_text(tmp_path, with_route_line("repo", '"EXAMPLE-ORG/example-repo"'))
+    assert routes[555].github_repo == "EXAMPLE-ORG/example-repo"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        without_route_keys(["feature"]),
+        ONE_ROUTE_TOML + 'docs = "documentation"\n',
+        without_route_keys(["labels"]) + 'labels = "bug"\n',
+        ONE_ROUTE_TOML.replace('feature = "enhancement"', 'feature = "  "'),
+        ONE_ROUTE_TOML.replace('feature = "enhancement"', "feature = 5"),
+    ],
+    ids=["missing-feature", "extra-docs", "not-a-table", "blank-value", "non-string-value"],
+)
+def test_bad_route_labels_raise(tmp_path: Path, text: str) -> None:
+    assert route_error(tmp_path, text) == LABELS_ERROR
+
+
+def test_duplicate_channel_id_raises(tmp_path: Path) -> None:
+    text = TWO_ROUTE_TOML.replace("channel_id = 556", "channel_id = 555")
+    assert route_error(tmp_path, text) == "routes.intake and routes.other share channel_id"
