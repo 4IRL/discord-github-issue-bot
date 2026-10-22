@@ -604,32 +604,32 @@ the shared-token multi-container mode.
 Run the full suite and the F8 Expected-end-state checks.
 
 **To-do:**
-- [ ] Run `.venv/bin/pytest` and confirm every test passes.
-- [ ] Standing invariant 1:
+- [x] Run `.venv/bin/pytest` and confirm every test passes. (2026-10-22: 270 passed)
+- [x] Standing invariant 1:
       `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot`
-      prints nothing (no output; grep exits 1, which is the pass).
-- [ ] `grep -rnE 'chores4irl|969373970' --include='*.py' . | grep -v '^./tests/' | grep -v '^./.venv/'`
-      prints nothing (no output; grep exits 1, which is the pass).
-- [ ] Standing invariant 2: `grep -rnE 'exc_info *=|logger\.exception' --include='*.py' issue_bot` prints
-      nothing (no output; grep exits 1, which is the pass): `on_error`'s `sys.exc_info()` and
+      prints nothing (no output; grep exits 1, which is the pass). (2026-10-22: grep prints nothing, exit 1)
+- [x] `grep -rnE 'chores4irl|969373970' --include='*.py' . | grep -v '^./tests/' | grep -v '^./.venv/'`
+      prints nothing (no output; grep exits 1, which is the pass). (2026-10-22: grep prints nothing, exit 1)
+- [x] Standing invariant 2: `grep -rnE 'exc_info *=|logger\.exception' --include='*.py' issue_bot` prints
+      nothing (no output; grep exits 1, which is the pass; 2026-10-22: grep prints nothing, exit 1): `on_error`'s `sys.exc_info()` and
       the "never exc_info" comment in `_sync_commands` are expected and not matched. The new
       `ignored …` line logs only the issue type and ids, and every Step 2–3 log test calls
       `assert_no_member_text`.
-- [ ] Standing invariant 3: confirm `test_main_exits_on_config_error` (which deletes all
+- [x] Standing invariant 3: confirm `test_main_exits_on_config_error` (which deletes all
       eight `CONFIG_KEYS` at once and expects exit 2) and Step 2's
       `test_main_exits_on_bad_route_file` both pass:
       `.venv/bin/pytest tests/test_bot.py -v -k 'test_main_exits_on_config_error or test_main_exits_on_bad_route_file'`
       lists both `tests/test_bot.py::test_main_exits_on_config_error PASSED` and
       `tests/test_bot.py::test_main_exits_on_bad_route_file PASSED` (before Step 2 only the
-      first is collected).
-- [ ] Check each F8 Expected-end-state bullet against the code and docs: route file with
+      first is collected). (2026-10-22: both PASSED)
+- [x] Check each F8 Expected-end-state bullet against the code and docs: route file with
       env path and secrets only in env; dispatch by channel id with refusal outside routes;
       startup rejecting duplicate channels and foreign-org repos; per-route name/category
-      check; documented two-instance `docker run` set.
-- [ ] Investigate and fix any failure before marking the plan finished; when nothing failed,
-      tick it as `(none to fix)`.
-- [ ] Copy the **Owner checks** section below, verbatim, into the final report.
-- [ ] Confirm the **PR notes** section below is present and matches the final env keys
+      check; documented two-instance `docker run` set. (2026-10-22: all present)
+- [x] Investigate and fix any failure before marking the plan finished; when nothing failed,
+      tick it as `(none to fix)`. (2026-10-22: none to fix)
+- [x] Copy the **Owner checks** section below, verbatim, into the final report.
+- [x] Confirm the **PR notes** section below is present and matches the final env keys
       (`example.env`) and route fields (`ROUTE_KEYS` in `issue_bot/config.py`), and repeat it,
       verbatim, at the end of the final report.
 
@@ -702,4 +702,4 @@ add this section to the PR description (no skill copies it on its own: `/git-pus
 plan file regardless.
 
 ## Status
-finished: false
+finished: true
