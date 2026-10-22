@@ -16,6 +16,43 @@ from issue_bot.issue_type import IssueType
 
 ISSUE_URL = "https://github.com/example-org/example-repo/issues/7"
 
+ONE_ROUTE_TOML = """\
+[routes.intake]
+channel_id = 555
+channel_name = "intake"
+category = "Intake"
+repo = "example-org/example-repo"
+repo_id = 222
+
+[routes.intake.labels]
+bug = "bug"
+feature = "enhancement"
+"""
+
+TWO_ROUTE_TOML = (
+    ONE_ROUTE_TOML
+    + """
+[routes.other]
+channel_id = 556
+channel_name = "other-intake"
+category = "Other"
+repo = "example-org/other-repo"
+repo_id = 223
+
+[routes.other.labels]
+bug = "defect"
+feature = "idea"
+"""
+)
+
+
+def write_routes(directory: Path, text: str) -> Path:
+    """Write ``text`` as ``routes.toml`` in ``directory`` (created if needed); returns its path."""
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / "routes.toml"
+    path.write_text(text, encoding="utf-8")
+    return path
+
 
 def record_texts(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [record.getMessage() + (record.exc_text or "") for record in caplog.records]
@@ -79,27 +116,42 @@ def github_private_key(github_private_key_pem: Path) -> rsa.RSAPrivateKey:
 
 
 @pytest.fixture
-def test_env(github_private_key_pem: Path) -> dict[str, str]:
+def routes_file(tmp_path: Path) -> Path:
+    """The one-route test route file, written under pytest's temp directory."""
+    return write_routes(tmp_path, ONE_ROUTE_TOML)
+
+
+@pytest.fixture
+def test_env(github_private_key_pem: Path, routes_file: Path) -> dict[str, str]:
     """A fresh environment with neutral values for every required config key."""
     return {
         "DISCORD_TOKEN": "test-token",
         "DISCORD_GUILD_ID": "111",
+        "UNROUTED_COMMANDS": "refuse",
+        "GITHUB_ORG": "example-org",
         "GITHUB_APP_ID": "333",
         "GITHUB_APP_INSTALLATION_ID": "444",
         "GITHUB_APP_PRIVATE_KEY_PATH": str(github_private_key_pem),
-        "DISCORD_CHANNEL_ID": "555",
-        "DISCORD_CHANNEL_NAME": "intake",
-        "DISCORD_CATEGORY": "Intake",
-        "GITHUB_REPO": "example-org/example-repo",
-        "GITHUB_REPO_ID": "222",
-        "GITHUB_LABEL_BUG": "bug",
-        "GITHUB_LABEL_FEATURE": "enhancement",
+        "ROUTES_PATH": str(routes_file),
     }
 
 
 @pytest.fixture
 def config(test_env: dict[str, str]) -> Config:
     return Config.from_env(test_env)
+
+
+@pytest.fixture
+def two_route_config(test_env: dict[str, str], tmp_path: Path) -> Config:
+    """A config with two routes (channels 555 and 556), leaving ``test_env`` unchanged."""
+    path = write_routes(tmp_path / "two", TWO_ROUTE_TOML)
+    return Config.from_env({**test_env, "ROUTES_PATH": str(path)})
+
+
+@pytest.fixture
+def route(config: Config) -> TargetConfig:
+    """The test config's only route."""
+    return next(iter(config.routes.values()))
 
 
 MessageFactory = Callable[..., SimpleNamespace]
@@ -134,8 +186,8 @@ def make_message() -> MessageFactory:
 
 
 @pytest.fixture
-def make_candidate(config: Config) -> CandidateFactory:
-    """Build an ``IssueCandidate`` for a report; ``target`` defaults to the test config's."""
+def make_candidate(route: TargetConfig) -> CandidateFactory:
+    """Build an ``IssueCandidate`` for a report; ``target`` defaults to the test config's route."""
 
     def factory(
         *,
@@ -156,7 +208,7 @@ def make_candidate(config: Config) -> CandidateFactory:
             author_name=author_name,
             message_id=message_id,
             message_url=message_url,
-            target=target or config.target,
+            target=target or route,
         )
 
     return factory

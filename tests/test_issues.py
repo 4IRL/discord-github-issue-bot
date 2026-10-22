@@ -1,9 +1,10 @@
+import dataclasses
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
-from issue_bot.config import Config
+from issue_bot.config import TargetConfig
 from issue_bot.github import FiledIssue
 from issue_bot.issue_type import IssueType
 from issue_bot.issues import (
@@ -76,12 +77,12 @@ def test_issue_labels_follow_config(
 
 
 def test_issue_labels_use_target_mapping(
-    test_env: dict[str, str], make_candidate: CandidateFactory
+    route: TargetConfig, make_candidate: CandidateFactory
 ) -> None:
-    custom_config = Config.from_env({**test_env, "GITHUB_LABEL_FEATURE": "idea"})
-    candidate = make_candidate(
-        type=IssueType.FEATURE, title="T", body="", target=custom_config.target
+    custom_route = dataclasses.replace(
+        route, labels={IssueType.BUG: "bug", IssueType.FEATURE: "idea"}
     )
+    candidate = make_candidate(type=IssueType.FEATURE, title="T", body="", target=custom_route)
     assert issue_labels(candidate) == ["idea"]
 
 
