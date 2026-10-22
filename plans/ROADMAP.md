@@ -82,12 +82,12 @@ exist, what the schema is) is META-PLAN's Baseline; do not restate it here. Upda
 
 | # | Capability | State | Delivered by |
 |---|---|---|---|
-| 1 | Slash-command capture | none — not started | Phase 1 |
+| 1 | Slash-command capture | done — `/bug` and `/feature` modals in one configured channel | Phase 1 |
 | 2 | Per-type questions | none — not started | Phase 2 |
 | 3 | Complexity rating | none — not started | Phase 3 |
-| 4 | Issue filed and on the roadmap | none — not started | Phases 1 (filed), 2 (structured body), 3 (roadmap) |
-| 5 | Link posted back | none — not started | Phase 1 |
-| 6 | Multiple targets | none — not started | Phases 1 (portable config), 1.5 (routes, instances) |
+| 4 | Issue filed and on the roadmap | partial — filed with its type label; structured body and roadmap placement pending | Phases 1 (filed), 2 (structured body), 3 (roadmap) |
+| 5 | Link posted back | done — issue number, title and link in the thread (or a reply on the summary) | Phase 1 |
+| 6 | Multiple targets | partial — target comes from config; routes and instances pending | Phases 1 (portable config), 1.5 (routes, instances) |
 
 ## Principles & constraints
 
@@ -135,33 +135,7 @@ Status markers: `done (YYYY-MM-DD)`, `active`, `planned`. Exactly one phase is `
 at a time unless the sequencing rationale says otherwise.
 -->
 
-### Phase 1: Walking skeleton (command → issue → link) · active
-
-**Goal.** A `/bug` or `/feature` report in the channel becomes a minimal GitHub issue, and
-its link appears in a thread, end to end. **Advances capabilities:** 1, 4 (filed only), 5.
-
-- The bot runs in its Docker container, connects to the Gateway and registers `/bug` and
-  `/feature` in the configured guild only; guild, category, channel and target repo all
-  come from config.
-- Each command opens a modal with a required Title and an optional Description. A command
-  outside the configured channel is refused privately.
-- For each submitted report the bot posts a summary message in the channel, opens a thread
-  on it, creates an issue (the Title, the Description and author as the body, the type
-  label) and posts the issue URL in the thread.
-- The bot authenticates to GitHub with least privilege on the target repo only (issues
-  write; GitHub App vs fine-grained token decided at planning).
-- Tests drive the flow against mocked Discord and GitHub clients; no test touches the live
-  channel or repo.
-
-**Exit criteria.** In a test channel pointed at a test repo, submitting `/bug` with the
-Title "Chore bars turn red on the due date" produces a summary, a thread on it, a
-`bug`-labeled issue and its link in the thread, and a command outside the channel is
-refused.
-The test suite is green and runs as META-PLAN's Verification.
-
-**Why here.** It proves every external integration (Gateway intents, thread permissions,
-GitHub auth, labels) before any conversation logic is built on top, and is useful on its
-own as a quick-capture tool.
+### Phase 1: Walking skeleton (command → issue → link) · done (2026-10-21) — `/bug` and `/feature` modals in one configured channel post a summary, open a thread on it, file a labeled issue and post its link back (F1, F2, F5, F10, F7).
 
 ### Phase 1.5: Multi-target and rename · planned
 
