@@ -1,4 +1,5 @@
 import dataclasses
+import tomllib
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -6,7 +7,14 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
-from issue_bot.config import Config, ConfigError, TargetConfig, UnroutedCommands, load_routes
+from issue_bot.config import (
+    ROUTE_KEYS,
+    Config,
+    ConfigError,
+    TargetConfig,
+    UnroutedCommands,
+    load_routes,
+)
 from issue_bot.issue_type import IssueType
 from tests.conftest import ONE_ROUTE_TOML, TWO_ROUTE_TOML, write_routes
 
@@ -22,6 +30,7 @@ ALL_KEYS = [
 ]
 ID_KEYS = ["DISCORD_GUILD_ID", "GITHUB_APP_ID", "GITHUB_APP_INSTALLATION_ID"]
 PRIVATE_KEY_ERROR = "GITHUB_APP_PRIVATE_KEY_PATH must name a readable RSA private key"
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_full_env_loads(test_env: dict[str, str]) -> None:
@@ -460,3 +469,24 @@ def test_bad_route_labels_raise(tmp_path: Path, text: str) -> None:
 def test_duplicate_channel_id_raises(tmp_path: Path) -> None:
     text = TWO_ROUTE_TOML.replace("channel_id = 556", "channel_id = 555")
     assert route_error(tmp_path, text) == "routes.intake and routes.other share channel_id"
+
+
+def test_example_env_lists_every_key() -> None:
+    lines = (REPO_ROOT / "example.env").read_text().splitlines()
+    entries = [line for line in lines if line.strip() and not line.lstrip().startswith("#")]
+    assert all("=" in entry for entry in entries)
+    keys = [entry.split("=", 1)[0].strip() for entry in entries]
+    assert len(keys) == len(set(keys))
+    assert set(keys) == set(ALL_KEYS)
+
+
+def test_example_routes_shape() -> None:
+    # Not loaded through load_routes: the example's placeholder ids are 0 by design.
+    with open(REPO_ROOT / "example.routes.toml", "rb") as file:
+        data = tomllib.load(file)
+    routes = data["routes"]
+    assert isinstance(routes, dict)
+    assert routes
+    for route in routes.values():
+        assert set(route) == set(ROUTE_KEYS)
+        assert set(route["labels"]) == {t.value for t in IssueType}

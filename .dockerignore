@@ -1,8 +1,9 @@
 # The image holds code and pinned dependencies only: no credentials, no target config.
-# All config arrives through the environment at run time.
+# All config arrives at run time: the environment, plus the route file mounted at ROUTES_PATH.
 .env
 .env.*
 example.env
+example.routes.toml
 .git
 .venv
 __pycache__
