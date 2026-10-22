@@ -101,6 +101,10 @@ Pointing the bot at another channel or repo (for example a test channel) means c
 
 `.env` uses plain key-equals-value lines, with no quotes and no `export`. Docker's `--env-file` takes each value literally. The shell form below reads the same file correctly only when no value contains spaces, quotes, `$`, backticks or backslashes (the shell expands them); for such a value, use the Docker run, or export that key by hand with single quotes before starting the bot. The shell form runs in a subshell so the token is not left exported in your terminal.
 
+#### Upgrading from single-target config
+
+Configs from before the route file kept the target in `.env`; the bot no longer reads those keys. Move them into a `[routes.<name>]` table in the route file: `DISCORD_CHANNEL_ID` becomes `channel_id`, `DISCORD_CHANNEL_NAME` becomes `channel_name`, `DISCORD_CATEGORY` becomes `category`, `GITHUB_REPO` becomes `repo`, `GITHUB_REPO_ID` becomes `repo_id`, and `GITHUB_LABEL_BUG` / `GITHUB_LABEL_FEATURE` become `labels.bug` / `labels.feature`. Then add `UNROUTED_COMMANDS`, `GITHUB_ORG` and `ROUTES_PATH` to `.env` and delete the old keys.
+
 ### Run locally
 
 ```sh

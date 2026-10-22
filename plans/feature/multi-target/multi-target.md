@@ -588,7 +588,11 @@ the shared-token multi-container mode.
       server, into fleshed-out GitHub issues in that channel's route repo in the 4IRL GitHub
       org". Leave everything else unchanged.
 - [x] Confirm `grep -nE 'DISCORD_CHANNEL_ID|DISCORD_CHANNEL_NAME|DISCORD_CATEGORY|GITHUB_REPO\b|GITHUB_REPO_ID|GITHUB_LABEL_' README.md docs/SMOKE-TEST.md example.env CLAUDE.md`
-      prints nothing (no output; grep exits 1, which is the pass). Then confirm the new
+      prints exactly one line, the README "Upgrading from single-target config" paragraph
+      (`README.md:<n>:Configs from before the route file kept the target in ...`), which names
+      the old keys on purpose; any other match is a stale key. Equivalently,
+      `grep -nE '<same pattern>' README.md docs/SMOKE-TEST.md example.env CLAUDE.md | grep -v '^README.md:[0-9]*:Configs from before the route file'`
+      prints nothing (exit 1 is the pass). Then confirm the new
       passages landed (each exits 0): `grep -n '^### Run several instances' README.md`
       prints the heading line; `grep -l ':/run/config/routes.toml:ro' README.md docs/SMOKE-TEST.md`
       lists both files; `grep -l 'example.routes.toml' CLAUDE.md .dockerignore` lists both
@@ -598,6 +602,7 @@ the shared-token multi-container mode.
       copy uses `install -m 0644` so uid 10001 can read it, the route-name rule says "starting
       with a letter or digit", and the `example.env` drift test also rejects duplicate keys and
       lines without `=`; 270 passed.)
+      DD-6 overturned at merge-gate review: README gains an upgrade note naming the old keys (was assumed dd-261022-013).
 
 ### 5. Verify all tests pass
 

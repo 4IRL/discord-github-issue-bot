@@ -153,7 +153,7 @@ whole-document gate re-run.
 
 **Labels:** kind=dd category=docs-wording reversible=yes rework=low · Recommended: 2
 
-**Chosen:** 2 (assumed: dd-policy, dd-261022-013)
+**Chosen:** 1 + README upgrade note (overturned at review; was assumed dd-261022-013)
 
 ---
 
