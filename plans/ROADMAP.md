@@ -78,16 +78,16 @@ component.
 exist, what the schema is) is META-PLAN's Baseline; do not restate it here. Update the
 "as of" date whenever a row changes, which is normally at a phase-status change. -->
 
-*As of 2026-10-21.*
+*As of 2026-10-25.*
 
 | # | Capability | State | Delivered by |
 |---|---|---|---|
-| 1 | Slash-command capture | done — `/bug` and `/feature` modals in one configured channel | Phase 1 |
+| 1 | Slash-command capture | done — `/bug` and `/feature` modals in each routed channel | Phases 1, 1.5 |
 | 2 | Per-type questions | none — not started | Phase 2 |
 | 3 | Complexity rating | none — not started | Phase 3 |
 | 4 | Issue filed and on the roadmap | partial — filed with its type label; structured body and roadmap placement pending | Phases 1 (filed), 2 (structured body), 3 (roadmap) |
 | 5 | Link posted back | done — issue number, title and link in the thread (or a reply on the summary) | Phase 1 |
-| 6 | Multiple targets | partial — target comes from config; routes and instances pending | Phases 1 (portable config), 1.5 (routes, instances) |
+| 6 | Multiple targets | done — a route file maps channels to repos, from one process or several containers | Phases 1 (portable config), 1.5 (routes, instances) |
 
 ## Principles & constraints
 
@@ -137,25 +137,7 @@ at a time unless the sequencing rationale says otherwise.
 
 ### Phase 1: Walking skeleton (command → issue → link) · done (2026-10-21) — `/bug` and `/feature` modals in one configured channel post a summary, open a thread on it, file a labeled issue and post its link back (F1, F2, F5, F10, F7).
 
-### Phase 1.5: Multi-target and rename · planned
-
-**Goal.** The same bot serves more than one intake channel and target repo, and the
-project carries a name that matches. **Advances capabilities:** 6.
-
-- A route table in a config file maps each intake channel in the server to its target repo
-  in the 4IRL org (with its own type → label map); reports are filed to their channel's
-  repo, and unrouted channels are ignored.
-- The same image runs as one process with several routes or as several containers, each
-  with its own route file; the deployment docs show both.
-- The repo, local folder, docs and image are renamed to `discord-github-issue-bot`.
-
-**Exit criteria.** With two routes pointing two test channels at two test repos, a report
-in each channel files in its own repo and posts its link back, both from one
-process and from two containers. The renamed repo's suite is green.
-
-**Why here.** Phase 2 and 3 add per-conversation state and per-repo Project config. Making
-the config multi-target before they start means they are built per target once, instead
-of refactored later.
+### Phase 1.5: Multi-target and rename · done (2026-10-25) — a TOML route file maps each intake channel to its own repo in the org, from one process or several containers on one token, and the project carries the `discord-github-issue-bot` name (F9, F8).
 
 ### Phase 2: Per-type questions · planned
 
