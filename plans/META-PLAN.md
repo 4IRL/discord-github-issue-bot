@@ -43,26 +43,28 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 
 ## Where the work stands
 
-**★FOCUS: `F8` — Multi-target routes and multi-instance deployment** (runnable; branch `feature/multi-target`).
+**★FOCUS: `F3` — Per-tag modal questions with preview and confirm** (runnable; branch `feature/clarifying-questions`).
 
-Phase 1 is complete on `main`: the `/bug`/`/feature` modal, summary thread, filed issue and the
-issue link posted back (F7). F8 is runnable now and opens Phase 1.5; F3 prefers to follow it. F6
-is also gated on creating the new chores4irl roadmap Project.
+Phases 1 and 1.5 are complete on `main`: the `/bug`/`/feature` modal, summary thread, filed issue
+and link posted back, now for every channel in a TOML route file, from one process or several
+containers (F8). F3 is runnable now and opens Phase 2; F4 follows it. F6 is also gated on creating
+the new chores4irl roadmap Project.
 
 <!-- Two or three sentences at most: what is runnable today, what is gated and on what.
 Shipped work is git's record (`gh pr list --state merged`), not this file's. -->
 
 ### Shortest path to the focus feature
 
-F8 has no open prerequisites: F5's GitHub client, F7's end-to-end flow and F10's slash-command
-intake are what it generalizes per route.
+F3 has no open prerequisites: F5's single issue-body builder, F10's modal and F8's per-route config
+(`route.name`) are what it builds on.
 
-1. **Run F8** (`/run-feature F8`, effort L). It turns the single target into a route table.
-2. **Run F3** (effort M) on per-target question sets.
+1. **Run F3** (`/run-feature F3`, effort M). Per-route question sets fill the modal, with a private
+   preview before filing.
+2. **Run F4** (effort M) on F3's answers.
 
 A live run needs the bot invited with the `bot` and `applications.commands` scopes and View
 Channel, Read Message History, Send Messages, Create Public Threads and Send Messages in Threads
-on the intake channel, plus F5's GitHub App (README § Discord setup and § GitHub App setup; runbook
+on each route's intake channel, plus F5's GitHub App (README § Discord setup and § GitHub App setup; runbook
 `docs/SMOKE-TEST.md`, which uses a separate test server).
 
 ---
@@ -76,7 +78,6 @@ on the intake channel, plus F5's GitHub App (README § Discord setup and § GitH
 - [ ] **F3** (added 2026-10-16): In the thread, ask the clarifying questions needed to flesh out the idea (rule-based, per tag). (amended 2026-10-18: the per-tag questions become the fields of F10's modal, then a private preview with File/Edit; no thread conversation.)
 - [ ] **F4** (added 2026-10-16): Evaluate the issue's complexity (triage).
 - [ ] **F6** (added 2026-10-16): Add the created issue to the chores4irl roadmap (split from "create the issue in the 4IRL/chores4irl GitHub repo and add it to its roadmap").
-- [ ] **F8** (added 2026-10-17): Multiple instances of the bot should be deployable: spool up multiple bots, or have multiple listeners that port issues to different repos based on the bot's instantiation settings/parameters; all channels come from the same Discord server and all issues go to repos in the 4IRL GitHub org (both a route table in one process and multi-container deployment).
 
 ---
 
@@ -84,10 +85,9 @@ on the intake channel, plus F5's GitHub App (README § Discord setup and § GitH
 
 | Order | Feature | Effort | Depends on | Phase |
 |---|---|---|---|---|
-| ★ 1 | **F8** — Multi-target routes and multi-instance deployment **[FOCUS]** | L | F5, F7, F10 | 1.5 |
-| 2 | **F3** — Per-tag modal questions with preview and confirm | M | F5, F10; soft: F8 | 2 |
-| 3 | **F4** — Complexity triage (S/M/L/XL) | M | F3 | 3 |
-| 4 | **F6** — Add the issue to the chores4irl roadmap Project | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
+| ★ 1 | **F3** — Per-tag modal questions with preview and confirm **[FOCUS]** | M | F5, F10; soft: F8 | 2 |
+| 2 | **F4** — Complexity triage (S/M/L/XL) | M | F3 | 3 |
+| 3 | **F6** — Add the issue to the chores4irl roadmap Project | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
 
 <!-- *Depends on* holds dependency edges in the grammar of
 /home/rmila/Code/_STRONGHOLD/plans/roadmap.md §3.1 *Dependency edges and `NEXT.md`*, which is
@@ -111,7 +111,7 @@ gate), unsplit like `cond:`; any other text not in the grammar is reported, neve
 superseded row (Feature cell struck through with `~~`, *Depends on* starting `**superseded`)
 holds its supersession note, not edges; readers skip it. -->
 
-**Effort tally (remaining).** 9 pts (S=1 / M=2 / L=3 / XL=5).
+**Effort tally (remaining).** 6 pts (S=1 / M=2 / L=3 / XL=5).
 
 ---
 
@@ -122,14 +122,13 @@ holds its supersession note, not edges; readers skip it. -->
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F3 — Per-tag modal questions with preview and confirm** | pending | `feature/clarifying-questions` | — |
+| **F3 — Per-tag modal questions with preview and confirm** ★FOCUS | pending | `feature/clarifying-questions` | — |
 | **F4 — Complexity triage (S/M/L/XL)** | pending | `feature/complexity-triage` | — |
 | **F6 — Add the issue to the chores4irl roadmap Project** | pending | `feature/roadmap-project` | — |
-| **F8 — Multi-target routes and multi-instance deployment** ★FOCUS | in-review | `feature/multi-target` | [#17](https://github.com/4IRL/discord-github-issue-bot/pull/17) |
 
 ---
 
-## Baseline: the codebase as it exists today (`main` at PR #15, `7e4c9c5`)
+## Baseline: the codebase as it exists today (`main` at PR #17, `d0c78c9`)
 
 > The Assumed starting state for every remaining feature unless its section says
 > otherwise. Describe what *is*, never what changed.
@@ -148,21 +147,33 @@ each type is one slash command and one target label. `issue_bot/handler.py`: fro
 `candidate_from_submission(issue_type, title, description, reporter, message, target)` with the
 bot's summary message as `message`. Member text and names are `repr=False`.
 
-**Interfaces.** `issue_bot/config.py`: `Config` (instance-wide: `discord_token`, `guild_id`,
-`github_app_id`, `github_installation_id`, and `github_private_key`, an `RSAPrivateKey` loaded
-at startup from the PEM file at `GITHUB_APP_PRIVATE_KEY_PATH`; the token and key are
-`repr=False`) holds one `TargetConfig` (`channel_id`, `channel_name`, `category`, `github_repo`,
-`github_repo_id`, `labels`: one per `IssueType`, checked in `__post_init__` and read-only),
-both built by `from_env` with every key required
-and validated (`ConfigError`; an unreadable or non-RSA key names only the env key). The env
-keys are listed in `example.env`, the only place the 4irl/chores4irl values appear outside
-tests. chores4irl's `bug` and `enhancement` labels exist (checked by F5, 2026-10-18).
-`DISCORD_GUILD_ID` is also the one guild the slash commands are synced to.
+**Interfaces.** `issue_bot/config.py`: `Config.from_env(env)` reads, in order, `DISCORD_TOKEN`,
+`DISCORD_GUILD_ID`, `UNROUTED_COMMANDS` (`UnroutedCommands` `refuse`/`ignore`), `GITHUB_ORG`
+(an owner name), `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, `GITHUB_APP_PRIVATE_KEY_PATH`
+(an `RSAPrivateKey` loaded from that PEM file) and `ROUTES_PATH`; the token and key are
+`repr=False`. `Config.routes` is a read-only `Mapping[int, TargetConfig]` keyed by channel id in
+file order (frozen again in `__post_init__`), built by `load_routes(path, org)`: a TOML file of
+`[routes.<name>]` tables (name `[a-z0-9][a-z0-9_-]*`), each with exactly the `ROUTE_KEYS`
+`channel_id`, `channel_name`, `category`, `repo` (`owner/name`, owner equal to `GITHUB_ORG`
+case-insensitively), `repo_id` and a `labels` table mapping `bug` and `feature`. It rejects an
+empty file, unknown keys, non-positive or non-int ids, blank strings and a `channel_id` two routes
+share. `TargetConfig` is `name`, `channel_id`, `channel_name`, `category`, `github_repo`,
+`github_repo_id`, `labels` (one per `IssueType`, checked in `__post_init__` and read-only).
+Every `ConfigError` names the key (env key or `routes.<name>.<key>`), never the value; an
+unreadable file or a TOML syntax error is `ROUTES_PATH must name a readable TOML route file`
+(no parser text). The 4irl/chores4irl values appear outside tests only in `example.env`
+(`GITHUB_ORG=4IRL`) and `example.routes.toml` (one `[routes.c4i]` route, placeholder ids 0); both
+are pinned by drift tests in `tests/test_config.py`. chores4irl's `bug` and `enhancement` labels
+exist (checked by F5, 2026-10-18). `DISCORD_GUILD_ID` is also the one guild the slash commands are
+synced to.
 
 **Key modules / UI.** Slash-command intake lives in `issue_bot/intake.py`.
-`intake_command(issue_type, target, on_candidate, filing_check=None)` builds one guild command
-per `IssueType` (`/bug`, `/feature`). Outside `target.channel_id` (thread channels included) it
-sends the private `INTAKE_REFUSAL`. Otherwise it runs `filing_check(target)` within
+`intake_command(issue_type, routes, unrouted, on_candidate, filing_check=None)` builds one guild
+command per `IssueType` (`/bug`, `/feature`) and looks the route up with
+`routes.get(interaction.channel_id)` at call time (a thread's own id is unrouted). With no route it
+sends the private `INTAKE_REFUSAL` (logged `refused …`), or with `UnroutedCommands.IGNORE` returns
+without responding (logged `ignored <type> outside this instance's routes interaction_id=…
+channel_id=…`). Otherwise it runs `filing_check(target)` within
 `FILING_CHECK_TIMEOUT` (2 s): on a `GitHubError`, a timeout or any other error it sends the
 private `FILING_UNAVAILABLE_REPLY` and opens no modal. Then it opens `IntakeModal`: a required
 Title (`ui.Label`-wrapped `TextInput`, max 100 = `THREAD_NAME_LIMIT`), an optional paragraph
@@ -181,13 +192,15 @@ caught and logged.
 
 `issue_bot/bot.py`: `IssueBot(discord.Client)` with the guilds intent only (no message
 intents, no `on_message`). `IssueBot(config, on_candidate=open_issue_thread,
-filing_check=None)` registers the two commands on `IntakeTree` (a `CommandTree` whose `on_error`
+filing_check=None)` registers the two commands (with `config.routes` and `config.unrouted`) on `IntakeTree` (a `CommandTree` whose `on_error`
 logs type, command, interaction id, status and code) with `guild=` always set. `setup_hook`
 runs once per process. It syncs the commands to the configured guild (`synced N commands to
-guild …`; a failure is logged and the bot keeps running), then runs the startup GitHub check
-(`github access ok for repo_id=…` or `github access check failed …`; the bot keeps running).
-`on_ready` sanity-checks the channel once per process (Gateway reconnects refire it): a
-missing channel logs at ERROR, a name/category mismatch at WARNING; neither stops the bot.
+guild …`; a failure is logged and the bot keeps running), then runs the startup GitHub check for
+each route in file order, one after another (`github access ok for repo_id=…` or
+`github access check failed …`; a failure moves on to the next route). `on_ready` sanity-checks
+every route's channel once per process (Gateway reconnects refire it) with
+`channel_problems(channel, route, guild_id)`: a missing channel logs at ERROR, a guild, name or
+category mismatch at WARNING (`channel <id> name is …, expected …`); neither stops the bot.
 `on_error` logs the exception type and event name only.
 
 Thread helpers live in `issue_bot/threads.py`: `thread_name` (title cut to 100 characters with
@@ -199,8 +212,8 @@ returning `None`. `filed_reply(issue, title)` formats the link message,
 (`FILED_REPLY`).
 
 The bot needs the `bot` and `applications.commands` invite scopes and View Channel, Read
-Message History, Send Messages, Create Public Threads and Send Messages in Threads on the
-intake channel. Read Message History also covers replying to the summary message. Guild commands persist on Discord after the bot stops; a redeploy re-syncs
+Message History, Send Messages, Create Public Threads and Send Messages in Threads on each
+route's intake channel. Read Message History also covers replying to the summary message. Guild commands persist on Discord after the bot stops; a redeploy re-syncs
 them.
 
 GitHub filing: `issue_bot/github.py` `GitHubClient(app_id, installation_id, private_key)`
@@ -225,18 +238,23 @@ opened, always with `AllowedMentions.none()` and `suppress_embeds=True`. A
 by type, status, code and ids. Any other exception reaches `IntakeModal.on_error`. `issue_bot/__main__.py` builds the client, wires `filing_hook` and
 `filing_check=github.check_access`, and runs at INFO with `log_handler=None` (discord loggers never at DEBUG).
 
-**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 216 tests across
+**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 270 tests across
 `tests/test_{handler,config,bot,intake,threads,github,issues,smoke}.py`, with Discord
 interactions and the GitHub transport fully mocked (`make_interaction`, `make_candidate`,
-`make_message` fixtures in `tests/conftest.py`). No CI workflow.
+`make_message` fixtures, plus `routes_file`, `route`, `two_route_config` and `write_routes` with
+`ONE_ROUTE_TOML`/`TWO_ROUTE_TOML`, in `tests/conftest.py`). No CI workflow.
 
 **Deployment.** `Dockerfile` (`python:3.12.11-slim`, non-root uid 10001, `STOPSIGNAL SIGINT`,
 `python -m issue_bot`), built and run as image `discord-github-issue-bot` (README). The env comes from `.env` (gitignored; `example.env` is the template).
 The App private key is mounted read-only at `GITHUB_APP_PRIVATE_KEY_PATH`
-(`/run/secrets/github-app-key.pem` in the container). The owner's live smoke-test runbook is
+(`/run/secrets/github-app-key.pem` in the container) and the route file at `ROUTES_PATH`
+(`/run/config/routes.toml`), read once at startup (restart after an edit). README § Run several
+instances documents several containers from one image on one bot token, each with its own route
+file and `UNROUTED_COMMANDS=ignore`, and README's *Upgrading from single-target config* maps the
+old `.env` target keys to route fields. The owner's live smoke-test runbook is
 `docs/SMOKE-TEST.md` (it uses a separate test server, never the live one). The owner's smoke
 run of F10 passed before PR #13 merged (2026-10-21). The owner confirmed F7 works on its branch
-before PR #15 merged (2026-10-21). Before PR #9 merged, the owner's run filed issues #1 and #2 in a private
+before PR #15 merged (2026-10-21), and F8 before PR #17 merged (2026-10-25). Before PR #9 merged, the owner's run filed issues #1 and #2 in a private
 scratch repo, torn down on 2026-10-18 (recorded in PR #9's description).
 Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
 
@@ -256,8 +274,8 @@ Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
    PR #13; CLAUDE.md rule). A GitHub API error is logged by exception type, request stage and
    HTTP status, never its response text; tokens, JWTs and the App private key are never logged
    (F5, PR #9). The filed issue's URL may be logged.
-3. Every config key is required and validated at startup; a bad config exits with code 2
-   before connecting (F1).
+3. Every config key, in the environment and the route file, is required and validated at
+   startup; a bad config exits with code 2 before connecting (F1; route file F8, PR #17).
 
 ### Assumptions to revisit at planning time
 
@@ -283,34 +301,17 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F1 — Channel listener and tag parsing · merged (#2)
 
-*Kept because F8 builds on it.*
+*Kept because F3 and F6 build on it.*
 - `IssueBot(config, on_candidate=...)`: the `on_candidate(message, candidate)` hook is the
   single seam for candidates; F5's `filing_hook`, with F7's link post, plugs in there.
   Don't add a second candidate dispatch path. F10's modal submit feeds it with the bot's
   summary message as `message`.
-- `IssueCandidate` carries the `TargetConfig` it came from. Filing reads the repo, repo id
-  and labels from `candidate.target`, never from a constant.
-- `Config` keeps instance-wide values apart from its single `target`; F8 turns `target` into
-  a list of routes.
-
-## F2 — Thread per tagged message · merged (#7)
-
-*Kept because F8 builds on it.*
-- The default `on_candidate` (`open_issue_thread`) returns nothing. A hook that replaces or
-  wraps it (F5's `filing_hook`) gets the thread by calling
-  `open_thread(message, thread_name(candidate.title))` again: its duplicate guard returns the
-  existing thread instead of creating a second one. Since F10 that message is the bot's
-  summary message.
-- Caught Discord API errors are logged by exception type, HTTP status and code, never their
-  text (Standing invariant 2); new thread sends follow the same pattern as `filing_hook`'s
-  `FILING_ERROR_REPLY` send.
-- The 160004 code and fetch-by-message-id recovery are documentation-derived; the owner's
-  duplicate-path check (archived thread via `PartialMessage`, steps in
-  `plans/feature/issue-thread/issue-thread.md` § Manual checks) confirms them.
+- `IssueCandidate` carries the `TargetConfig` (route) it came from. Filing reads the repo, repo
+  id and labels from `candidate.target`, never from a constant.
 
 ## F5 — File the issue in 4IRL/chores4irl · merged (#9)
 
-*Kept because F3, F6 and F8 build on it.*
+*Kept because F3 and F6 build on it.*
 - `issue_bot/issues.py` `issue_body` is the only place an issue body is formatted; F3 extends
   it (one section per answered question) rather than formatting a second body.
 - `GitHubClient.create_issue` returns `FiledIssue(number, html_url)`; the posted link is that
@@ -320,17 +321,13 @@ Parallel features: `/worktree <F-ID>...`.
   files even when no thread opened. F3's preview step moves filing behind File, and F6 adds
   roadmap placement after filing; both stay inside this hook.
 - Auth is one GitHub App installation (instance-wide `GITHUB_APP_*` config); each token is
-  scoped to one target repo id with `issues: write` and cached per repo id. F8's extra target
-  repos join that installation; F6 widens the token request's `permissions` for Projects.
+  scoped to one route's repo id with `issues: write` and cached per repo id. Every route's repo
+  joins that one installation (which is why each must be in `GITHUB_ORG`); F6 widens the token
+  request's `permissions` for Projects.
 
 ## F10 — Slash-command intake · merged (#13)
 
-*Kept because F3 and F8 build on it.*
-- `intake_command(issue_type, target, on_candidate, filing_check=None)` is the registration
-  seam: one guild command per `IssueType`, its channel check bound to one `target`. F8
-  generalizes it per route. In multi-container mode every container receives every command,
-  so a container whose route doesn't match must stay silent rather than send
-  `INTAKE_REFUSAL`, or it races the right container (F10 DD-18).
+*Kept because F3 builds on it.*
 - `IntakeModal` is the one modal. Its Description field is the slot F3's per-type questions
   replace (Discord caps a modal at five fields). Its submit always posts the summary before
   calling `on_candidate`, and the summary is the message the thread and the issue link hang off.
@@ -339,15 +336,33 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F7 — Post the issue link in the thread · merged (#15)
 
-*Kept because F3 and F8 build on it.*
+*Kept because F3 builds on it.*
 - `bot._post_outcome(message, thread, text, what)` is the one path that posts a filing
   outcome: in the thread, else as a reply to the summary message, always with
   `AllowedMentions.none()` and `suppress_embeds=True`, logging a Discord failure by type,
   status, code and ids. F3's preview and any new outcome message reuse it rather than adding a
   second send path.
 - The link message is `threads.filed_reply(issue, title)`, built from the route's own
-  `FiledIssue.html_url`; F8's per-route filing posts it unchanged. It is posted after the
+  `FiledIssue.html_url`. It is posted after the
   `filed … issue=<url>` log line, so a failed post never hides the issue URL.
+
+## F8 — Multi-target routes and multi-instance deployment · merged (#17)
+
+*Kept because F3 and F6 build on it.*
+- A route is a `TargetConfig` whose first field is `name`, its `[routes.<name>]` table name. F3
+  keys its per-route question sets and F6 its per-route Project config off `route.name`, adding
+  their own keys under `[routes.<name>]` by extending `ROUTE_KEYS` and `load_routes`, never a
+  second config file or per-route env keys. Today every `ROUTE_KEYS` key is required and
+  `test_example_routes_shape` checks each route for exactly that set; a key a route may omit
+  (F6: a route with no Project) changes both.
+- `Config.routes` (channel id → route, read-only, file order) is the only route lookup, and
+  `intake_command(issue_type, routes, unrouted, on_candidate, filing_check=None)` is the
+  registration seam: the route is looked up by `interaction.channel_id` at call time, and
+  outside the routes the command refuses or, with `UnroutedCommands.IGNORE`, returns without
+  responding (in shared-token mode every container receives every command, so a reply would
+  race the right container).
+- Command payloads stay route-agnostic: every container on one token syncs the same guild
+  command set, and the last sync wins. Commands sync only with `guild=`.
 
 ## Deferred follow-ups (confirmed, unscheduled, no F-ID yet)
 
@@ -399,6 +414,12 @@ Parallel features: `/worktree <F-ID>...`.
   - a few test tightenings.
 
   None blocks a remaining feature.
+- **F8 push-review polish.** The unticked minor to-dos in
+  `plans/feature/multi-target/reviews/push-review-feature-multi-target.md`, Review 1: drop
+  `load_routes`' redundant `seen` map; log the unrouted refuse/ignore line once; name the route in
+  the startup access-check log lines; decide whether to split the route-file error into
+  "cannot be read" and "is not valid TOML"; and decide whether `Config.__post_init__` checks that
+  routes is non-empty and keyed by each route's `channel_id`. None blocks a remaining feature.
 - **`--clear-commands`.** A one-shot empty guild sync for a rollback or retirement. Until then,
   removing `/bug` and `/feature` from a server means an empty sync for that guild or removing
   the app from the server; neither is verified (the Server Settings → Integrations path didn't
@@ -527,85 +548,27 @@ S/M/L/XL) are designed when it is created.
 **Session.** `/run-feature F6` on branch `feature/roadmap-project`; plan at
 `plans/feature/roadmap-project/roadmap-project.md`.
 
-## F8 — Multi-target routes and multi-instance deployment · Phase 1.5 · Effort L · (added 2026-10-17)
-
-**Goal.** One bot process serves several targets: a route table in a config file maps each
-intake channel (all in the configured guild) to its target repo in the 4IRL org, with its
-own type → label map. The same image can also run as several containers, each with its own
-route file, and the deployment docs show both. Feature-list line F8.
-
-**Rank rationale.** It comes right after the Phase 1 skeleton (owner's choice, 2026-10-17)
-so F3, F4 and F6 build per-target question sets and config from the start instead of being
-refactored later. It needs F5's GitHub client, F7's end-to-end flow and F10's
-interaction intake to generalize (F10 first, so routes dispatch slash commands from the
-start; owner's choice, 2026-10-18).
-
-**Dependencies.** F5, F7, F10.
-
-**Sizing.** unscored (intake estimate L); split check pending.
-
-**Assumed starting state** = **Baseline** (all of Phase 1: F1, F2, F5, F10 and F7) and F1's
-target config object. Verify:
-- F1's config has one target object, separate from instance-wide values, and
-  `grep -rnE 'chores4irl|969373970' --include='*.py' .` outside `tests/` prints nothing.
-- F10's `/bug` and `/feature` interaction intake exists: the commands open their modals,
-  and a submit reaches `filing_hook` through `on_candidate`.
-
-**Expected end state** (repo-checkable):
-- A route file (format chosen at planning, e.g. YAML or TOML, path from env) lists one or
-  more targets: intake channel ID, target repo and repo ID, type → label map. Secrets stay in
-  env, never in the route file. The single-target env config of F1 still works, or is
-  migrated with a documented one-route example.
-- The handler dispatches each `/bug` or `/feature` interaction by channel ID to its route;
-  one in an unrouted channel gets F10's ephemeral refusal. Filing, labels and the posted
-  link use that route's repo.
-- Startup validation rejects duplicate channel IDs and a repo outside the configured org,
-  and runs F1's name/category sanity check for every route.
-- A compose file (or documented `docker run` set) runs two instances from the same image
-  with different route files.
-- All suites green; Standing invariants untouched.
-
-**Test-suite deltas.** Route-file loading and validation tests (empty, duplicate channel,
-foreign org), dispatch tests with two mocked routes filing to two mocked repos, and an
-unrouted-channel test.
-
-**Open risks / decisions.** (a) Credentials across targets: one GitHub App installed on
-each target repo (recommended) versus a credential per route; one Discord bot token per
-process. (b) Two containers sharing one bot token both receive every Gateway event; each
-must ignore channels outside its own routes, and the docs must warn against overlapping
-routes (or recommend one Discord application per container). (c) Per-target question-set
-keys for F3 (no persisted state; F3's risk (a) drops its `data/` store), and per-target
-Project config for F6, are set here as the contract those features build on. (d) Hot
-reload of the route file: recommend restart-only. (e) In multi-container mode a container
-must stay silent on a command outside its routes rather than send F10's refusal, or it races
-the right container (F10 DD-18; F10's kept contract).
-
-**Session.** `/run-feature F8` on branch `feature/multi-target`; plan at
-`plans/feature/multi-target/multi-target.md`.
-
 ---
 
 ## Dependencies & couplings (remaining work)
 
 ```
 Phase 1:    done       (F1 #2; F9 rename #5; F2 threads #7; F5 filing #9; F10 intake #13; F7 link #15)
-Phase 1.5:  ★ F8       (F5, F7, F10 shipped)
-Phase 2:    F5, F10 ──► F3       (soft: after F8)
+Phase 1.5:  done       (F8 routes #17)
+Phase 2:    F5, F10 ──► ★ F3     (soft F8 shipped)
 Phase 3:    F3 ──► F4
             F5 ──► F6   [cond: new roadmap Project] (couples F4; soft: after F8)
 ```
 
-- **Hard chains:** {F5, F7, F10} → F8, {F5, F10} → F3 → F4, F5 → F6. F1, F2, F5, F7, F9 and
-  F10 have shipped; refs to them stay valid, so F8 is runnable, and F3 → F4 and F6's
-  roadmap-Project gate still wait. F3's hard deps are met, but it prefers to follow F8.
-- **Soft preferences:** F8 before F3 and F6, so question sets and Project config are per-target from
-  the start. F6 could start any time after F5 once its Project exists; the ROADMAP keeps it in
-  Phase 3 so the Project fields are designed alongside F4.
+- **Hard chains:** {F5, F10} → F3 → F4, F5 → F6. F1, F2, F5, F7, F8, F9 and F10 have shipped;
+  refs to them stay valid, so F3 is runnable, F4 waits on F3, and F6 on its roadmap-Project gate.
+- **Soft preferences:** F8 (shipped) before F3 and F6, so question sets and Project config are
+  per-route from the start. F6 could start any time after F5 once its Project exists; the ROADMAP
+  keeps it in Phase 3 so the Project fields are designed alongside F4.
 - **Couplings to honor:** F3 ↔ F5: F3 reuses F5's single issue-body builder rather than
   formatting a second body. F3 ↔ F10: F3's per-type questions fill F10's `IntakeModal`
-  (five-field cap) and replace its Description field (F10's kept contract). F8 turns F1's
-  single `TargetConfig` into a list (F1's kept contract) and generalizes F10's
-  `intake_command` seam per route, staying silent outside its own routes. F4 ↔ F6: both use
+  (five-field cap) and replace its Description field (F10's kept contract). F3 and F6 put their
+  per-route settings under `[routes.<name>]` (F8's kept contract). F4 ↔ F6: both use
   the same S/M/L/XL band names, one as a label and one as a Project field.
 
 ---
