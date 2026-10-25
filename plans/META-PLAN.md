@@ -444,8 +444,8 @@ conversation; members can still comment in the thread. Feature-list line F3 (ame
 **Rank rationale.** This is Phase 2's whole scope, now built on F10's modal. It changes the
 filing path from "file on submit" (F10) to "file after preview".
 
-**Dependencies.** F5, F10; soft: F8. Landing after F8 means the question sets are keyed per
-target from the start.
+**Dependencies.** F5, F10; soft: F8. F8 has shipped, so the question sets key off
+`route.name` from the start (F8's kept contract).
 
 **Sizing.** unscored (intake estimate M); split check pending.
 
@@ -523,8 +523,8 @@ complexity field shares a contract with F4.
 **Dependencies.** F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created
 (owner-approved). The gate is checked by finding the Project in
 `gh api graphql` `organization(login:"4IRL"){projectsV2}` and recording its number in
-config. After F8, the Project number and field IDs are per-target config (a target may
-have no Project).
+config. Per F8's kept contract, the Project number and field IDs are per-route config under
+`[routes.<name>]` (a route may have no Project).
 
 **Sizing.** unscored (intake estimate M); split check pending.
 
