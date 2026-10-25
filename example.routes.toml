@@ -1,0 +1,19 @@
+# Copy this file outside the repo and fill it in; set ROUTES_PATH to the copy's path.
+# One [routes.<name>] table per intake channel. The name is lowercase letters, digits,
+# - or _, starting with a letter or digit; later per-route settings key off it.
+# The bot reads this file once at startup: restart it after a change.
+
+[routes.c4i]
+# Discord Developer Mode, right-click #c4i-github-issues, Copy Channel ID. 0 is rejected.
+channel_id = 0
+# startup sanity check only
+channel_name = "c4i-github-issues"
+# startup sanity check only
+category = "C4I"
+repo = "4IRL/chores4irl"
+# `gh api repos/4IRL/chores4irl --jq .id`. 0 is rejected.
+repo_id = 0
+
+[routes.c4i.labels]
+bug = "bug"
+feature = "enhancement"

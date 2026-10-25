@@ -50,20 +50,33 @@ Start from a `.env` copied from `example.env`, which supplies the other required
 GITHUB_APP_ID=<App ID>
 GITHUB_APP_INSTALLATION_ID=<installation ID>
 GITHUB_APP_PRIVATE_KEY_PATH=/home/<you>/.config/discord-github-issue-bot/github-app.pem
-GITHUB_REPO=4IRL/issue-bot-scratch
-GITHUB_REPO_ID=<REPO_ID>
+GITHUB_ORG=4IRL
+UNROUTED_COMMANDS=refuse
+ROUTES_PATH=/home/<you>/.config/discord-github-issue-bot/routes.smoke.toml
 DISCORD_GUILD_ID=<the test channel's guild ID>
-DISCORD_CHANNEL_ID=<test channel ID>
-DISCORD_CHANNEL_NAME=<test channel name>
-DISCORD_CATEGORY=<test channel's category>
+```
+
+Then create `~/.config/discord-github-issue-bot/routes.smoke.toml` with one route for the test channel and the scratch repo:
+
+```toml
+[routes.smoke]
+channel_id = <test channel ID>
+channel_name = "<test channel name>"
+category = "<test channel's category>"
+repo = "4IRL/issue-bot-scratch"
+repo_id = <REPO_ID>
+
+[routes.smoke.labels]
+bug = "bug"
+feature = "enhancement"
 ```
 
 The bot syncs `/bug` and `/feature` to the `DISCORD_GUILD_ID` guild, so leaving example.env's value would register them in the live server. Set it to the test guild's ID.
 
 The two run modes read `.env` differently:
 
-- **Local run.** The README's command loads `.env` through the shell: quotes are stripped, a leading `~` is expanded, and an unquoted space or `$` breaks the value. Write the full path with no spaces. Don't point it at `/run/secrets/...`, which exists only inside the container.
-- **Container run.** Docker's `--env-file` takes every value literally. A `~`, quotes or a trailing comment become part of the path. The value must be exactly `/run/secrets/github-app-key.pem` (section 4).
+- **Local run.** The README's command loads `.env` through the shell: quotes are stripped, a leading `~` is expanded, and an unquoted space or `$` breaks the value. Write the full paths (`GITHUB_APP_PRIVATE_KEY_PATH` and `ROUTES_PATH`) with no spaces. Don't point them at `/run/secrets/...` or `/run/config/...`, which exist only inside the container.
+- **Container run.** Docker's `--env-file` takes every value literally. A `~`, quotes or a trailing comment become part of the path. The values must be exactly `GITHUB_APP_PRIVATE_KEY_PATH=/run/secrets/github-app-key.pem` and `ROUTES_PATH=/run/config/routes.toml` (section 4).
 
 To check the local run, which loads `.env` the same way the bot is started, without printing the key:
 
@@ -127,11 +140,11 @@ The log shows `synced 2 commands to guild <DISCORD_GUILD_ID>`. In the test chann
 
 A filing failure after a submit (the `FILING_ERROR_REPLY` posted in the thread, or as a reply to the summary when no thread opened) can't be triggered this way, since the check now stops the form first; the unit tests cover it.
 
-Restart the bot after every `.env` change. It reads its configuration only at startup.
+Restart the bot after every `.env` or route-file change. It reads its configuration only at startup.
 
 ## 4. Container run
 
-Stop the local bot first. Two processes on one bot token both receive each command: one opens the modal and the other's reply fails (logged by the command tree's error handler), so a report is filed once. Still, never run two.
+Stop the local bot first. Two processes on one bot token both receive each command: one opens the modal and the other's reply fails (logged by the command tree's error handler), so a report is filed once. Still, never run two for the smoke test. README [Run several instances](../README.md#run-several-instances) covers deliberate multi-container runs.
 
 The image runs as uid 10001, which can't read your `0600` key. Give the container its own copy rather than changing the original's owner, because a key `chown`ed to 10001 is no longer readable by you for local runs:
 
@@ -145,10 +158,11 @@ Build the image first, from the branch you're testing. Rebuild after any code ch
 docker build -t discord-github-issue-bot .
 ```
 
-Set `GITHUB_APP_PRIVATE_KEY_PATH=/run/secrets/github-app-key.pem` in `.env`. Before starting the bot, check the literal value and confirm the container can read the key:
+Set `GITHUB_APP_PRIVATE_KEY_PATH=/run/secrets/github-app-key.pem` and `ROUTES_PATH=/run/config/routes.toml` in `.env`. Before starting the bot, check the literal values and confirm the container can read the key:
 
 ```sh
 grep '^GITHUB_APP_PRIVATE_KEY_PATH=' .env      # exactly: GITHUB_APP_PRIVATE_KEY_PATH=/run/secrets/github-app-key.pem
+grep '^ROUTES_PATH=' .env                      # exactly: ROUTES_PATH=/run/config/routes.toml
 ls -l ~/.config/discord-github-issue-bot/github-app.container.pem   # a regular file (-r--------) owned by 10001, not a "d" directory
 docker run --rm --entrypoint sh \
   -v ~/.config/discord-github-issue-bot/github-app.container.pem:/run/secrets/github-app-key.pem:ro \
@@ -160,10 +174,11 @@ Then run:
 ```sh
 docker run --rm --env-file .env \
   -v ~/.config/discord-github-issue-bot/github-app.container.pem:/run/secrets/github-app-key.pem:ro \
+  -v ~/.config/discord-github-issue-bot/routes.smoke.toml:/run/config/routes.toml:ro \
   discord-github-issue-bot
 ```
 
-Submit one `/bug`. It is filed as in section 2. Set the key path back to the host path afterwards.
+Submit one `/bug`. It is filed as in section 2. Set the key path and `ROUTES_PATH` back to the host paths afterwards.
 
 For a quick test, add `--user "$(id -u)"` instead and mount the original `github-app.pem`. The container then runs as you.
 
@@ -176,7 +191,7 @@ For a quick test, add `--user "$(id -u)"` instead and mount the original `github
 
    Do this before deleting the repo, because the issue links stop working once it's gone.
 2. Remove the scratch repo from the installation's selected repositories (org **Settings → GitHub Apps → Configure**), then delete the repo. Keep the App and its installation for the real target.
-3. Restore `.env` to the real target repo, intake channel and host key path. Delete the container key copy unless you'll keep running the bot in Docker: `sudo rm ~/.config/discord-github-issue-bot/github-app.container.pem`.
+3. Restore `ROUTES_PATH` to the real route file and the host key path. Delete the container key copy unless you'll keep running the bot in Docker: `sudo rm ~/.config/discord-github-issue-bot/github-app.container.pem`.
 4. Delete the smoke-test summary messages and threads, or leave them if the test channel is private to you.
 5. The test guild keeps `/bug` and `/feature`, which is harmless (they answer "The application did not respond" while the bot is down), or you can delete the test guild. Restore `.env`, but don't start the bot with the real config until the owner approves the live deploy and has posted the cutover notice (step 6): that start syncs the commands to the live server.
 6. Cutover: before the live deploy, the owner posts a notice in the live intake channel that `!bug` and `!feature` no longer work. Agents never post.
@@ -189,8 +204,11 @@ For a quick test, add `--user "$(id -u)"` instead and mount the original `github
 | `configuration error: GITHUB_APP_PRIVATE_KEY_PATH must name a readable RSA private key` (exit 2), local run | The `.env` path is wrong, often still the container path, or you can't read the file, for example after a `chown 10001`. Run the `test -r` check in section 0. |
 | The same error, container run | Run the three checks in section 4. `.env` must say exactly `/run/secrets/github-app-key.pem`. The `-v` source must be a regular file owned by 10001: if it was missing, Docker created an empty directory there, so remove it with `sudo rmdir` and recreate the copy. The key file must start with `-----BEGIN RSA PRIVATE KEY-----`, which `sudo head -c 31 <file>` shows without printing the key. |
 | `/bug` and `/feature` are missing | The commands weren't synced to this guild. The bot must be invited with the `applications.commands` scope, `DISCORD_GUILD_ID` must be the test channel's guild, and the startup log must show `synced 2 commands to guild …` (a `could not sync commands …` ERROR names the failure). If the log is right, reload the Discord client, which caches the command list. |
-| The command is refused in the right channel | A command run inside a thread, including a summary's thread, is refused: run it in the channel itself. Otherwise `DISCORD_CHANNEL_ID` doesn't match the channel: copy the channel ID again and restart the bot. |
-| `/bug` says reports can't be filed | The bot can't get a GitHub token for the repo. Check the startup log's `github access check failed …` line (its `status`) and the `filing unavailable …` lines, then the App ID, installation ID, `GITHUB_REPO_ID` and private key; the token probe in section 1 shows the same failure. Restart the bot after fixing `.env`. |
+| The command is refused in the right channel | A command run inside a thread, including a summary's thread, is refused: run it in the channel itself. Otherwise the route's `channel_id` doesn't match the channel: copy the channel ID again into the route file and restart the bot. |
+| "The application did not respond" in a thread or an unrouted channel | With `UNROUTED_COMMANDS=ignore` the bot stays silent there: run the command in the routed channel itself. |
+| `/bug` says reports can't be filed | The bot can't get a GitHub token for the repo. Check the startup log's `github access check failed …` line (its `status`) and the `filing unavailable …` lines, then the App ID, installation ID, the route's `repo_id` in the route file and private key; the token probe in section 1 shows the same failure. Restart the bot after fixing `.env` or the route file. |
+| `configuration error: routes.<name>.repo must be in GITHUB_ORG` (exit 2) | The route's `repo` owner isn't `GITHUB_ORG`. Point the route at a repo in that org (for the smoke test, `4IRL/issue-bot-scratch`) or fix `GITHUB_ORG`. |
+| `configuration error: ROUTES_PATH must name a readable TOML route file` (exit 2) | A wrong path, or a TOML syntax error. In a container run, also a `-v` route-file mount left off, a `-v` source path that didn't exist (Docker then created an empty directory there: remove it with `sudo rmdir` and create the file), or a route file uid 10001 can't read. To find a syntax error, run from the repo root `.venv/bin/python -c 'import sys, tomllib; sys.excepthook = lambda t, e, tb: print(f"{t.__name__}: {e}"); tomllib.load(open(sys.argv[1], "rb")); print("ok")' <route file>`. It prints only the parser's one-line position message, e.g. `TOMLDecodeError: Invalid value (at line 2, column 14)` (exit 1); a valid file prints `ok`, and a missing file prints a `FileNotFoundError: …` line. A file saved with a UTF-8 BOM fails at line 1, column 1 (`TOMLDecodeError: Invalid statement (at line 1, column 1)`): re-save it as UTF-8 without a BOM. |
 | A submit gets a private error and no summary | The bot can't post in the channel. Check the startup log for `connected as …` with no channel ERROR or WARNING after it, and that the bot has View Channel, Read Message History, Send Messages, Create Public Threads and Send Messages in Threads there. |
 | The issue is filed but no link appears in the thread | The bot couldn't post it. Check the log for `could not send issue link …` (its status and code): the thread post needs Send Messages in Threads; the reply on the summary (when no thread opened) needs Send Messages and Read Message History. |
 | The probe prints `JWT generation failed` | The key couldn't be loaded. Check the `<KEY_PATH>` argument and the Python error above that line. |

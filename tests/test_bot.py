@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -15,7 +16,7 @@ from issue_bot.bot import (
     filing_hook,
     open_issue_thread,
 )
-from issue_bot.config import Config
+from issue_bot.config import Config, TargetConfig
 from issue_bot.github import FiledIssue, GitHubClient, GitHubError
 from issue_bot.handler import IssueCandidate
 from issue_bot.intake import FILING_UNAVAILABLE_REPLY, INTAKE_ERROR_REPLY, NO_MENTIONS, IntakeModal
@@ -35,28 +36,25 @@ from tests.conftest import (
 CONFIG_KEYS = (
     "DISCORD_TOKEN",
     "DISCORD_GUILD_ID",
+    "UNROUTED_COMMANDS",
+    "GITHUB_ORG",
     "GITHUB_APP_ID",
     "GITHUB_APP_INSTALLATION_ID",
     "GITHUB_APP_PRIVATE_KEY_PATH",
-    "DISCORD_CHANNEL_ID",
-    "DISCORD_CHANNEL_NAME",
-    "DISCORD_CATEGORY",
-    "GITHUB_REPO",
-    "GITHUB_REPO_ID",
-    "GITHUB_LABEL_BUG",
-    "GITHUB_LABEL_FEATURE",
+    "ROUTES_PATH",
 )
 
 
 def make_channel(
     *,
+    channel_id: int = 555,
     guild_id: int = 111,
     name: str = "intake",
     category_name: str | None = "Intake",
 ) -> SimpleNamespace:
     category = SimpleNamespace(name=category_name) if category_name is not None else None
     return SimpleNamespace(
-        id=555, name=name, guild=SimpleNamespace(id=guild_id), category=category
+        id=channel_id, name=name, guild=SimpleNamespace(id=guild_id), category=category
     )
 
 
@@ -78,42 +76,44 @@ def test_intents() -> None:
     assert intents.presences is False
 
 
-def test_matching_channel_has_no_problems(config: Config) -> None:
-    assert channel_problems(make_channel(), config) == []
+def test_matching_channel_has_no_problems(config: Config, route: TargetConfig) -> None:
+    assert channel_problems(make_channel(), route, config.guild_id) == []
 
 
-def test_missing_channel(config: Config) -> None:
-    assert channel_problems(None, config) == ["channel 555 not found or not visible to the bot"]
+def test_missing_channel(config: Config, route: TargetConfig) -> None:
+    assert channel_problems(None, route, config.guild_id) == [
+        "channel 555 not found or not visible to the bot"
+    ]
 
 
-def test_wrong_guild(config: Config) -> None:
-    assert channel_problems(make_channel(guild_id=222), config) == [
+def test_wrong_guild(config: Config, route: TargetConfig) -> None:
+    assert channel_problems(make_channel(guild_id=222), route, config.guild_id) == [
         "channel 555 is in guild 222, expected 111"
     ]
 
 
-def test_channel_without_guild(config: Config) -> None:
+def test_channel_without_guild(config: Config, route: TargetConfig) -> None:
     private_channel = SimpleNamespace(id=555)
-    assert channel_problems(private_channel, config) == [
+    assert channel_problems(private_channel, route, config.guild_id) == [
         "channel 555 is not in a guild, expected guild 111"
     ]
 
 
-def test_wrong_name(config: Config) -> None:
-    assert channel_problems(make_channel(name="general"), config) == [
-        "channel name is 'general', expected 'intake'"
+def test_wrong_name(config: Config, route: TargetConfig) -> None:
+    assert channel_problems(make_channel(name="general"), route, config.guild_id) == [
+        "channel 555 name is 'general', expected 'intake'"
     ]
 
 
-def test_wrong_category(config: Config) -> None:
-    assert channel_problems(make_channel(category_name="Other"), config) == [
-        "channel category is 'Other', expected 'Intake'"
+def test_wrong_category(config: Config, route: TargetConfig) -> None:
+    assert channel_problems(make_channel(category_name="Other"), route, config.guild_id) == [
+        "channel 555 category is 'Other', expected 'Intake'"
     ]
 
 
-def test_no_category(config: Config) -> None:
-    assert channel_problems(make_channel(category_name=None), config) == [
-        "channel category is None, expected 'Intake'"
+def test_no_category(config: Config, route: TargetConfig) -> None:
+    assert channel_problems(make_channel(category_name=None), route, config.guild_id) == [
+        "channel 555 category is None, expected 'Intake'"
     ]
 
 
@@ -205,7 +205,7 @@ def secret_candidate(make_candidate: CandidateFactory) -> IssueCandidate:
 
 
 async def test_filing_hook_files_issue_posts_link_and_logs_url(
-    config: Config,
+    route: TargetConfig,
     make_message: MessageFactory,
     make_candidate: CandidateFactory,
     caplog: pytest.LogCaptureFixture,
@@ -217,7 +217,7 @@ async def test_filing_hook_files_issue_posts_link_and_logs_url(
     message.create_thread.assert_awaited_once_with(name="Secret title words")
     github.create_issue.assert_awaited_once()
     target, _title, _body, labels = github.create_issue.await_args.args
-    assert target == config.target
+    assert target == route
     assert labels == ["bug"]
     message.create_thread.return_value.send.assert_awaited_once_with(
         filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words"),
@@ -429,10 +429,10 @@ async def test_summary_error_reply_failure_logged_without_text(
 
 
 async def test_filing_hook_unexpected_error_reaches_modal_on_error(
-    config: Config, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+    route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
     github = fake_github(RuntimeError("Secret exception words"))
-    modal = IntakeModal(IssueType.BUG, config.target, filing_hook(github))
+    modal = IntakeModal(IssueType.BUG, route, filing_hook(github))
     interaction = make_interaction()
     # discord.py's own seed for a submitted value: a real submit needs the Gateway.
     modal.title_input._value = "Secret title words"
@@ -487,7 +487,7 @@ async def test_on_ready_logs_channel_mismatch_as_warning(
         for record in bot_records(caplog)
         if record.levelno >= logging.WARNING
     ]
-    assert problems == [(logging.WARNING, "channel name is 'general', expected 'intake'")]
+    assert problems == [(logging.WARNING, "channel 555 name is 'general', expected 'intake'")]
 
 
 async def test_on_ready_matching_channel_logs_no_warning(
@@ -518,6 +518,50 @@ async def test_on_ready_checks_channel_once_across_reconnects(
     bot_messages = [record.getMessage() for record in bot_records(caplog)]
     assert sum(text.startswith("connected as") for text in bot_messages) == 1
     assert sum("not found or not visible" in text for text in bot_messages) == 1
+
+
+async def test_on_ready_checks_each_route_once(
+    two_route_config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(two_route_config)
+    lookups: list[int] = []
+
+    def get_channel(channel_id: int) -> SimpleNamespace | None:
+        lookups.append(channel_id)
+        return make_channel() if channel_id == 555 else None
+
+    monkeypatch.setattr(bot, "get_channel", get_channel)
+    with caplog.at_level(logging.INFO):
+        await bot.on_ready()
+        await bot.on_ready()
+    assert lookups == [555, 556]
+    problems = [
+        (record.levelno, record.getMessage())
+        for record in bot_records(caplog)
+        if record.levelno >= logging.WARNING
+    ]
+    assert problems == [(logging.ERROR, "channel 556 not found or not visible to the bot")]
+    assert_no_member_text(caplog)
+
+
+async def test_on_ready_checks_each_route_against_its_own_name_and_category(
+    two_route_config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    bot = IssueBot(two_route_config)
+    channels = {555: make_channel(), 556: make_channel(channel_id=556)}
+    monkeypatch.setattr(bot, "get_channel", channels.get)
+    with caplog.at_level(logging.INFO):
+        await bot.on_ready()
+    problems = [
+        (record.levelno, record.getMessage())
+        for record in bot_records(caplog)
+        if record.levelno >= logging.WARNING
+    ]
+    assert problems == [
+        (logging.WARNING, "channel 556 name is 'intake', expected 'other-intake'"),
+        (logging.WARNING, "channel 556 category is 'Intake', expected 'Other'"),
+    ]
+    assert_no_member_text(caplog)
 
 
 async def test_on_error_hides_exception_text(
@@ -573,6 +617,27 @@ def test_main_exits_on_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(SystemExit) as exit_info:
         entry_point.main()
     assert exit_info.value.code == 2
+
+
+def test_main_exits_on_bad_route_file(
+    monkeypatch: pytest.MonkeyPatch,
+    test_env: dict[str, str],
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    for key, value in test_env.items():
+        monkeypatch.setenv(key, value)
+    missing_path = str(tmp_path / "missing.toml")
+    monkeypatch.setenv("ROUTES_PATH", missing_path)
+    monkeypatch.setattr(entry_point, "IssueBot", FailingBot)
+    with pytest.raises(SystemExit) as exit_info:
+        entry_point.main()
+    assert exit_info.value.code == 2
+    texts = record_texts(caplog)
+    assert "configuration error: ROUTES_PATH must name a readable TOML route file" in texts
+    for text in texts:
+        assert missing_path not in text
+    assert_no_member_text(caplog)
 
 
 def test_main_config_error_hides_value(
@@ -655,6 +720,13 @@ def test_commands_registered_for_guild_only(config: Config) -> None:
     assert bot.tree.get_commands() == []
 
 
+def test_two_routes_register_one_command_set(two_route_config: Config) -> None:
+    bot = IssueBot(two_route_config)
+    guild_commands = bot.tree.get_commands(guild=discord.Object(111))
+    assert sorted(command.name for command in guild_commands) == ["bug", "feature"]
+    assert bot.tree.get_commands() == []
+
+
 async def test_setup_hook_syncs_guild_once(
     config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -709,14 +781,17 @@ async def test_setup_hook_non_http_sync_failure_logged_type_only(
 
 
 async def test_setup_hook_logs_github_access_ok(
-    config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    config: Config,
+    route: TargetConfig,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     check = AsyncMock()
     bot = IssueBot(config, filing_check=check)
     monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
     with caplog.at_level(logging.INFO):
         await bot.setup_hook()
-    check.assert_awaited_once_with(config.target)
+    check.assert_awaited_once_with(route)
     assert "github access ok for repo_id=222" in [
         record.getMessage() for record in bot_records(caplog) if record.levelno == logging.INFO
     ]
@@ -725,6 +800,7 @@ async def test_setup_hook_logs_github_access_ok(
 @pytest.mark.parametrize("sync_fails", [False, True], ids=["synced", "sync-failed"])
 async def test_setup_hook_github_access_failure_logged_and_survived(
     config: Config,
+    route: TargetConfig,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
     sync_fails: bool,
@@ -739,7 +815,7 @@ async def test_setup_hook_github_access_failure_logged_and_survived(
     with caplog.at_level(logging.INFO):
         await bot.setup_hook()
     sync.assert_awaited_once()
-    check.assert_awaited_once_with(config.target)
+    check.assert_awaited_once_with(route)
     errors = [
         record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
     ]
@@ -761,6 +837,57 @@ async def test_setup_hook_unexpected_check_failure_logged_type_only(
     ] == ["github access check failed for repo_id=222: RuntimeError"]
     for text in record_texts(caplog):
         assert "Secret exception words" not in text
+
+
+async def test_setup_hook_checks_every_route_in_order(
+    two_route_config: Config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    check = AsyncMock()
+    bot = IssueBot(two_route_config, filing_check=check)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    await bot.setup_hook()
+    assert [call.args for call in check.await_args_list] == [
+        (two_route_config.routes[555],),
+        (two_route_config.routes[556],),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("error", "first_line"),
+    [
+        (
+            GitHubError("token", 401),
+            "github access check failed for repo_id=222: GitHubError stage=token status=401",
+        ),
+        (
+            RuntimeError("Secret exception words"),
+            "github access check failed for repo_id=222: RuntimeError",
+        ),
+    ],
+    ids=["github-error", "unexpected-error"],
+)
+async def test_setup_hook_first_route_failure_still_checks_second(
+    two_route_config: Config,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    error: Exception,
+    first_line: str,
+) -> None:
+    check = AsyncMock(side_effect=[error, None])
+    bot = IssueBot(two_route_config, filing_check=check)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    assert check.await_count == 2
+    assert check.await_args_list[1].args == (two_route_config.routes[556],)
+    assert [
+        record.getMessage()
+        for record in bot_records(caplog)
+        if record.getMessage().startswith("github access")
+    ] == [first_line, "github access ok for repo_id=223"]
+    for text in record_texts(caplog):
+        assert "Secret exception words" not in text
+    assert_no_member_text(caplog)
 
 
 async def test_bot_commands_refuse_when_filing_check_fails(
@@ -845,3 +972,18 @@ async def test_command_callback_reaches_hook_end_to_end(
     assert candidate.type is IssueType.BUG
     assert candidate.title == "Fix it"
     assert candidate.message_id == summary.id
+
+
+async def test_silent_mode_through_real_tree(
+    test_env: dict[str, str], make_interaction: InteractionFactory
+) -> None:
+    bot = IssueBot(Config.from_env({**test_env, "UNROUTED_COMMANDS": "ignore"}))
+    command = bot.tree.get_command("bug", guild=discord.Object(id=111))
+    unrouted = make_interaction(channel_id=557)
+    await command.callback(unrouted)
+    unrouted.response.send_message.assert_not_awaited()
+    unrouted.response.send_modal.assert_not_awaited()
+    unrouted.response.defer.assert_not_awaited()
+    routed = make_interaction()
+    await command.callback(routed)
+    routed.response.send_modal.assert_awaited_once()
