@@ -1,12 +1,12 @@
 # discord-github-issue-bot
 
-A Discord bot that turns `/bug` and `/feature` reports, made through a modal in one of its configured intake channels of a Discord server, into GitHub issues in the 4IRL GitHub org. Each intake channel is a route, and each report is filed in that route's repo. Each report becomes a public summary message, a thread on it and a filed issue whose link is posted in the thread. Clarifying questions and roadmap placement are planned features. Its first target (an example) is `#c4i-github-issues` in the 4irl server → `4IRL/chores4irl`.
+A Discord bot that turns `/bug` and `/feature` reports, made through a modal in one of its configured intake channels of a Discord server, into GitHub issues in the 4IRL GitHub org. Each intake channel is a route, and each report is filed in that route's repo. The modal asks the route's own questions for the report's type, and the reporter checks a private preview of the issue before filing it. Each filed report becomes a public summary message, a thread on it and a filed issue whose link is posted in the thread. Roadmap placement is planned. Its first target (an example) is `#c4i-github-issues` in the 4irl server → `4IRL/chores4irl`.
 
 The code itself is target-agnostic: it holds no 4irl values (never as a code default), and their config home is the committed [`example.env`](example.env) and [`example.routes.toml`](example.routes.toml).
 
 ## Status
 
-F2 (thread per report), F5 (issue filing), F7 (issue link in the thread), F8 (routes: several intake channels, each filing to its own repo, from the route file) and F10 (slash-command intake) exist: the bot registers `/bug` and `/feature` and files each report as described under [Reporting](#reporting). The thread is named from the title, and the issue gets its type's label. A filed issue is logged by issue type, message id, message URL, thread id and issue URL. On success the bot posts the issue number, title and link in the thread (`Filed as GitHub issue #<number>: <title>` with the link on the next line, no preview card); if filing fails it posts a fixed error reply there. With no thread, either goes as a reply to the summary message.
+F2 (thread per report), F3 (per-type questions with a private preview before filing), F5 (issue filing), F7 (issue link in the thread), F8 (routes: several intake channels, each filing to its own repo, from the route file) and F10 (slash-command intake) exist: the bot registers `/bug` and `/feature` and files each report as described under [Reporting](#reporting). The thread is named from the title, and the issue gets its type's label. A filed issue is logged by issue type, message id, message URL, thread id and issue URL. On success the bot posts the issue number, title and link in the thread (`Filed as GitHub issue #<number>: <title>` with the link on the next line, no preview card); if filing fails it posts a fixed error reply there. With no thread, either goes as a reply to the summary message.
 
 - The commands are synced to the `DISCORD_GUILD_ID` guild only, once per start. Outside a routed intake channel they are refused, or ignored with no reply when `UNROUTED_COMMANDS=ignore`.
 - Each route's intake channel is matched by its `channel_id`; its name, category and guild are only checked at startup, per route (a mismatch logs a warning; a channel the bot cannot see logs an error).
@@ -14,12 +14,16 @@ F2 (thread per report), F5 (issue filing), F7 (issue link in the thread), F8 (ro
 ### Reporting
 
 1. Run `/bug` or `/feature` in an intake channel. A "New bug" or "New feature" form opens.
-2. Fill in **Title** (required, up to 100 characters) and, optionally, **Description** (up to 4000 characters, line breaks kept), then submit.
-3. The bot posts a public summary in the channel: the type, the title and you as a mention that pings nobody. It opens a thread on the summary, files the issue, then posts the issue's number, title and link in the thread.
-4. You get a private confirmation linking the summary. Only you see it.
+2. Fill in **Title** (required, up to 100 characters) and the route's questions for that type (one to four, set in the [route file](#configuration); each answer up to 4000 characters), then submit.
+3. You get a private preview that only you see: "Here's your report as it will be filed. **File** posts it; **Edit** changes it. This preview expires in 10 minutes.", with the issue body below it, the summary link shown as `(link added when filed)`.
+   - **Edit** reopens the form with your text filled in; submitting it updates the same preview in place, with a fresh 10 minutes.
+   - **File** changes the preview to "Filing your report…" and files the report, once.
+   - A preview left 10 minutes changes to "This preview expired, so nothing was filed. Run the command again to report it." and keeps your text, so you can copy it. Pressing a button never extends the 10 minutes.
+4. After **File**, the bot posts a public summary in the channel: the type, the title and you as a mention that pings nobody. It opens a thread on the summary, files the issue, then posts the issue's number, title and link in the thread. The issue body has one section per answered question; a blank optional question is left out.
+5. You get a private confirmation linking the summary. Only you see it.
 
-- A title with no letter or digit posts nothing; you get a private reply asking you to run the command again.
-- If the summary can't be posted, nothing is filed, and you get a private reply saying so.
+- A title with no letter or digit shows no preview; you get a private reply asking you to run the command again (after **Edit**, to press Edit and fix it).
+- If the summary can't be posted after **File**, nothing is filed, and you get a private reply saying so.
 - Before the form opens, the bot checks it can reach the GitHub repo. If it can't (within 2 seconds), no form opens and you get a private reply: "Sorry, reports can't be filed to GitHub right now, so the form didn't open. Try again later."
 - Run anywhere else, including inside a thread of an intake channel, the command gets a private refusal pointing to the intake channel. With `UNROUTED_COMMANDS=ignore` (see [Run several instances](#run-several-instances)), it gets no reply at all, and Discord shows "The application did not respond".
 
@@ -31,7 +35,9 @@ Direction: [`plans/ROADMAP.md`](plans/ROADMAP.md). Next work: [`plans/META-PLAN.
 - `/bug` and `/feature` are registered on Discord's side and persist when the bot stops: a command run while the bot is down fails in Discord ("The application did not respond") and files nothing. A redeploy re-syncs them.
 - An open modal expires after 30 minutes, and a bot restart drops every open modal: its submit fails in Discord, and nothing is filed or logged.
 - The private confirmation means only that the summary was posted, not that the issue was filed. The filing outcome (link or error) appears in the thread, or as a reply to the summary when no thread opened; if that post fails too, the outcome shows only in the log (`could not send issue link …` or `could not send filing error …`).
-- If GitHub filing fails, the Description typed in the modal is not kept anywhere in Discord; the reporter must type it again (F3's preview step addresses this).
+- The reporter's answers stay visible in the private preview until **File**, and also after an expiry or a failed filing, but the preview is an ephemeral message: Discord keeps it only for the reporter, and it can disappear when they reload or switch clients. A preview over 4096 characters shows only the start of the text, ending with "…preview shortened; the full text will be filed."; the filed issue is never cut.
+- A bot restart leaves an open preview's buttons dead (Discord shows "This interaction failed"); run the command again.
+- A reporter who presses **File** in one Discord client while an **Edit** form is open in another can submit that Edit, which opens a fresh preview whose **File** files a second issue; close the duplicate.
 - Route file changes need a restart.
 - Rolling back to a build without slash commands leaves `/bug` and `/feature` registered in the guild but unanswered, until an empty command sync for the guild or removal of the app from the server. Neither path is verified yet; a `--clear-commands` flag is a deferred follow-up.
 
@@ -54,7 +60,7 @@ Direction: [`plans/ROADMAP.md`](plans/ROADMAP.md). Next work: [`plans/META-PLAN.
 3. Note the App ID (the App's settings page) and the installation ID (the number at the end of the installation's URL).
 4. Generate a private key and keep the downloaded `.pem` outside the repo.
 
-Issues filed to a public target repo are public, including the author's Discord display name. @mentions in the body and the author name are neutralized (a zero-width space after each `@`), so filing notifies no GitHub user.
+Issues filed to a public target repo are public, including the author's Discord display name. @mentions in the body (question labels and answers) and the author name are neutralized (a zero-width space after each `@`), so filing notifies no GitHub user.
 
 ### Configuration
 
@@ -94,6 +100,7 @@ Add one table per intake channel. For `channel_id`, enable Developer Mode in Dis
 | `repo` | `owner/name` in `GITHUB_ORG` | Output repo |
 | `repo_id` | positive integer | Output repo id |
 | `labels.bug` / `labels.feature` | string | Label for `/bug` / `/feature` (a `[routes.<name>.labels]` table) |
+| `questions.bug` / `questions.feature` | array of tables | The form's questions for `/bug` / `/feature`, asked below the Title, 1 to 4 per type (`[[routes.<name>.questions.bug]]` tables). Each has exactly `label` (string, 1 to 45 characters, unique within the type), `style` (`"short"` for one line or `"paragraph"` for several) and `required` (`true` or `false`) |
 
 Each `labels.*` label must already exist in its route's repo: a label an App requests that doesn't exist may be dropped or auto-created depending on its permissions _(unverified)_. The scratch-repo [smoke test](docs/SMOKE-TEST.md) confirms the label was applied.
 
@@ -104,6 +111,10 @@ Pointing the bot at another channel or repo (for example a test channel) means c
 #### Upgrading from single-target config
 
 Configs from before the route file kept the target in `.env`; the bot no longer reads those keys. Move them into a `[routes.<name>]` table in the route file: `DISCORD_CHANNEL_ID` becomes `channel_id`, `DISCORD_CHANNEL_NAME` becomes `channel_name`, `DISCORD_CATEGORY` becomes `category`, `GITHUB_REPO` becomes `repo`, `GITHUB_REPO_ID` becomes `repo_id`, and `GITHUB_LABEL_BUG` / `GITHUB_LABEL_FEATURE` become `labels.bug` / `labels.feature`. Then add `UNROUTED_COMMANDS`, `GITHUB_ORG` and `ROUTES_PATH` to `.env` and delete the old keys.
+
+#### Upgrading to per-type questions
+
+Route files from before per-type questions have no `questions` tables, and the bot now exits at startup with code 2 (`configuration error: routes.<name>.questions is required`). Add `[[routes.<name>.questions.bug]]` and `[[routes.<name>.questions.feature]]` tables to every route, copying the sets in [`example.routes.toml`](example.routes.toml) as a start, then restart. Rolling back to an older build needs the `questions` tables removed again: older builds reject unknown route keys and also exit with code 2.
 
 ### Run locally
 

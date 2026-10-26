@@ -586,7 +586,7 @@ Show an ephemeral preview on submit; File runs the existing summary and filing p
 Describe the new modal, preview and route-file keys wherever the old flow is described.
 
 **To-do:**
-- [ ] `README.md`:
+- [x] `README.md`:
   - line 3: replace "Clarifying questions and roadmap placement are planned features" with
     per-type questions and a private preview, and "roadmap placement is planned";
   - the Status paragraph (line 9): add F3 to the features that exist;
@@ -604,19 +604,19 @@ Describe the new modal, preview and route-file keys wherever the old flow is des
     config": existing route files must add `questions` tables, or the bot exits with code 2;
     rolling back to an older build needs the `questions` tables removed again, since older
     builds reject unknown route keys (exit 2).
-- [ ] `docs/SMOKE-TEST.md` § 0 (One-time setup), the `routes.smoke.toml` block: after
+- [x] `docs/SMOKE-TEST.md` § 0 (One-time setup), the `routes.smoke.toml` block: after
   `[routes.smoke.labels]`, add `[[routes.smoke.questions.bug]]` and
   `[[routes.smoke.questions.feature]]` tables copied from `example.routes.toml`'s sets (bug:
   Steps to reproduce, Expected, Actual, Device / browser; feature: Who is it for?, What problem
   does it solve?, What does "done" look like?), so the smoke route file loads.
-- [ ] `docs/SMOKE-TEST.md` § 2 (Local run), step 1 and its table: submit with answers, see the preview, press Edit (the modal
+- [x] `docs/SMOKE-TEST.md` § 2 (Local run), step 1 and its table: submit with answers, see the preview, press Edit (the modal
   reopens prefilled), change an answer and submit: the same preview message updates in place,
   with no second message. Press File. The Issue body row becomes the author line,
   `---`, then one `###` section per answered question, with blank optional ones left out. Add
   the steps "let a preview sit 10 minutes: that same preview message says it expired and nothing
   is filed" and "after an Edit submit, let the new preview sit 10 minutes: that same message says
   it expired". Keep the `@someone` step, now in an answer.
-- [ ] `docs/SMOKE-TEST.md`, the other passages that describe filing on submit:
+- [x] `docs/SMOKE-TEST.md`, the other passages that describe filing on submit:
   - § 3 closing note (line 141): "A filing failure after a submit" becomes "A filing failure
     after File";
   - § 4 Container run (line 181): "Submit one `/bug`. It is filed as in section 2." becomes
@@ -625,14 +625,16 @@ Describe the new modal, preview and route-file keys wherever the old flow is des
     File gets a private error and no summary";
   - § What it writes, Success checks: "per submission" becomes "per report filed with **File**;
     an expired or edited preview writes nothing".
-- [ ] `CLAUDE.md` Stack line: "Clarifying questions ... rule-based (per-type templates)". Change
+- [x] `CLAUDE.md` Stack line: "Clarifying questions ... rule-based (per-type templates)". Change
   it to "Clarifying questions are per-route, per-type question sets in the route file", and
   leave complexity ratings as planned.
-- [ ] `CLAUDE.md` logging rule: change "while the command and modal error handlers log the
+- [x] `CLAUDE.md` logging rule: change "while the command and modal error handlers log the
   exception type, the command or modal name" to "while the command, modal and preview-view error
   handlers log the exception type, the command, modal or view name".
-- [ ] **Verify:** `grep -rn "Description" README.md docs/SMOKE-TEST.md` shows no stale reference
+- [x] **Verify:** `grep -rn "Description" README.md docs/SMOKE-TEST.md` shows no stale reference
   to the removed field.
+
+- ✅ Step 5 COMPLETE (2026-10-26): README, docs/SMOKE-TEST.md and CLAUDE.md updated; smoke route file verified to load with `load_routes`; 333 tests pass.
 
 ### 6. Verify All Tests Pass
 
