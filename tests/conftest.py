@@ -27,6 +27,21 @@ repo_id = 222
 [routes.intake.labels]
 bug = "bug"
 feature = "enhancement"
+
+[[routes.intake.questions.bug]]
+label = "What happened?"
+style = "paragraph"
+required = true
+
+[[routes.intake.questions.bug]]
+label = "Device"
+style = "short"
+required = false
+
+[[routes.intake.questions.feature]]
+label = "The idea"
+style = "paragraph"
+required = true
 """
 
 TWO_ROUTE_TOML = (
@@ -42,6 +57,16 @@ repo_id = 223
 [routes.other.labels]
 bug = "defect"
 feature = "idea"
+
+[[routes.other.questions.bug]]
+label = "Steps"
+style = "paragraph"
+required = true
+
+[[routes.other.questions.feature]]
+label = "Why?"
+style = "short"
+required = false
 """
 )
 

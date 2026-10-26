@@ -26,7 +26,10 @@ ASCII_INTEGER_PATTERN = re.compile(r"-?[0-9]+")
 DOT_SEGMENTS = frozenset({".", ".."})
 ROUTE_NAME_PATTERN = re.compile(r"[a-z0-9][a-z0-9_-]*")
 OWNER_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
-ROUTE_KEYS = ("channel_id", "channel_name", "category", "repo", "repo_id", "labels")
+ROUTE_KEYS = ("channel_id", "channel_name", "category", "repo", "repo_id", "labels", "questions")
+QUESTION_KEYS = frozenset({"label", "style", "required"})
+MAX_QUESTIONS = 4  # Title plus four questions fills Discord's five-field modal.
+QUESTION_LABEL_LIMIT = 45  # Discord's maximum label length.
 
 
 class ConfigError(Exception):
@@ -88,6 +91,22 @@ class UnroutedCommands(StrEnum):
     IGNORE = "ignore"
 
 
+class QuestionStyle(StrEnum):
+    """How a question's answer box is drawn: one line or several."""
+
+    SHORT = "short"
+    PARAGRAPH = "paragraph"
+
+
+@dataclass(frozen=True)
+class Question:
+    """One modal question; its label is operator config, not member text."""
+
+    label: str
+    style: QuestionStyle
+    required: bool
+
+
 def _unrouted(env: Mapping[str, str], key: str) -> UnroutedCommands:
     try:
         return UnroutedCommands(_required(env, key))
@@ -106,12 +125,25 @@ class TargetConfig:
     github_repo: str
     github_repo_id: int
     labels: Mapping[IssueType, str]
+    questions: Mapping[IssueType, tuple[Question, ...]]
 
     def __post_init__(self) -> None:
         if not isinstance(self.labels, Mapping) or set(self.labels) != set(IssueType):
             raise ConfigError("labels must have one entry per IssueType")
         # Copy before wrapping, so a caller's dict can't change the labels later.
         object.__setattr__(self, "labels", MappingProxyType(dict(self.labels)))
+        if (
+            not isinstance(self.questions, Mapping)
+            or set(self.questions) != set(IssueType)
+            or not all(
+                isinstance(questions, tuple)
+                and 1 <= len(questions) <= MAX_QUESTIONS
+                and all(isinstance(question, Question) for question in questions)
+                for questions in self.questions.values()
+            )
+        ):
+            raise ConfigError("questions must have one entry per IssueType")
+        object.__setattr__(self, "questions", MappingProxyType(dict(self.questions)))
 
 
 def _route_value(route: Mapping[str, object], where: str, key: str) -> object:
@@ -152,6 +184,50 @@ def _route_labels(route: Mapping[str, object], where: str) -> dict[IssueType, st
     return stripped_labels
 
 
+def _question(table: object, where_q: str) -> Question:
+    if not isinstance(table, dict):
+        raise ConfigError(f"{where_q} must be a table")
+    unknown_keys = sorted(set(table) - QUESTION_KEYS)
+    if unknown_keys:
+        raise ConfigError(f"{where_q} has unknown key {unknown_keys[0]!r}")
+    label = _route_str(table, where_q, "label")
+    if len(label) > QUESTION_LABEL_LIMIT:
+        raise ConfigError(f"{where_q}.label must be at most {QUESTION_LABEL_LIMIT} characters")
+    style = _route_value(table, where_q, "style")
+    if not isinstance(style, str) or style not in {member.value for member in QuestionStyle}:
+        raise ConfigError(f"{where_q}.style must be short or paragraph")
+    required = _route_value(table, where_q, "required")
+    if not isinstance(required, bool):
+        raise ConfigError(f"{where_q}.required must be true or false")
+    return Question(label, QuestionStyle(style), required)
+
+
+def _route_questions(
+    route: Mapping[str, object], where: str
+) -> dict[IssueType, tuple[Question, ...]]:
+    questions = _route_value(route, where, "questions")
+    if (
+        not isinstance(questions, dict)
+        or set(questions) != {issue_type.value for issue_type in IssueType}
+        or not all(isinstance(tables, list) for tables in questions.values())
+    ):
+        raise ConfigError(f"{where}.questions must map bug and feature to question lists")
+    route_questions: dict[IssueType, tuple[Question, ...]] = {}
+    for type_name, tables in questions.items():
+        where_type = f"{where}.questions.{type_name}"
+        if not 1 <= len(tables) <= MAX_QUESTIONS:
+            raise ConfigError(f"{where_type} must have 1 to {MAX_QUESTIONS} questions")
+        type_questions = tuple(
+            _question(table, f"{where_type}[{number}]")
+            for number, table in enumerate(tables, start=1)
+        )
+        labels = [question.label for question in type_questions]
+        if len(set(labels)) != len(labels):
+            raise ConfigError(f"{where_type} labels must be unique")
+        route_questions[IssueType(type_name)] = type_questions
+    return route_questions
+
+
 def _route(name: str, route: object, org: str) -> TargetConfig:
     where = f"routes.{name}"
     if not isinstance(route, dict):
@@ -172,6 +248,8 @@ def _route(name: str, route: object, org: str) -> TargetConfig:
     if owner.casefold() != org.casefold():
         raise ConfigError(f"{where}.repo must be in GITHUB_ORG")
     github_repo_id = _route_int(route, where, "repo_id")
+    labels = _route_labels(route, where)
+    questions = _route_questions(route, where)
     return TargetConfig(
         name=name,
         channel_id=channel_id,
@@ -179,7 +257,8 @@ def _route(name: str, route: object, org: str) -> TargetConfig:
         category=category,
         github_repo=github_repo,
         github_repo_id=github_repo_id,
-        labels=_route_labels(route, where),
+        labels=labels,
+        questions=questions,
     )
 
 
@@ -187,9 +266,11 @@ def load_routes(path: str, org: str) -> Mapping[int, TargetConfig]:
     """Load the route file: one ``[routes.<name>]`` table per intake channel.
 
     Each table holds ``channel_id``, ``channel_name``, ``category``, ``repo``
-    (``owner/name``, owned by ``org``), ``repo_id`` and a ``labels`` table
-    keyed ``bug``/``feature``. Returns a read-only mapping keyed by channel
-    id, in file order. Errors name the key, never the value or file text.
+    (``owner/name``, owned by ``org``), ``repo_id``, a ``labels`` table
+    keyed ``bug``/``feature`` and ``questions`` arrays ``bug``/``feature``,
+    each of 1-4 ``label``/``style``/``required`` tables. Returns a read-only
+    mapping keyed by channel id, in file order. Errors name the key, never
+    the value or file text.
     """
     try:
         with open(path, "rb") as file:

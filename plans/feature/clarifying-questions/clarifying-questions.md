@@ -144,7 +144,7 @@ required = false
 Load and validate per-route, per-type question sets at startup as a required route key.
 
 **To-do:**
-- [ ] **Red.** In `tests/conftest.py`, add a `[[routes.intake.questions.bug]]` set and a
+- [x] **Red.** In `tests/conftest.py`, add a `[[routes.intake.questions.bug]]` set and a
   `[[routes.intake.questions.feature]]` set to `ONE_ROUTE_TOML`. Bug gets two questions:
   `label = "What happened?"`, `style = "paragraph"`, `required = true`, then
   `label = "Device"`, `style = "short"`, `required = false`. Feature gets one:
@@ -152,7 +152,7 @@ Load and validate per-route, per-type question sets at startup as a required rou
   of `TWO_ROUTE_TOML` its own sets: bug `label = "Steps"` (paragraph, required) and feature
   `label = "Why?"` (short, not required). Place each route's question arrays after its
   `.labels` table.
-- [ ] **Red.** In `tests/test_config.py`, keep the labels tests meaning the same now that question
+- [x] **Red.** In `tests/test_config.py`, keep the labels tests meaning the same now that question
   arrays follow `[routes.intake.labels]`:
   - in `test_bad_route_labels_raise`, change the `extra-docs` case from
     `ONE_ROUTE_TOML + 'docs = "documentation"\n'` to
@@ -165,7 +165,7 @@ Load and validate per-route, per-type question sets at startup as a required rou
     question arrays after it. "questions" is left out: its arrays have no single line to drop,
     so without_questions covers it.` Update the `without_route_keys` docstring to say that
     dropping `labels` cuts at its header, which also drops the question arrays that follow it.
-- [ ] **Red.** In `tests/test_config.py`, add `MAX_QUESTIONS`, `Question`, `QuestionStyle` and
+- [x] **Red.** In `tests/test_config.py`, add `MAX_QUESTIONS`, `Question`, `QuestionStyle` and
   `_route_questions` to the `from issue_bot.config import (...)` list, then add tests:
   - `route.questions[IssueType.BUG]` equals `(Question("What happened?", QuestionStyle.PARAGRAPH, True), Question("Device", QuestionStyle.SHORT, False))`,
     and `route.questions[IssueType.BUG][1].style is QuestionStyle.SHORT` (equality alone passes
@@ -204,7 +204,7 @@ Load and validate per-route, per-type question sets at startup as a required rou
   to `ONE_ROUTE_TOML` lands in the last feature question, so it expects
   `routes.intake.questions.feature[1] has unknown key 'hint'`. Run
   `.venv/bin/pytest tests/test_config.py` and confirm the new tests fail.
-- [ ] **Green.** In `issue_bot/config.py`:
+- [x] **Green.** In `issue_bot/config.py`:
   - add `class QuestionStyle(StrEnum)` (`SHORT = "short"`, `PARAGRAPH = "paragraph"`) next to
     `UnroutedCommands`;
   - add `@dataclass(frozen=True) class Question` with `label: str`, `style: QuestionStyle`,
@@ -237,7 +237,7 @@ Load and validate per-route, per-type question sets at startup as a required rou
     `TargetConfig(...)` call at the end of `_route`;
   - add the `questions` arrays (`bug`/`feature`, each 1–4 `label`/`style`/`required` tables) to
     the `load_routes` docstring.
-- [ ] Update every direct `TargetConfig(...)` construction in the tests to pass a valid
+- [x] Update every direct `TargetConfig(...)` construction in the tests to pass a valid
   `questions=` mapping (test_config.py `make_target` and the literals in `test_full_env_loads` and
   `test_one_route_loads`; grep `TargetConfig(` across `tests/` and fix every hit). The two literals are
   compared with a route loaded from `ONE_ROUTE_TOML`, so they pass its exact questions:
@@ -246,7 +246,7 @@ Load and validate per-route, per-type question sets at startup as a required rou
   valid mapping. Add a test that
   `TargetConfig(...)` with `questions` missing a type raises
   `ConfigError("questions must have one entry per IssueType")`.
-- [ ] In `example.routes.toml`, add after `[routes.c4i.labels]` a comment block explaining
+- [x] In `example.routes.toml`, add after `[routes.c4i.labels]` a comment block explaining
   1–4 questions per type, the `label`/`style`/`required` keys, the 45-character label cap and
   that the questions replace a free-form description. Then add the ROADMAP's example sets:
   - bug: `Steps to reproduce` (paragraph, required), `Expected` (paragraph, required), `Actual`
@@ -254,15 +254,16 @@ Load and validate per-route, per-type question sets at startup as a required rou
   - feature: `Who is it for?` (short, required), `What problem does it solve?` (paragraph,
     required), `What does "done" look like?` (paragraph, optional), written as a TOML literal
     string: `label = 'What does "done" look like?'`.
-- [ ] Extend `test_example_routes_shape` (tests/test_config.py) to also assert
+- [x] Extend `test_example_routes_shape` (tests/test_config.py) to also assert
   `set(route["questions"]) == {t.value for t in IssueType}` and that each list has
   1–`MAX_QUESTIONS` entries, and to run the real validator on each raw example route:
   iterate `routes.items()` and call `_route_questions(route, f"routes.{name}")`, so every
   example question's keys, style and label length are checked. The existing
   `set(route) == set(ROUTE_KEYS)` check now covers `questions` through `ROUTE_KEYS`.
-- [ ] **Verify:** `.venv/bin/pytest` passes in full. Invariant 1's grep
+- [x] **Verify:** `.venv/bin/pytest` passes in full. Invariant 1's grep
   (`grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot`)
   prints nothing.
+  _Review DDs decided (assumed: dd-policy): no control-character label check (dd-261026-042); label uniqueness stays exact-match (dd-261026-043)._
 
 ### 2. Answers on the candidate and one section per answer
 Carry `(label, answer)` pairs on `IssueCandidate` and render them through one shared body formatter.
