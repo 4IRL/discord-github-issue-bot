@@ -43,24 +43,23 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 
 ## Where the work stands
 
-**★FOCUS: `F3` — Per-tag modal questions with preview and confirm** (runnable; branch `feature/clarifying-questions`).
+**★FOCUS: `F4` — Complexity triage (S/M/L/XL)** (runnable; branch `feature/complexity-triage`).
 
-Phases 1 and 1.5 are complete on `main`: the `/bug`/`/feature` modal, summary thread, filed issue
-and link posted back, now for every channel in a TOML route file, from one process or several
-containers (F8). F3 is runnable now and opens Phase 2; F4 follows it. F6 is also gated on creating
-the new chores4irl roadmap Project.
+Phases 1, 1.5 and 2 are complete on `main`: each route's `/bug`/`/feature` modal asks that route's
+questions, the reporter files from a private preview, and the issue's body has one section per
+answer (F3). F4 is runnable now and opens Phase 3. F6 is gated on creating the new chores4irl
+roadmap Project.
 
 <!-- Two or three sentences at most: what is runnable today, what is gated and on what.
 Shipped work is git's record (`gh pr list --state merged`), not this file's. -->
 
 ### Shortest path to the focus feature
 
-F3 has no open prerequisites: F5's single issue-body builder, F10's modal and F8's per-route config
-(`route.name`) are what it builds on.
+F4 has no open prerequisites: F3's answers (`IssueCandidate.answers`) and private preview
+(`PreviewView`) are what it builds on.
 
-1. **Run F3** (`/run-feature F3`, effort M). Per-route question sets fill the modal, with a private
-   preview before filing.
-2. **Run F4** (effort M) on F3's answers.
+1. **Run F4** (`/run-feature F4`, effort M). Rules rate each report S/M/L/XL from its answers; the
+   preview shows the rating and files it as a label.
 
 A live run needs the bot invited with the `bot` and `applications.commands` scopes and View
 Channel, Read Message History, Send Messages, Create Public Threads and Send Messages in Threads
@@ -75,7 +74,6 @@ on each route's intake channel, plus F5's GitHub App (README § Discord setup an
 
 **Next F-ID:** `F11`
 
-- [ ] **F3** (added 2026-10-16): In the thread, ask the clarifying questions needed to flesh out the idea (rule-based, per tag). (amended 2026-10-18: the per-tag questions become the fields of F10's modal, then a private preview with File/Edit; no thread conversation.)
 - [ ] **F4** (added 2026-10-16): Evaluate the issue's complexity (triage).
 - [ ] **F6** (added 2026-10-16): Add the created issue to the chores4irl roadmap (split from "create the issue in the 4IRL/chores4irl GitHub repo and add it to its roadmap").
 
@@ -85,9 +83,8 @@ on each route's intake channel, plus F5's GitHub App (README § Discord setup an
 
 | Order | Feature | Effort | Depends on | Phase |
 |---|---|---|---|---|
-| ★ 1 | **F3** — Per-tag modal questions with preview and confirm **[FOCUS]** | M | F5, F10; soft: F8 | 2 |
-| 2 | **F4** — Complexity triage (S/M/L/XL) | M | F3 | 3 |
-| 3 | **F6** — Add the issue to the chores4irl roadmap Project | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
+| ★ 1 | **F4** — Complexity triage (S/M/L/XL) **[FOCUS]** | M | F3 | 3 |
+| 2 | **F6** — Add the issue to the chores4irl roadmap Project | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
 
 <!-- *Depends on* holds dependency edges in the grammar of
 /home/rmila/Code/_STRONGHOLD/plans/roadmap.md §3.1 *Dependency edges and `NEXT.md`*, which is
@@ -111,7 +108,7 @@ gate), unsplit like `cond:`; any other text not in the grammar is reported, neve
 superseded row (Feature cell struck through with `~~`, *Depends on* starting `**superseded`)
 holds its supersession note, not edges; readers skip it. -->
 
-**Effort tally (remaining).** 6 pts (S=1 / M=2 / L=3 / XL=5).
+**Effort tally (remaining).** 4 pts (S=1 / M=2 / L=3 / XL=5).
 
 ---
 
@@ -122,13 +119,12 @@ holds its supersession note, not edges; readers skip it. -->
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F3 — Per-tag modal questions with preview and confirm** ★FOCUS | in-review | `feature/clarifying-questions` | [#19](https://github.com/4IRL/discord-github-issue-bot/pull/19) |
-| **F4 — Complexity triage (S/M/L/XL)** | pending | `feature/complexity-triage` | — |
+| **F4 — Complexity triage (S/M/L/XL)** ★FOCUS | pending | `feature/complexity-triage` | — |
 | **F6 — Add the issue to the chores4irl roadmap Project** | pending | `feature/roadmap-project` | — |
 
 ---
 
-## Baseline: the codebase as it exists today (`main` at PR #17, `d0c78c9`)
+## Baseline: the codebase as it exists today (`main` at PR #19, `338bf7b`)
 
 > The Assumed starting state for every remaining feature unless its section says
 > otherwise. Describe what *is*, never what changed.
@@ -138,14 +134,17 @@ holds its supersession note, not edges; readers skip it. -->
 lists the pre-rename folder path.
 
 **Stack.** Python 3.12 + discord.py (Gateway client), aiohttp for the GitHub REST API and
-PyJWT + cryptography for GitHub App auth, packaged as a Docker image. Clarification and triage
-are planned as rule-based templates.
+PyJWT + cryptography for GitHub App auth, packaged as a Docker image. Clarifying questions are
+per-route, per-type data in the route file; triage is planned as documented rules.
 
 **Domain model.** `issue_bot/issue_type.py`: `IssueType` (`bug`, `feature`), a leaf module;
 each type is one slash command and one target label. `issue_bot/handler.py`: frozen
-`IssueCandidate` (type, title, body, author id/name, message id/url, target), built only by
-`candidate_from_submission(issue_type, title, description, reporter, message, target)` with the
-bot's summary message as `message`. Member text and names are `repr=False`.
+`IssueCandidate` (type, title, `answers`, author id/name, message id/url, target), built only by
+`candidate_from_submission(issue_type, title, answers, reporter, message, target)` with the
+bot's summary message as `message`. `answers` is a tuple of `(question label, answer)` pairs in
+question order, blanks included. Member text and names are `repr=False`. Adding or changing a
+type's questions is route-file data; a new issue type still needs an `IssueType` member (it is a
+slash command and a required label).
 
 **Interfaces.** `issue_bot/config.py`: `Config.from_env(env)` reads, in order, `DISCORD_TOKEN`,
 `DISCORD_GUILD_ID`, `UNROUTED_COMMANDS` (`UnroutedCommands` `refuse`/`ignore`), `GITHUB_ORG`
@@ -155,10 +154,15 @@ bot's summary message as `message`. Member text and names are `repr=False`.
 file order (frozen again in `__post_init__`), built by `load_routes(path, org)`: a TOML file of
 `[routes.<name>]` tables (name `[a-z0-9][a-z0-9_-]*`), each with exactly the `ROUTE_KEYS`
 `channel_id`, `channel_name`, `category`, `repo` (`owner/name`, owner equal to `GITHUB_ORG`
-case-insensitively), `repo_id` and a `labels` table mapping `bug` and `feature`. It rejects an
+case-insensitively), `repo_id`, a `labels` table mapping `bug` and `feature`, and `questions`:
+one `[[routes.<name>.questions.<type>]]` array per type, each with 1–4 (`MAX_QUESTIONS`) tables of
+exactly `label` (1–45 characters, unique within the type), `style` (`short`/`paragraph`) and
+`required` (a TOML boolean). It rejects an
 empty file, unknown keys, non-positive or non-int ids, blank strings and a `channel_id` two routes
 share. `TargetConfig` is `name`, `channel_id`, `channel_name`, `category`, `github_repo`,
-`github_repo_id`, `labels` (one per `IssueType`, checked in `__post_init__` and read-only).
+`github_repo_id`, `labels` (one per `IssueType`, checked in `__post_init__` and read-only) and
+`questions` (`Mapping[IssueType, tuple[Question, ...]]`, frozen `Question(label, style: QuestionStyle,
+required)`, one entry per type, read-only).
 Every `ConfigError` names the key (env key or `routes.<name>.<key>`), never the value; an
 unreadable file or a TOML syntax error is `ROUTES_PATH must name a readable TOML route file`
 (no parser text). The 4irl/chores4irl values appear outside tests only in `example.env`
@@ -175,20 +179,31 @@ sends the private `INTAKE_REFUSAL` (logged `refused …`), or with `UnroutedComm
 without responding (logged `ignored <type> outside this instance's routes interaction_id=…
 channel_id=…`). Otherwise it runs `filing_check(target)` within
 `FILING_CHECK_TIMEOUT` (2 s): on a `GitHubError`, a timeout or any other error it sends the
-private `FILING_UNAVAILABLE_REPLY` and opens no modal. Then it opens `IntakeModal`: a required
-Title (`ui.Label`-wrapped `TextInput`, max 100 = `THREAD_NAME_LIMIT`), an optional paragraph
-Description (max 4000) and a 30-minute timeout. `IntakeModal.on_submit`:
-1. defers privately (`thinking=True`);
-2. normalizes the title (a title with no letter or digit gets `BLANK_TITLE_REPLY`);
-3. posts the public summary `**New <type>** from <@id>: <escaped title>` with
-   `AllowedMentions.none()` and `suppress_embeds=True` (a missing channel or Discord error gets
-   `SUMMARY_FAILED_REPLY` and files nothing);
-4. hands `(summary, candidate)` to `on_candidate`;
-5. confirms privately with `SUBMITTED_REPLY` and the summary link.
+private `FILING_UNAVAILABLE_REPLY` and opens no modal. Then it opens `IntakeModal(issue_type,
+target, on_candidate, draft=None, preview=None)`: a required Title (`ui.Label`-wrapped
+`TextInput`, max 100 = `THREAD_NAME_LIMIT`), then one `TextInput` per
+`target.questions[issue_type]` (`answer_inputs`, max `ANSWER_MAX_LENGTH` 4000), prefilled from a
+`Draft(title, answers)` when one is given, and a 30-minute timeout. A fresh `on_submit` defers
+privately (`thinking=True`), normalizes the title (no letter or digit gets `BLANK_TITLE_REPLY`)
+and sends a private preview (`PREVIEW_REPLY`, an embed from `preview_embed`, cut past 4096
+characters with `PREVIEW_SHORTENED_NOTE`) with a `PreviewView`; nothing is posted or filed
+(logged `previewed <type> interaction_id=…`). `PreviewView` (fixed `PREVIEW_TIMEOUT` 600 s
+deadline from the submit; each button press trims the view's timeout back to it):
+- **File** sets its close guard before any `await`, acks with `FILING_REPLY` (buttons removed,
+  embed kept), then runs `_post_and_file`: post the public summary `**New <type>** from <@id>:
+  <escaped title>` with `AllowedMentions.none()` and `suppress_embeds=True` (a missing channel or
+  Discord error gets `SUMMARY_FAILED_REPLY` and files nothing), hand `(summary, candidate)` to
+  `on_candidate`, confirm privately with `SUBMITTED_REPLY` and the summary link;
+- **Edit** reopens the modal prefilled (`preview=` set). That submit answers with
+  `response.edit_message` (a new preview and view in place, its own deadline, even after the old
+  one expired); a blank title gets `BLANK_TITLE_EDIT_REPLY`; the old view closes only after the
+  edit lands;
+- expiry edits the preview to `PREVIEW_EXPIRED_REPLY`, buttons removed and embed kept, and files
+  nothing (logged `preview expired <type> interaction_id=…`).
 
-`IntakeModal.on_error` logs type, interaction id, status and code (`discord_error_fields`),
-never `exc_info`, and replies privately with `INTAKE_ERROR_REPLY`. Every reply failure is
-caught and logged.
+`IntakeModal.on_error` and `PreviewView.on_error` share `_report_error`: type, issue type,
+`modal`/`preview`, interaction id, status and code (`discord_error_fields`), never `exc_info`,
+and a private `INTAKE_ERROR_REPLY`. Every reply failure is caught and logged.
 
 `issue_bot/bot.py`: `IssueBot(discord.Client)` with the guilds intent only (no message
 intents, no `on_message`). `IssueBot(config, on_candidate=open_issue_thread,
@@ -225,8 +240,10 @@ returns `FiledIssue(number, html_url)`, or raises `GitHubError(stage, status)` (
 reuses) the target's token and raises `GitHubError` on failure; it is the `filing_check`. The module never logs, and the
 HTTP transport is injectable (tests pass a fake). `issue_bot/issues.py` builds the issue:
 `issue_title` (cut to 256 characters with `…`), `issue_body` (the only body formatter: an
-author line ``` Reported by `<author>` in Discord: <summary message url> ```, `---`, then the modal's Description or a
-placeholder, with every `@` defanged by a zero-width space), `issue_labels` (the target's
+author line ``` Reported by `<author>` in Discord: <summary message url> ```, `---`, then one
+`### <label>` section per non-blank answer, or `_No description given._`, with every `@` defanged
+by a zero-width space in labels and answers; it calls `render_body(author_name, link, answers)`,
+which the preview calls with `PREVIEW_LINK` in place of the URL), `issue_labels` (the target's
 label for the type) and `file_candidate(github, candidate)`. `bot.filing_hook(github)` is the
 production `on_candidate`: it opens the issue's thread, files the issue even if no thread
 opened, and on success logs `filed … issue=<html_url>` and then posts `filed_reply`. On a
@@ -235,14 +252,16 @@ opened, and on success logs `filed … issue=<html_url>` and then posts `filed_r
 thread, text, what)`: in the thread, or as a reply to the summary message when no thread
 opened, always with `AllowedMentions.none()` and `suppress_embeds=True`. A
 `discord.HTTPException` on that post is logged as `could not send <issue link|filing error> …`
-by type, status, code and ids. Any other exception reaches `IntakeModal.on_error`. `issue_bot/__main__.py` builds the client, wires `filing_hook` and
+by type, status, code and ids. Any other exception reaches `PreviewView.on_error`. `issue_bot/__main__.py` builds the client, wires `filing_hook` and
 `filing_check=github.check_access`, and runs at INFO with `log_handler=None` (discord loggers never at DEBUG).
 
-**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 270 tests across
+**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 333 tests across
 `tests/test_{handler,config,bot,intake,threads,github,issues,smoke}.py`, with Discord
 interactions and the GitHub transport fully mocked (`make_interaction`, `make_candidate`,
 `make_message` fixtures, plus `routes_file`, `route`, `two_route_config` and `write_routes` with
-`ONE_ROUTE_TOML`/`TWO_ROUTE_TOML`, in `tests/conftest.py`). No CI workflow.
+`ONE_ROUTE_TOML`/`TWO_ROUTE_TOML`, both with question sets, in `tests/conftest.py`). Button tests
+call a view's button `.callback(...)` directly; `make_interaction` carries `data={}`,
+`response.edit_message` and `edit_original_response`. No CI workflow.
 
 **Deployment.** `Dockerfile` (`python:3.12.11-slim`, non-root uid 10001, `STOPSIGNAL SIGINT`,
 `python -m issue_bot`), built and run as image `discord-github-issue-bot` (README). The env comes from `.env` (gitignored; `example.env` is the template).
@@ -250,11 +269,13 @@ The App private key is mounted read-only at `GITHUB_APP_PRIVATE_KEY_PATH`
 (`/run/secrets/github-app-key.pem` in the container) and the route file at `ROUTES_PATH`
 (`/run/config/routes.toml`), read once at startup (restart after an edit). README § Run several
 instances documents several containers from one image on one bot token, each with its own route
-file and `UNROUTED_COMMANDS=ignore`, and README's *Upgrading from single-target config* maps the
-old `.env` target keys to route fields. The owner's live smoke-test runbook is
+file and `UNROUTED_COMMANDS=ignore`. README's *Upgrading from single-target config* maps the
+old `.env` target keys to route fields, and *Upgrading to per-type questions* says existing route
+files must add `questions` tables (or the bot exits 2). The owner's live smoke-test runbook is
 `docs/SMOKE-TEST.md` (it uses a separate test server, never the live one). The owner's smoke
 run of F10 passed before PR #13 merged (2026-10-21). The owner confirmed F7 works on its branch
-before PR #15 merged (2026-10-21), and F8 before PR #17 merged (2026-10-25). Before PR #9 merged, the owner's run filed issues #1 and #2 in a private
+before PR #15 merged (2026-10-21), F8 before PR #17 merged (2026-10-25), and F3 before PR #19
+merged (2026-10-26). Before PR #9 merged, the owner's run filed issues #1 and #2 in a private
 scratch repo, torn down on 2026-10-18 (recorded in PR #9's description).
 Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
 
@@ -269,9 +290,9 @@ Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
    payloads are member text too. Logs carry the type, ids (guild, channel, message, thread,
    interaction) and message URL only. A caught Discord API error is logged by exception type,
    HTTP status and Discord error code, never its text (F2, PR #7). `on_error` logs the exception
-   type and event name only; the command and modal error handlers log type, command or modal
-   name, interaction id, status and code, never `exc_info` or an interaction's repr (F10,
-   PR #13; CLAUDE.md rule). A GitHub API error is logged by exception type, request stage and
+   type and event name only; the command, modal and preview-view error handlers log type,
+   command, modal or view name, interaction id, status and code, never `exc_info` or an
+   interaction's repr (F10, PR #13; preview view F3, PR #19; CLAUDE.md rule). A GitHub API error is logged by exception type, request stage and
    HTTP status, never its response text; tokens, JWTs and the App private key are never logged
    (F5, PR #9). The filed issue's URL may be logged.
 3. Every config key, in the environment and the route file, is required and validated at
@@ -301,58 +322,63 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F1 — Channel listener and tag parsing · merged (#2)
 
-*Kept because F3 and F6 build on it.*
+*Kept because F4 and F6 build on it.*
 - `IssueBot(config, on_candidate=...)`: the `on_candidate(message, candidate)` hook is the
   single seam for candidates; F5's `filing_hook`, with F7's link post, plugs in there.
-  Don't add a second candidate dispatch path. F10's modal submit feeds it with the bot's
-  summary message as `message`.
+  Don't add a second candidate dispatch path. F3's File button feeds it (`_post_and_file`) with
+  the bot's summary message as `message`.
 - `IssueCandidate` carries the `TargetConfig` (route) it came from. Filing reads the repo, repo
   id and labels from `candidate.target`, never from a constant.
 
 ## F5 — File the issue in 4IRL/chores4irl · merged (#9)
 
-*Kept because F3 and F6 build on it.*
-- `issue_bot/issues.py` `issue_body` is the only place an issue body is formatted; F3 extends
-  it (one section per answered question) rather than formatting a second body.
+*Kept because F4 and F6 build on it.*
+- `issue_bot/issues.py` is the only place an issue body is formatted (`render_body`, which
+  `issue_body` and F3's preview share); later features extend it rather than formatting a
+  second body.
 - `GitHubClient.create_issue` returns `FiledIssue(number, html_url)`; the posted link is that
   `html_url`, never a URL built from config. Failures surface only as
   `GitHubError(stage, status)`, which callers log by type, stage and status.
 - `filing_hook(github)` is the one production `on_candidate`: it opens the thread first and
-  files even when no thread opened. F3's preview step moves filing behind File, and F6 adds
-  roadmap placement after filing; both stay inside this hook.
+  files even when no thread opened. It runs only after F3's File press; F4's label rides the
+  same `create_issue` call and F6 adds roadmap placement after filing, both inside this hook.
 - Auth is one GitHub App installation (instance-wide `GITHUB_APP_*` config); each token is
   scoped to one route's repo id with `issues: write` and cached per repo id. Every route's repo
   joins that one installation (which is why each must be in `GITHUB_ORG`); F6 widens the token
   request's `permissions` for Projects.
 
-## F10 — Slash-command intake · merged (#13)
+## F3 — Per-tag modal questions with preview and confirm · merged (#19)
 
-*Kept because F3 builds on it.*
-- `IntakeModal` is the one modal. Its Description field is the slot F3's per-type questions
-  replace (Discord caps a modal at five fields). Its submit always posts the summary before
-  calling `on_candidate`, and the summary is the message the thread and the issue link hang off.
-- Commands sync only with `guild=`; never call `tree.sync()` without it (that overwrites the
-  global set).
+*Kept because F4 builds on it.*
+- `PreviewView` (issue_bot/intake.py) is the one pre-filing step: F4 shows its rating and the
+  reporter's override there, before File. The preview body comes from `preview_embed`, i.e.
+  `issues.render_body` with `PREVIEW_LINK`, so preview and filed body never diverge.
+- The reporter's answers reach filing as `IssueCandidate.answers` (`(label, answer)` pairs in
+  question order); a `Draft(title, answers)` carries them between the modal, the preview and
+  Edit. Both are `repr=False` member text.
+- The modal is full at Title plus four questions (Discord's five-field cap), so F4 adds no modal
+  field; its override lives in the preview.
 
 ## F7 — Post the issue link in the thread · merged (#15)
 
-*Kept because F3 builds on it.*
+*Kept because F6 builds on it.*
 - `bot._post_outcome(message, thread, text, what)` is the one path that posts a filing
   outcome: in the thread, else as a reply to the summary message, always with
   `AllowedMentions.none()` and `suppress_embeds=True`, logging a Discord failure by type,
-  status, code and ids. F3's preview and any new outcome message reuse it rather than adding a
-  second send path.
+  status, code and ids. Any new outcome message (e.g. F6's roadmap result) reuses it rather than
+  adding a second send path. F3's private preview is not an outcome: it is the interaction's own
+  ephemeral response (`followup.send`, `edit_message`, `edit_original_response`).
 - The link message is `threads.filed_reply(issue, title)`, built from the route's own
   `FiledIssue.html_url`. It is posted after the
   `filed … issue=<url>` log line, so a failed post never hides the issue URL.
 
 ## F8 — Multi-target routes and multi-instance deployment · merged (#17)
 
-*Kept because F3 and F6 build on it.*
-- A route is a `TargetConfig` whose first field is `name`, its `[routes.<name>]` table name. F3
-  keys its per-route question sets and F6 its per-route Project config off `route.name`, adding
-  their own keys under `[routes.<name>]` by extending `ROUTE_KEYS` and `load_routes`, never a
-  second config file or per-route env keys. Today every `ROUTE_KEYS` key is required and
+*Kept because F6 builds on it.*
+- A route is a `TargetConfig` whose first field is `name`, its `[routes.<name>]` table name. F6
+  keys its per-route Project config off `route.name`, adding its own keys under
+  `[routes.<name>]` by extending `ROUTE_KEYS` and `load_routes` (as F3's `questions` did), never
+  a second config file or per-route env keys. Today every `ROUTE_KEYS` key is required and
   `test_example_routes_shape` checks each route for exactly that set; a key a route may omit
   (F6: a route with no Project) changes both.
 - `Config.routes` (channel id → route, read-only, file order) is the only route lookup, and
@@ -424,6 +450,23 @@ Parallel features: `/worktree <F-ID>...`.
   removing `/bug` and `/feature` from a server means an empty sync for that guild or removing
   the app from the server; neither is verified (the Server Settings → Integrations path didn't
   list the bot in the owner's test, 2026-10-21).
+- **F3 push-review polish.** The unticked minor to-dos in
+  `plans/feature/clarifying-questions/reviews/push-review-feature-clarifying-questions.md`,
+  Review 1, include:
+  - a `PreviewView.close()` method so `IntakeModal` stops touching `_closed`;
+  - splitting `on_submit` into fresh and edit helpers, and one shared "could not send" log helper;
+  - a private reply when the first preview send fails, and logging `previewed` only after it lands;
+  - answering (or logging) a click on a closed preview;
+  - a test that the superseded preview's File does nothing after an Edit submit;
+  - deciding where `Question`'s invariants live (loader only, or `__post_init__` too);
+  - two small tidies (a single-letter test variable, a precomputed style set).
+
+  None blocks a remaining feature.
+- **F3 accepted limits.** Recorded in README *Known limits*: a bot restart leaves an open
+  preview's buttons dead (run the command again); a reporter who presses File in one Discord
+  client while an Edit modal is open in another can file a second issue (close the duplicate).
+  Question labels with control characters are rejected by Discord at modal send, not at startup;
+  label uniqueness is case-sensitive (dd-261026-042, -043, -045).
 - **Drop the pre-rename `allowWrite` path.** `.claude/settings.json` still lists
   `/home/rmila/Code/c4i-issue-bot`; removing it is an optional owner edit in its own small
   PR (agents can't write that file).
@@ -431,53 +474,6 @@ Parallel features: `/worktree <F-ID>...`.
 ---
 
 # REMAINING FEATURES
-
-## F3 — Per-tag modal questions with preview and confirm · Phase 2 · Effort M · (added 2026-10-16; amended 2026-10-18)
-
-**Goal.** Each tag's questions become the fields of F10's modal: Title plus up to four
-per-tag questions (Discord caps a modal at five fields), loaded from a data file. After
-submit the reporter gets a private (ephemeral) preview of the issue body with **File** and
-**Edit** buttons: File files it, and Edit reopens the modal prefilled. There is no thread
-conversation; members can still comment in the thread. Feature-list line F3 (amended
-2026-10-18, replacing the one-question-at-a-time thread conversation).
-
-**Rank rationale.** This is Phase 2's whole scope, now built on F10's modal. It changes the
-filing path from "file on submit" (F10) to "file after preview".
-
-**Dependencies.** F5, F10; soft: F8. F8 has shipped, so the question sets key off
-`route.name` from the start (F8's kept contract).
-
-**Sizing.** unscored (intake estimate M); split check pending.
-
-**Assumed starting state** = **Baseline** (which includes F10's `/bug` and `/feature` modals). Verify:
-- F5's issue-body builder exists and is the only place that formats an issue body.
-- F10 builds each tag's modal in one place, from `IssueType`.
-
-**Expected end state** (repo-checkable):
-- The question sets for each tag live in a data file (for example `questions.yaml`): each
-  question has a label, a style (short or paragraph) and a required flag. Loading rejects a
-  tag with more than four questions at startup. Adding a tag or a question needs no code
-  change.
-- The preview is ephemeral, shows the body exactly as `issue_body` formats it, and offers
-  File and Edit. An expired preview files nothing and says so.
-- The filed issue body has one section per answered question; blank optional answers are
-  left out.
-- All suites green; Standing invariants untouched (modal answers are never logged).
-
-**Test-suite deltas.** Question-file loading tests (valid, too many questions, missing
-label), modal build per tag, preview → File files once, Edit reopens prefilled, timeout
-files nothing, body sections.
-
-**Open risks / decisions.** (a) An ephemeral preview's view dies with the process and its
-interaction token lasts 15 minutes; recommend a timeout within that and a "submit again"
-note, with no persisted conversation state (the old `data/` store is dropped unless
-planning finds a need). (b) Prefilled Edit needs `TextInput` default values; confirm the
-pinned discord.py supports them. (c) Whether F10's Description field stays as a catch-all
-field per tag. (d) Only the reporter answers now; the earlier "any member" answer rule is
-replaced by members commenting in the thread.
-
-**Session.** `/run-feature F3` on branch `feature/clarifying-questions`; plan at
-`plans/feature/clarifying-questions/clarifying-questions.md`.
 
 ## F4 — Complexity triage (S/M/L/XL) · Phase 3 · Effort M · (added 2026-10-16)
 
@@ -555,21 +551,20 @@ S/M/L/XL) are designed when it is created.
 ```
 Phase 1:    done       (F1 #2; F9 rename #5; F2 threads #7; F5 filing #9; F10 intake #13; F7 link #15)
 Phase 1.5:  done       (F8 routes #17)
-Phase 2:    F5, F10 ──► ★ F3     (soft F8 shipped)
-Phase 3:    F3 ──► F4
+Phase 2:    done       (F3 questions + preview #19)
+Phase 3:    F3 ──► ★ F4
             F5 ──► F6   [cond: new roadmap Project] (couples F4; soft: after F8)
 ```
 
-- **Hard chains:** {F5, F10} → F3 → F4, F5 → F6. F1, F2, F5, F7, F8, F9 and F10 have shipped;
-  refs to them stay valid, so F3 is runnable, F4 waits on F3, and F6 on its roadmap-Project gate.
-- **Soft preferences:** F8 (shipped) before F3 and F6, so question sets and Project config are
-  per-route from the start. F6 could start any time after F5 once its Project exists; the ROADMAP
-  keeps it in Phase 3 so the Project fields are designed alongside F4.
-- **Couplings to honor:** F3 ↔ F5: F3 reuses F5's single issue-body builder rather than
-  formatting a second body. F3 ↔ F10: F3's per-type questions fill F10's `IntakeModal`
-  (five-field cap) and replace its Description field (F10's kept contract). F3 and F6 put their
-  per-route settings under `[routes.<name>]` (F8's kept contract). F4 ↔ F6: both use
-  the same S/M/L/XL band names, one as a label and one as a Project field.
+- **Hard chains:** F3 → F4, F5 → F6. F1, F2, F3, F5, F7, F8, F9 and F10 have shipped; refs to
+  them stay valid, so F4 is runnable and F6 waits on its roadmap-Project gate.
+- **Soft preferences:** F8 (shipped) before F6, so Project config is per-route from the start.
+  F6 could start any time after F5 once its Project exists; the ROADMAP keeps it in Phase 3 so
+  the Project fields are designed alongside F4.
+- **Couplings to honor:** F4 ↔ F3: F4 reads `IssueCandidate.answers` and shows its rating in
+  F3's `PreviewView` (F3's kept contract). F6 puts its per-route settings under `[routes.<name>]`
+  (F8's kept contract). F4 ↔ F6: both use the same S/M/L/XL band names, one as a label and one
+  as a Project field.
 
 ---
 
