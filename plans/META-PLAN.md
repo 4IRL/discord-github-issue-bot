@@ -122,7 +122,7 @@ holds its supersession note, not edges; readers skip it. -->
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F3 — Per-tag modal questions with preview and confirm** ★FOCUS | pending | `feature/clarifying-questions` | — |
+| **F3 — Per-tag modal questions with preview and confirm** ★FOCUS | in-progress | `feature/clarifying-questions` | — |
 | **F4 — Complexity triage (S/M/L/XL)** | pending | `feature/complexity-triage` | — |
 | **F6 — Add the issue to the chores4irl roadmap Project** | pending | `feature/roadmap-project` | — |
 
