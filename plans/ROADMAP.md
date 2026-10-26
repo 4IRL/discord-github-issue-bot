@@ -78,14 +78,14 @@ component.
 exist, what the schema is) is META-PLAN's Baseline; do not restate it here. Update the
 "as of" date whenever a row changes, which is normally at a phase-status change. -->
 
-*As of 2026-10-25.*
+*As of 2026-10-26.*
 
 | # | Capability | State | Delivered by |
 |---|---|---|---|
 | 1 | Slash-command capture | done — `/bug` and `/feature` modals in each routed channel | Phases 1, 1.5 |
-| 2 | Per-type questions | none — not started | Phase 2 |
+| 2 | Per-type questions | done — per-route, per-type question sets fill the modal; private preview with File and Edit | Phase 2 |
 | 3 | Complexity rating | none — not started | Phase 3 |
-| 4 | Issue filed and on the roadmap | partial — filed with its type label; structured body and roadmap placement pending | Phases 1 (filed), 2 (structured body), 3 (roadmap) |
+| 4 | Issue filed and on the roadmap | partial — filed with its type label and a body of one section per answer; roadmap placement pending | Phases 1 (filed), 2 (structured body), 3 (roadmap) |
 | 5 | Link posted back | done — issue number, title and link in the thread (or a reply on the summary) | Phase 1 |
 | 6 | Multiple targets | done — a route file maps channels to repos, from one process or several containers | Phases 1 (portable config), 1.5 (routes, instances) |
 
@@ -139,28 +139,7 @@ at a time unless the sequencing rationale says otherwise.
 
 ### Phase 1.5: Multi-target and rename · done (2026-10-25) — a TOML route file maps each intake channel to its own repo in the org, from one process or several containers on one token, and the project carries the `discord-github-issue-bot` name (F9, F8).
 
-### Phase 2: Per-type questions · planned
-
-**Goal.** Each type's modal asks the questions that type needs, and the bot files an issue
-whose body is built from the answers after the reporter confirms a preview. **Advances
-capabilities:** 2, 4.
-
-- Question sets for each type are data rather than code (for example `/bug`: steps to
-  reproduce, expected, actual, device/browser; `/feature`: who it is for, the problem it
-  solves, what "done" looks like), so adding a type or question needs no code change. They
-  become the modal's fields: the Title plus up to four questions (Discord's five-field cap).
-- After submit the reporter gets a private (ephemeral) preview of the issue with **File**
-  and **Edit**: File files it with a structured body (sections per question), and Edit
-  reopens the modal prefilled.
-- There is no thread conversation and no persisted conversation state; members can still
-  comment in the thread.
-
-**Exit criteria.** In the test channel, a `/bug` and a `/feature` report each show their
-questions in the modal and a private preview, an Edit reopens the modal prefilled, and the
-filed issue's body has one section per answered question.
-
-**Why here.** The value of the bot over a plain form is the fleshed-out idea; it needs the
-Phase 1 modal, thread and filing path to exist first.
+### Phase 2: Per-type questions · done (2026-10-26) — each route's `/bug` and `/feature` modals ask that route's question sets from the route file, and the reporter files from a private preview with File and Edit; the issue body has one section per answered question (F3).
 
 ### Phase 3: Triage and roadmap placement · planned
 
