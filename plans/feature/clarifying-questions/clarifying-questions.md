@@ -641,12 +641,14 @@ Describe the new modal, preview and route-file keys wherever the old flow is des
 Run the full test suites to confirm nothing is broken:
 
 **To-do:**
-- [ ] Run `.venv/bin/pytest` and confirm all tests pass
-- [ ] No UI test runner is configured for this project (`ui_runner_cmd` is empty), so there is no UI suite to run; the owner's live check is `docs/SMOKE-TEST.md`
-- [ ] Re-run Standing invariant 1's grep (`grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot` prints nothing)
-- [ ] Confirm no new log call passes member text: `grep -n "logger\." issue_bot/intake.py` and check each new line logs only type and ids
-- [ ] Investigate and fix any failures before marking the plan finished
-- [ ] Quote the § Manual checks (owner) bullets verbatim in your final report under a heading `Manual checks (owner)`; the /run-feature orchestrator relays them in its merge-gate verification brief.
+- [x] Run `.venv/bin/pytest` and confirm all tests pass
+- [x] No UI test runner is configured for this project (`ui_runner_cmd` is empty), so there is no UI suite to run; the owner's live check is `docs/SMOKE-TEST.md`
+- [x] Re-run Standing invariant 1's grep (`grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot` prints nothing)
+- [x] Confirm no new log call passes member text: `grep -n "logger\." issue_bot/intake.py` and check each new line logs only type and ids
+- [x] Investigate and fix any failures before marking the plan finished
+- [x] Quote the § Manual checks (owner) bullets verbatim in your final report under a heading `Manual checks (owner)`; the /run-feature orchestrator relays them in its merge-gate verification brief.
+
+- ✅ Step 6 COMPLETE (2026-10-26): 333 passed (output in /tmp/claude/final-integration-results.txt); Standing invariant 1 grep prints nothing; every logger call in issue_bot/intake.py logs only type, ids, status/code (config.py has none).
 
 ## Manual checks (owner)
 - Before restarting a live instance on this build, add `questions` tables to its route file
@@ -662,4 +664,4 @@ Run the full test suites to confirm nothing is broken:
 - After an Edit submit, the new preview's expiry also edits that same message.
 
 ## Status
-finished: false
+finished: true
