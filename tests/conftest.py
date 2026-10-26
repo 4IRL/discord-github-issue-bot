@@ -241,7 +241,7 @@ def make_candidate(route: TargetConfig) -> CandidateFactory:
 
 @pytest.fixture
 def make_interaction(make_message: MessageFactory) -> InteractionFactory:
-    """Build a duck-typed stand-in for a slash-command or modal ``discord.Interaction``."""
+    """Build a duck-typed stand-in for a slash-command, modal or button ``discord.Interaction``."""
 
     def factory(
         *,
@@ -262,12 +262,16 @@ def make_interaction(make_message: MessageFactory) -> InteractionFactory:
             send_modal=AsyncMock(),
             send_message=AsyncMock(),
             defer=AsyncMock(),
+            edit_message=AsyncMock(),
             is_done=Mock(return_value=False),
         )
-        # A deferred interaction reports is_done() True, as in production (DD-2).
-        response.defer.side_effect = lambda *args, **kwargs: setattr(
-            response.is_done, "return_value", True
-        )
+
+        def mark_done(*args: object, **kwargs: object) -> None:
+            response.is_done.return_value = True
+
+        # A deferred or edit-acked interaction reports is_done() True, as in production (DD-2).
+        response.defer.side_effect = mark_done
+        response.edit_message.side_effect = mark_done
         return SimpleNamespace(
             id=interaction_id,
             channel_id=channel_id,
@@ -275,6 +279,9 @@ def make_interaction(make_message: MessageFactory) -> InteractionFactory:
             user=SimpleNamespace(id=user_id, display_name=display_name, mention=f"<@{user_id}>"),
             response=response,
             followup=SimpleNamespace(send=AsyncMock()),
+            edit_original_response=AsyncMock(),
+            # discord.py 2.7.1's View._scheduled_task reads it before a button callback.
+            data={},
         )
 
     return factory

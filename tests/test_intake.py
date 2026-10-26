@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from collections.abc import Sequence
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import discord
@@ -11,22 +12,32 @@ from issue_bot.config import Config, TargetConfig, UnroutedCommands
 from issue_bot.github import FiledIssue, GitHubError
 from issue_bot.intake import (
     ANSWER_MAX_LENGTH,
+    BLANK_TITLE_EDIT_REPLY,
     BLANK_TITLE_REPLY,
+    FILING_REPLY,
     FILING_UNAVAILABLE_REPLY,
     INTAKE_ERROR_REPLY,
     INTAKE_REFUSAL,
     MODAL_TIMEOUT,
     NO_MENTIONS,
+    PREVIEW_EMBED_LIMIT,
+    PREVIEW_EXPIRED_REPLY,
+    PREVIEW_REPLY,
+    PREVIEW_SHORTENED_NOTE,
+    PREVIEW_TIMEOUT,
     SUBMITTED_REPLY,
     SUMMARY_FAILED_REPLY,
     CandidateHook,
     Draft,
     FilingCheck,
     IntakeModal,
+    PreviewView,
     intake_command,
+    preview_embed,
     summary_text,
 )
 from issue_bot.issue_type import IssueType
+from issue_bot.issues import PREVIEW_LINK, render_body
 from issue_bot.threads import FILING_ERROR_REPLY, filed_reply
 from tests.conftest import (
     ISSUE_URL,
@@ -61,6 +72,39 @@ def filled_modal(
     for index, answer in enumerate(answers):
         modal.answer_inputs[index]._value = answer
     return modal
+
+
+async def submitted_preview_of(
+    modal: IntakeModal, interaction: SimpleNamespace
+) -> PreviewView:
+    """Submit ``modal`` and return the preview view its private follow-up carries."""
+    await modal.on_submit(interaction)
+    return interaction.followup.send.await_args.kwargs["view"]
+
+
+async def submitted_preview(
+    route: TargetConfig,
+    hook: CandidateHook,
+    interaction: SimpleNamespace,
+    **kwargs: object,
+) -> PreviewView:
+    """Submit a filled modal (``filled_modal``'s keywords) and return its preview view."""
+    return await submitted_preview_of(filled_modal(route, hook, **kwargs), interaction)
+
+
+async def reopened_modal(view: PreviewView, make_interaction: InteractionFactory) -> IntakeModal:
+    """Press Edit on ``view`` and return the prefilled modal it reopens."""
+    click = make_interaction()
+    await view.edit_button.callback(click)
+    return click.response.send_modal.await_args.args[0]
+
+
+async def edited_submit(modal: IntakeModal, interaction: SimpleNamespace) -> None:
+    """Submit a reopened modal with a changed title and first answer (DD-12)."""
+    # discord.py's own seed for a submitted value; the Device input keeps its "" default.
+    modal.title_input._value = "Fix it now"
+    modal.answer_inputs[0]._value = "Steps v2"
+    await modal.on_submit(interaction)
 
 
 def test_bug_modal_fields(route: TargetConfig) -> None:
@@ -322,15 +366,16 @@ async def test_two_routes_ignore_unrouted_channel(
     interaction.response.defer.assert_not_awaited()
 
 
-async def test_second_route_submit_files_to_its_repo_with_its_labels(
+async def test_second_route_file_files_to_its_repo_with_its_labels(
     two_route_config: Config,
     make_interaction: InteractionFactory,
     make_message: MessageFactory,
 ) -> None:
     github = fake_github(FiledIssue(7, ISSUE_URL))
     other = two_route_config.routes[556]
-    interaction = make_interaction(channel_id=556, summary=make_message(channel_id=556))
-    await filled_modal(other, filing_hook(github)).on_submit(interaction)
+    view = await submitted_preview(other, filing_hook(github), make_interaction(channel_id=556))
+    button_interaction = make_interaction(channel_id=556, summary=make_message(channel_id=556))
+    await view.file_button.callback(button_interaction)
     github.create_issue.assert_awaited_once()
     target, _title, body, labels = github.create_issue.await_args.args
     assert target is other
@@ -347,7 +392,7 @@ async def test_submit_defers_privately_first(
     interaction = make_interaction()
     order = Mock()
     order.attach_mock(interaction.response.defer, "defer")
-    order.attach_mock(interaction.channel.send, "send")
+    order.attach_mock(interaction.followup.send, "send")
     await filled_modal(route, AsyncMock()).on_submit(interaction)
     interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
     call_names = [name for name, _args, _kwargs in order.mock_calls]
@@ -361,25 +406,98 @@ def test_summary_text_escapes_markdown() -> None:
     )
 
 
-async def test_submit_posts_summary_without_pings(
+async def test_submit_sends_private_preview_only(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    hook = AsyncMock()
+    interaction = make_interaction()
+    await filled_modal(route, hook, title="  Fix   it \n").on_submit(interaction)
+    interaction.followup.send.assert_awaited_once()
+    send_call = interaction.followup.send.await_args
+    assert send_call.args == (PREVIEW_REPLY,)
+    assert set(send_call.kwargs) == {"embed", "view", "ephemeral", "allowed_mentions"}
+    assert send_call.kwargs["ephemeral"] is True
+    assert send_call.kwargs["allowed_mentions"] is NO_MENTIONS
+    embed = send_call.kwargs["embed"]
+    assert isinstance(embed, discord.Embed)
+    assert embed.title == "Fix it"
+    assert embed.description == render_body(
+        "Alice", PREVIEW_LINK, (("What happened?", "Steps"), ("Device", ""))
+    )
+    view = send_call.kwargs["view"]
+    assert isinstance(view, PreviewView)
+    assert view.timeout == PREVIEW_TIMEOUT
+    interaction.channel.send.assert_not_awaited()
+    hook.assert_not_awaited()
+
+
+async def test_long_preview_is_shortened(
     route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
     interaction = make_interaction()
-    await filled_modal(route, AsyncMock()).on_submit(interaction)
-    interaction.channel.send.assert_awaited_once()
-    send_call = interaction.channel.send.await_args
+    await filled_modal(route, AsyncMock(), answers=("x" * 4000, "y" * 4000)).on_submit(
+        interaction
+    )
+    description = interaction.followup.send.await_args.kwargs["embed"].description
+    assert len(description) <= PREVIEW_EMBED_LIMIT
+    assert description.endswith(PREVIEW_SHORTENED_NOTE)
+
+
+def test_preview_embed_boundary() -> None:
+    overhead = len(render_body("Alice", PREVIEW_LINK, (("What happened?", "x"),))) - 1
+    length = PREVIEW_EMBED_LIMIT - overhead
+    answers = (("What happened?", "x" * length),)
+    body = render_body("Alice", PREVIEW_LINK, answers)
+    assert len(body) == PREVIEW_EMBED_LIMIT
+    embed = preview_embed("T", answers, "Alice")
+    assert embed.title == "T"
+    assert embed.description == body
+    assert not embed.description.endswith(PREVIEW_SHORTENED_NOTE)
+    longer = preview_embed("T", (("What happened?", "x" * (length + 1)),), "Alice")
+    assert len(longer.description) == PREVIEW_EMBED_LIMIT
+    assert longer.description.endswith(PREVIEW_SHORTENED_NOTE)
+
+
+async def test_file_acks_then_posts_summary_without_pings(
+    route: TargetConfig, make_interaction: InteractionFactory, make_message: MessageFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    button_interaction = make_interaction(summary=make_message())
+    await view.file_button.callback(button_interaction)
+    button_interaction.response.edit_message.assert_awaited_once_with(
+        content=FILING_REPLY, view=None
+    )
+    button_interaction.channel.send.assert_awaited_once()
+    send_call = button_interaction.channel.send.await_args
     assert send_call.args == (summary_text(IssueType.BUG, "Fix it", "<@7>"),)
     assert send_call.kwargs["allowed_mentions"] is NO_MENTIONS
     assert send_call.kwargs["suppress_embeds"] is True
 
 
-async def test_submit_hands_summary_and_candidate_to_hook(
+async def test_file_acks_first(
     route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
     hook = AsyncMock()
-    interaction = make_interaction()
-    summary = interaction.channel.send.return_value
-    await filled_modal(route, hook).on_submit(interaction)
+    view = await submitted_preview(route, hook, make_interaction())
+    button_interaction = make_interaction()
+    order = Mock()
+    order.attach_mock(button_interaction.response.edit_message, "edit_message")
+    order.attach_mock(button_interaction.channel.send, "send")
+    order.attach_mock(hook, "hook")
+    await view.file_button.callback(button_interaction)
+    call_names = [name for name, _args, _kwargs in order.mock_calls]
+    assert call_names.index("edit_message") < call_names.index("send")
+    assert call_names.index("edit_message") < call_names.index("hook")
+
+
+async def test_file_hands_summary_and_candidate_to_hook(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    hook = AsyncMock()
+    view = await submitted_preview(route, hook, make_interaction())
+    button_interaction = make_interaction()
+    summary = button_interaction.channel.send.return_value
+    await view.file_button.callback(button_interaction)
     hook.assert_awaited_once()
     awaited_message, candidate = hook.await_args.args
     assert awaited_message is summary
@@ -393,35 +511,56 @@ async def test_submit_hands_summary_and_candidate_to_hook(
     assert candidate.target is route
 
 
-async def test_submit_confirms_privately(
+async def test_file_confirms_privately(
     route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
-    interaction = make_interaction()
-    summary = interaction.channel.send.return_value
-    await filled_modal(route, AsyncMock()).on_submit(interaction)
-    interaction.followup.send.assert_awaited_once_with(
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    button_interaction = make_interaction()
+    summary = button_interaction.channel.send.return_value
+    await view.file_button.callback(button_interaction)
+    button_interaction.followup.send.assert_awaited_once_with(
         SUBMITTED_REPLY.format(url=summary.jump_url), ephemeral=True
     )
 
 
-async def test_submit_normalizes_title_and_description(
+async def test_file_only_once(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    hook = AsyncMock()
+    view = await submitted_preview(route, hook, make_interaction())
+    first = make_interaction()
+    second = make_interaction()
+
+    async def ack(*args: object, **kwargs: object) -> None:
+        await asyncio.sleep(0)
+        first.response.is_done.return_value = True
+
+    first.response.edit_message.side_effect = ack
+    await asyncio.gather(view.file_button.callback(first), view.file_button.callback(second))
+    hook.assert_awaited_once()
+    assert view.is_finished()
+
+
+async def test_submit_normalizes_title_and_answers(
     route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
     hook = AsyncMock()
     modal = filled_modal(route, hook, title="  Fix   it \n", answers=("\n Steps \n more \n",))
-    await modal.on_submit(make_interaction())
+    view = await submitted_preview_of(modal, make_interaction())
+    await view.file_button.callback(make_interaction())
     _message, candidate = hook.await_args.args
     assert candidate.title == "Fix it"
     assert candidate.answers == (("What happened?", "Steps \n more"), ("Device", ""))
 
 
-async def test_submit_files_issue_through_filing_hook(
+async def test_file_files_issue_through_filing_hook(
     route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
     github = fake_github(FiledIssue(7, ISSUE_URL))
-    interaction = make_interaction()
-    summary = interaction.channel.send.return_value
-    await filled_modal(route, filing_hook(github)).on_submit(interaction)
+    view = await submitted_preview(route, filing_hook(github), make_interaction())
+    button_interaction = make_interaction()
+    summary = button_interaction.channel.send.return_value
+    await view.file_button.callback(button_interaction)
     summary.create_thread.assert_awaited_once_with(name="Fix it")
     github.create_issue.assert_awaited_once()
     target, title, body, labels = github.create_issue.await_args.args
@@ -437,17 +576,18 @@ async def test_submit_files_issue_through_filing_hook(
         suppress_embeds=True,
     )
     summary.reply.assert_not_awaited()
-    interaction.followup.send.assert_awaited_once_with(
+    button_interaction.followup.send.assert_awaited_once_with(
         SUBMITTED_REPLY.format(url=summary.jump_url), ephemeral=True
     )
 
 
-async def test_submit_logs_ids_not_text(
+async def test_file_logs_ids_not_text(
     route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
     modal = filled_modal(route, AsyncMock(), title="Secret title words", answers=("Secret body words",))
     with caplog.at_level(logging.INFO):
-        await modal.on_submit(make_interaction())
+        view = await submitted_preview_of(modal, make_interaction())
+        await view.file_button.callback(make_interaction())
     messages = intake_messages(caplog, logging.INFO)
     assert any("interaction_id=4242" in text and "message_id=99" in text for text in messages)
     assert_no_member_text(caplog)
@@ -468,12 +608,15 @@ async def test_summary_failure_files_nothing(
     route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
     hook = AsyncMock()
-    interaction = make_interaction()
-    interaction.channel.send.side_effect = forbidden(50013, "Secret error words")
+    view = await submitted_preview(route, hook, make_interaction())
+    button_interaction = make_interaction()
+    button_interaction.channel.send.side_effect = forbidden(50013, "Secret error words")
     with caplog.at_level(logging.INFO):
-        await filled_modal(route, hook).on_submit(interaction)
+        await view.file_button.callback(button_interaction)
     hook.assert_not_awaited()
-    interaction.followup.send.assert_awaited_once_with(SUMMARY_FAILED_REPLY, ephemeral=True)
+    button_interaction.followup.send.assert_awaited_once_with(
+        SUMMARY_FAILED_REPLY, ephemeral=True
+    )
     errors = intake_messages(caplog, logging.ERROR)
     assert errors == [
         "could not post bug summary interaction_id=4242: Forbidden status=403 code=50013"
@@ -486,11 +629,14 @@ async def test_missing_channel_files_nothing(
     route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
     hook = AsyncMock()
-    interaction = make_interaction(channel_id=None)
+    view = await submitted_preview(route, hook, make_interaction())
+    button_interaction = make_interaction(channel_id=None)
     with caplog.at_level(logging.INFO):
-        await filled_modal(route, hook).on_submit(interaction)
+        await view.file_button.callback(button_interaction)
     hook.assert_not_awaited()
-    interaction.followup.send.assert_awaited_once_with(SUMMARY_FAILED_REPLY, ephemeral=True)
+    button_interaction.followup.send.assert_awaited_once_with(
+        SUMMARY_FAILED_REPLY, ephemeral=True
+    )
     assert intake_messages(caplog, logging.ERROR) == [
         "could not post bug summary interaction_id=4242: no channel"
     ]
@@ -513,18 +659,247 @@ async def test_followup_failure_logged_without_text(
 async def test_github_error_still_posts_filing_error_reply(
     route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
-    interaction = make_interaction()
-    summary = interaction.channel.send.return_value
-    await filled_modal(route, filing_hook(fake_github(GitHubError("issue", 422)))).on_submit(
-        interaction
-    )
+    hook = filing_hook(fake_github(GitHubError("issue", 422)))
+    view = await submitted_preview(route, hook, make_interaction())
+    button_interaction = make_interaction()
+    summary = button_interaction.channel.send.return_value
+    await view.file_button.callback(button_interaction)
     summary.create_thread.return_value.send.assert_awaited_once_with(
         FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
     )
     summary.reply.assert_not_awaited()
-    interaction.followup.send.assert_awaited_once_with(
+    button_interaction.followup.send.assert_awaited_once_with(
         SUBMITTED_REPLY.format(url=summary.jump_url), ephemeral=True
     )
+
+
+async def test_edit_reopens_modal_prefilled(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    hook = AsyncMock()
+    interaction = make_interaction()
+    view = await submitted_preview(route, hook, interaction, answers=("Steps", "Pixel"))
+    button_interaction = make_interaction()
+    await view.edit_button.callback(button_interaction)
+    button_interaction.response.send_modal.assert_awaited_once()
+    modal = button_interaction.response.send_modal.await_args.args[0]
+    assert isinstance(modal, IntakeModal)
+    assert modal.issue_type is IssueType.BUG
+    assert modal.title_input.default == "Fix it"
+    assert [answer_input.default for answer_input in modal.answer_inputs] == ["Steps", "Pixel"]
+    assert not view.is_finished()
+    hook.assert_not_awaited()
+    interaction.channel.send.assert_not_awaited()
+    button_interaction.channel.send.assert_not_awaited()
+
+
+async def test_edit_keeps_the_deadline(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    # Moving the deadline, not patching time.monotonic, which also drives the event loop.
+    view._deadline -= 120
+    await view.edit_button.callback(make_interaction())
+    assert PREVIEW_TIMEOUT - 121 < view.timeout <= PREVIEW_TIMEOUT - 120
+    view._deadline -= PREVIEW_TIMEOUT
+    await view.edit_button.callback(make_interaction())
+    assert view.timeout == 1.0
+
+
+async def test_edit_after_close_does_nothing(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    hook = AsyncMock()
+    view = await submitted_preview(route, hook, make_interaction())
+    view._closed = True
+    button_interaction = make_interaction()
+    await view.edit_button.callback(button_interaction)
+    button_interaction.response.send_modal.assert_not_awaited()
+    hook.assert_not_awaited()
+
+
+async def test_edit_submit_updates_preview_in_place(
+    route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    interaction = make_interaction()
+    view = await submitted_preview(route, AsyncMock(), interaction)
+    modal = await reopened_modal(view, make_interaction)
+    edit_interaction = make_interaction(interaction_id=4343)
+    with caplog.at_level(logging.INFO):
+        await edited_submit(modal, edit_interaction)
+    edit_interaction.response.edit_message.assert_awaited_once()
+    edit_call = edit_interaction.response.edit_message.await_args
+    assert set(edit_call.kwargs) == {"content", "embed", "view"}
+    assert edit_call.kwargs["content"] == PREVIEW_REPLY
+    expected = preview_embed("Fix it now", (("What happened?", "Steps v2"), ("Device", "")), "Alice")
+    assert edit_call.kwargs["embed"].title == expected.title
+    assert edit_call.kwargs["embed"].description == expected.description
+    new_view = edit_call.kwargs["view"]
+    assert isinstance(new_view, PreviewView)
+    assert new_view is not view
+    edit_interaction.response.defer.assert_not_awaited()
+    edit_interaction.followup.send.assert_not_awaited()
+    assert view.is_finished()
+    assert "previewed bug interaction_id=4343" in intake_messages(caplog, logging.INFO)
+    await new_view.on_timeout()
+    edit_interaction.edit_original_response.assert_awaited_once_with(
+        content=PREVIEW_EXPIRED_REPLY, view=None
+    )
+    interaction.edit_original_response.assert_not_awaited()
+
+
+async def test_edit_submit_blank_title_keeps_old_preview(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    modal = await reopened_modal(view, make_interaction)
+    modal.title_input._value = "  ...  "
+    edit_interaction = make_interaction()
+    await modal.on_submit(edit_interaction)
+    edit_interaction.response.send_message.assert_awaited_once_with(
+        BLANK_TITLE_EDIT_REPLY, ephemeral=True
+    )
+    edit_interaction.response.edit_message.assert_not_awaited()
+    edit_interaction.response.defer.assert_not_awaited()
+    assert not view.is_finished()
+    assert view._closed is False
+
+
+async def test_edit_submit_failed_edit_keeps_old_preview(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    modal = await reopened_modal(view, make_interaction)
+    edit_interaction = make_interaction()
+    edit_interaction.response.edit_message.side_effect = forbidden(50027, "Secret error words")
+    with pytest.raises(discord.Forbidden):
+        await edited_submit(modal, edit_interaction)
+    assert not view.is_finished()
+    assert view._closed is False
+
+
+async def test_edit_submit_files_the_edited_text(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    hook = AsyncMock()
+    view = await submitted_preview(route, hook, make_interaction())
+    modal = await reopened_modal(view, make_interaction)
+    edit_interaction = make_interaction()
+    await edited_submit(modal, edit_interaction)
+    new_view = edit_interaction.response.edit_message.await_args.kwargs["view"]
+    await new_view.file_button.callback(make_interaction())
+    hook.assert_awaited_once()
+    _message, candidate = hook.await_args.args
+    assert candidate.title == "Fix it now"
+    assert candidate.answers == (("What happened?", "Steps v2"), ("Device", ""))
+
+
+async def test_edit_submit_after_expiry_still_previews(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    modal = await reopened_modal(view, make_interaction)
+    view._closed = True
+    edit_interaction = make_interaction()
+    await edited_submit(modal, edit_interaction)
+    edit_interaction.response.edit_message.assert_awaited_once()
+    edit_call = edit_interaction.response.edit_message.await_args
+    assert edit_call.kwargs["content"] == PREVIEW_REPLY
+    assert isinstance(edit_call.kwargs["embed"], discord.Embed)
+    assert isinstance(edit_call.kwargs["view"], PreviewView)
+
+
+async def test_timeout_expires_preview_and_files_nothing(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    hook = AsyncMock()
+    interaction = make_interaction()
+    view = await submitted_preview(route, hook, interaction)
+    await view.on_timeout()
+    interaction.edit_original_response.assert_awaited_once_with(
+        content=PREVIEW_EXPIRED_REPLY, view=None
+    )
+    hook.assert_not_awaited()
+    interaction.channel.send.assert_not_awaited()
+
+
+async def test_timeout_edit_failure_logged_without_text(
+    route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    interaction = make_interaction()
+    view = await submitted_preview(route, AsyncMock(), interaction)
+    interaction.edit_original_response.side_effect = forbidden(50027, "Secret error words")
+    with caplog.at_level(logging.INFO):
+        await view.on_timeout()
+    assert intake_messages(caplog, logging.ERROR) == [
+        "could not expire bug preview interaction_id=4242: Forbidden status=403 code=50027"
+    ]
+    for text in record_texts(caplog):
+        assert "Secret error words" not in text
+
+
+async def test_timeout_after_file_does_nothing(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    interaction = make_interaction()
+    view = await submitted_preview(route, AsyncMock(), interaction)
+    await view.file_button.callback(make_interaction())
+    await view.on_timeout()
+    interaction.edit_original_response.assert_not_awaited()
+
+
+@pytest.mark.parametrize("is_done", [True, False])
+async def test_preview_on_error_logs_type_and_replies_privately(
+    route: TargetConfig,
+    make_interaction: InteractionFactory,
+    caplog: pytest.LogCaptureFixture,
+    is_done: bool,
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    button_interaction = make_interaction()
+    button_interaction.response.is_done.return_value = is_done
+    with caplog.at_level(logging.INFO):
+        await view.on_error(
+            button_interaction, RuntimeError("Secret exception words"), view.file_button
+        )
+    assert intake_messages(caplog, logging.ERROR) == [
+        "unhandled RuntimeError in bug preview interaction_id=4242 status=None code=None"
+    ]
+    for text in record_texts(caplog):
+        assert "Secret exception words" not in text
+    if is_done:
+        button_interaction.followup.send.assert_awaited_once_with(
+            INTAKE_ERROR_REPLY, ephemeral=True
+        )
+        button_interaction.response.send_message.assert_not_awaited()
+    else:
+        button_interaction.response.send_message.assert_awaited_once_with(
+            INTAKE_ERROR_REPLY, ephemeral=True
+        )
+        button_interaction.followup.send.assert_not_awaited()
+
+
+async def test_preview_flow_logs_ids_not_text(
+    route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    secret = {"title": "Secret title words", "answers": ("Secret body words",)}
+    with caplog.at_level(logging.INFO):
+        # Preview A: submit, Edit, Edit submit, then expiry.
+        view_a = await submitted_preview(route, AsyncMock(), make_interaction(), **secret)
+        modal = await reopened_modal(view_a, make_interaction)
+        modal.title_input._value = "Secret title words"
+        modal.answer_inputs[0]._value = "Secret body words"
+        edit_interaction = make_interaction()
+        await modal.on_submit(edit_interaction)
+        await edit_interaction.response.edit_message.await_args.kwargs["view"].on_timeout()
+        # Preview B: submit, then File.
+        view_b = await submitted_preview(route, AsyncMock(), make_interaction(), **secret)
+        await view_b.file_button.callback(make_interaction())
+    assert_no_member_text(caplog)
+    messages = intake_messages(caplog, logging.INFO)
+    assert messages.count("previewed bug interaction_id=4242") == 3
+    assert any(text.startswith("posted bug summary interaction_id=4242") for text in messages)
+    assert "preview expired bug interaction_id=4242" in messages
 
 
 @pytest.mark.parametrize(

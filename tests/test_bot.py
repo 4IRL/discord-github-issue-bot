@@ -432,7 +432,7 @@ async def test_summary_error_reply_failure_logged_without_text(
     assert_no_member_text(caplog)
 
 
-async def test_filing_hook_unexpected_error_reaches_modal_on_error(
+async def test_filing_hook_unexpected_error_reaches_preview_on_error(
     route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
     github = fake_github(RuntimeError("Secret exception words"))
@@ -441,12 +441,15 @@ async def test_filing_hook_unexpected_error_reaches_modal_on_error(
     # discord.py's own seed for a submitted value: a real submit needs the Gateway.
     modal.title_input._value = "Secret title words"
     modal.answer_inputs[0]._value = "Secret body words"
+    button_interaction = make_interaction()
     with caplog.at_level(logging.INFO):
-        # discord.py's own dispatch path (2.7.1: interaction, components, resolved): empty
-        # components keep the seeded values, and an exception in on_submit reaches on_error.
-        await modal._scheduled_task(interaction, [], {})
+        await modal.on_submit(interaction)
+        view = interaction.followup.send.await_args.kwargs["view"]
+        # discord.py's own dispatch path (2.7.1: item, interaction): it reads
+        # interaction.data, and an exception in the File callback reaches on_error.
+        await view._scheduled_task(view.file_button, button_interaction)
     github.create_issue.assert_awaited_once()
-    summary = interaction.channel.send.return_value
+    summary = button_interaction.channel.send.return_value
     summary.create_thread.return_value.send.assert_not_awaited()
     summary.reply.assert_not_awaited()
     intake_errors = [
@@ -455,13 +458,13 @@ async def test_filing_hook_unexpected_error_reaches_modal_on_error(
         if record.name == "issue_bot.intake" and record.levelno == logging.ERROR
     ]
     assert intake_errors == [
-        "unhandled RuntimeError in bug modal interaction_id=4242 status=None code=None"
+        "unhandled RuntimeError in bug preview interaction_id=4242 status=None code=None"
     ]
     for text in record_texts(caplog):
         assert "Secret exception words" not in text
     assert_no_member_text(caplog)
-    interaction.followup.send.assert_awaited_once_with(INTAKE_ERROR_REPLY, ephemeral=True)
-    interaction.response.send_message.assert_not_awaited()
+    button_interaction.followup.send.assert_awaited_once_with(INTAKE_ERROR_REPLY, ephemeral=True)
+    button_interaction.response.send_message.assert_not_awaited()
 
 
 async def test_on_ready_logs_missing_channel_as_error(
@@ -969,9 +972,12 @@ async def test_command_callback_reaches_hook_end_to_end(
     modal.title_input._value = "Fix it"
     modal.answer_inputs[0]._value = "Steps"
     await modal.on_submit(interaction)
+    view = interaction.followup.send.await_args.kwargs["view"]
+    button_interaction = make_interaction()
+    await view.file_button.callback(button_interaction)
     hook.assert_awaited_once()
     summary, candidate = hook.await_args.args
-    assert summary is interaction.channel.send.return_value
+    assert summary is button_interaction.channel.send.return_value
     assert isinstance(candidate, IssueCandidate)
     assert candidate.type is IssueType.BUG
     assert candidate.title == "Fix it"

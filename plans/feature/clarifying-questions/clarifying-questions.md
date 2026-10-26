@@ -376,14 +376,14 @@ Build Title plus one input per question from `target.questions[issue_type]`, wit
 Show an ephemeral preview on submit; File runs the existing summary and filing path; Edit reopens the modal prefilled; timeout files nothing. The bot-level tests go submit → preview → File, so the step ends green.
 
 **To-do:**
-- [ ] **Red.** In `tests/conftest.py` `make_interaction`, add:
+- [x] **Red.** In `tests/conftest.py` `make_interaction`, add:
   - `response.edit_message = AsyncMock()`, with a side effect that flips `is_done` like `defer`;
   - `edit_original_response = AsyncMock()` on the returned namespace (an `Interaction` method,
     beside `followup`, not on `response`);
   - `data={}` on the returned namespace (discord.py 2.7.1's `View._scheduled_task` reads
     `interaction.data` before the button callback);
   - update its docstring to say it also stands in for a button interaction.
-- [ ] **Red.** In `tests/test_intake.py`, add the new intake names the tests use (`PreviewView`,
+- [x] **Red.** In `tests/test_intake.py`, add the new intake names the tests use (`PreviewView`,
   `preview_embed`, the `PREVIEW_*` constants, `FILING_REPLY`, `BLANK_TITLE_EDIT_REPLY`) to the
   `from issue_bot.intake import (...)` list and add
   `from issue_bot.issues import PREVIEW_LINK, render_body`, keeping each list sorted. Then add
@@ -476,7 +476,7 @@ Show an ephemeral preview on submit; File runs the existing summary and filing p
     `posted bug summary …` line, and `preview expired bug interaction_id=4242`.
 
   Run them and confirm they fail.
-- [ ] **Green.** In `issue_bot/intake.py`, add constants under the `# Fixed text` comment:
+- [x] **Green.** In `issue_bot/intake.py`, add constants under the `# Fixed text` comment:
   - `PREVIEW_TIMEOUT = 600  # Seconds; under Discord's 15-minute interaction token (DD-5).`;
   - `PREVIEW_EMBED_LIMIT = 4096  # Discord's maximum embed description.`;
   - `PREVIEW_REPLY = "Here's your report as it will be filed. **File** posts it; **Edit** changes it. This preview expires in 10 minutes."`;
@@ -484,18 +484,18 @@ Show an ephemeral preview on submit; File runs the existing summary and filing p
   - `FILING_REPLY = "Filing your report…"`;
   - `PREVIEW_EXPIRED_REPLY = "This preview expired, so nothing was filed. Run the command again to report it."`;
   - `BLANK_TITLE_EDIT_REPLY = "The title needs a letter or digit. Press Edit to fix it."`.
-- [ ] **Green.** Add `preview_embed(title: str, answers: Sequence[tuple[str, str]], author_name: str) -> discord.Embed`
+- [x] **Green.** Add `preview_embed(title: str, answers: Sequence[tuple[str, str]], author_name: str) -> discord.Embed`
   (add `Sequence` to intake.py's existing `collections.abc` import). It
   builds `discord.Embed(title=title, description=text)`, where
   `text = render_body(author_name, PREVIEW_LINK, answers)`. When that exceeds
   `PREVIEW_EMBED_LIMIT`, it is cut to `PREVIEW_EMBED_LIMIT - len(PREVIEW_SHORTENED_NOTE)` and the
   note appended. Import `render_body` and `PREVIEW_LINK` from `issue_bot.issues` (no cycle:
   issues imports github and handler only).
-- [ ] **Green.** Move the post-and-file block of `on_submit` (from its channel check to the end:
+- [x] **Green.** Move the post-and-file block of `on_submit` (from its channel check to the end:
   channel check, summary send, its error handling and log, `on_candidate`, `SUBMITTED_REPLY`) unchanged into
   `async def _post_and_file(interaction: discord.Interaction, issue_type: IssueType, target: TargetConfig, on_candidate: CandidateHook, draft: Draft) -> None`.
   It uses `draft.title`/`draft.answers` and the button interaction's `channel` and `user`.
-- [ ] **Green.** Add `import time` to intake.py. Add `class PreviewView(discord.ui.View)`.
+- [x] **Green.** Add `import time` to intake.py. Add `class PreviewView(discord.ui.View)`.
   `__init__(self, issue_type: IssueType, target: TargetConfig, on_candidate: CandidateHook, draft: Draft, interaction: discord.Interaction) -> None`
   calls `super().__init__(timeout=PREVIEW_TIMEOUT)`. It stores the arguments, keeping
   `interaction` as the one whose original response is the preview, sets `self._closed = False`
@@ -527,7 +527,7 @@ Show an ephemeral preview on submit; File runs the existing summary and filing p
     `type(error).__name__, issue_type, what, interaction.id, status, code`; `IntakeModal` passes
     `what="modal"` (the existing line is unchanged) and `PreviewView` passes `what="preview"`,
     so the view line is `unhandled RuntimeError in bug preview interaction_id=4242 status=None code=None`.
-- [ ] **Green.** Change `IntakeModal`:
+- [x] **Green.** Change `IntakeModal`:
   - `__init__` gains `preview: "PreviewView | None" = None` and stores it.
   - `on_submit`, fresh (`self.preview is None`): `defer(ephemeral=True, thinking=True)` as
     today, the blank-title check and `BLANK_TITLE_REPLY` as today, then
@@ -551,10 +551,11 @@ Show an ephemeral preview on submit; File runs the existing summary and filing p
     (verify against handler.py and match it).
   - Update the intake.py module docstring to say a submit shows a private preview and File posts
     the summary and hands it to `on_candidate`, and update `on_submit`'s docstring to match.
-- [ ] Update the `IssueBot` docstring in `issue_bot/bot.py` ("Each submitted report is posted as
+  _Edit submit after File from a second client re-previews (possible duplicate): accepted, README Known-limits note in Step 5 (asked, dd-261026-045)._
+- [x] Update the `IssueBot` docstring in `issue_bot/bot.py` ("Each submitted report is posted as
   a public summary message ...") to say a report is posted as the public summary once its
   reporter presses File on the private preview.
-- [ ] Rewrite the old submit-flow tests (test_intake.py, as listed in Research Findings)
+- [x] Rewrite the old submit-flow tests (test_intake.py, as listed in Research Findings)
   so the summary, hook and `SUBMITTED_REPLY` assertions run on File. In
   `test_submit_defers_privately_first`, attach `interaction.followup.send` (the preview send) as
   `"send"` instead of `interaction.channel.send`, keeping the defer-first assertion. Remove only
@@ -562,7 +563,7 @@ Show an ephemeral preview on submit; File runs the existing summary and filing p
   `test_second_route_submit_files_to_its_repo_with_its_labels`, the File interaction is
   `make_interaction(channel_id=556, summary=make_message(channel_id=556))`, as its submit
   interaction is today.
-- [ ] `tests/test_bot.py` `test_filing_hook_unexpected_error_reaches_modal_on_error`:
+- [x] `tests/test_bot.py` `test_filing_hook_unexpected_error_reaches_modal_on_error`:
   the unexpected filing error now surfaces in the File callback. After `on_submit`, take the
   view from the follow-up and drive File through the view's dispatch,
   `await view._scheduled_task(view.file_button, button_interaction)` (2.7.1:
@@ -575,11 +576,11 @@ Show an ephemeral preview on submit; File runs the existing summary and filing p
   `summary.create_thread.return_value.send`, `summary.reply` and
   `button_interaction.response.send_message` are not awaited. Rename the test to
   `test_filing_hook_unexpected_error_reaches_preview_on_error`.
-- [ ] `tests/test_bot.py` `test_command_callback_reaches_hook_end_to_end`: after
+- [x] `tests/test_bot.py` `test_command_callback_reaches_hook_end_to_end`: after
   `on_submit`, take the view from the follow-up and await
   `view.file_button.callback(button_interaction)` with `button_interaction = make_interaction()`.
   Then assert the hook as today, with `summary is button_interaction.channel.send.return_value`.
-- [ ] **Verify:** `.venv/bin/pytest` passes in full.
+- [x] **Verify:** `.venv/bin/pytest` passes in full.
 
 ### 5. Docs
 Describe the new modal, preview and route-file keys wherever the old flow is described.
@@ -595,7 +596,7 @@ Describe the new modal, preview and route-file keys wherever the old flow is des
   - Known limits: replace line 34 (the reporter's answers stay visible in the private preview
     until File, and after an expiry or a failed filing; a preview over 4096 characters shows only
     the start of the text, and the preview is an ephemeral message), and add "a bot restart leaves an open preview's buttons dead;
-    run the command again";
+    run the command again" and "a reporter who presses File in one Discord client while an Edit modal is open in another can submit that Edit and file a second issue; close the duplicate";
   - line 57's mentions note: labels are defanged too;
   - the route-file field table: add `questions.bug` / `questions.feature` (array of tables
     `label`, `style`, `required`; 1–4 per type; label ≤45);
