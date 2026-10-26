@@ -8,11 +8,12 @@ type, HTTP status and Discord error code.
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass, field
 
 import discord
 from discord import app_commands
 
-from issue_bot.config import TargetConfig, UnroutedCommands
+from issue_bot.config import QuestionStyle, TargetConfig, UnroutedCommands
 from issue_bot.github import GitHubError
 from issue_bot.handler import IssueCandidate, candidate_from_submission
 from issue_bot.issue_type import IssueType
@@ -24,7 +25,7 @@ CandidateHook = Callable[[discord.Message, IssueCandidate], Awaitable[None]]
 FilingCheck = Callable[[TargetConfig], Awaitable[None]]
 
 TITLE_MAX_LENGTH = THREAD_NAME_LIMIT  # Owner's choice: a title is never cut in the thread name.
-DESCRIPTION_MAX_LENGTH = 4000  # Discord's maximum text-input length.
+ANSWER_MAX_LENGTH = 4000  # Discord's maximum text-input length.
 MODAL_TIMEOUT = 1800  # Seconds an open modal is kept; a later submit fails in Discord, unfiled (DD-10).
 FILING_CHECK_TIMEOUT = 2.0  # Seconds; Discord needs the modal within 3 s of the command.
 NO_MENTIONS = discord.AllowedMentions.none()
@@ -64,26 +65,50 @@ async def _reply(interaction: discord.Interaction, text: str, issue_type: IssueT
         )
 
 
+@dataclass(frozen=True)
+class Draft:
+    """A report's title and ``(label, answer)`` pairs: member text, hidden from repr."""
+
+    title: str = field(repr=False)
+    answers: tuple[tuple[str, str], ...] = field(repr=False)
+
+
 class IntakeModal(discord.ui.Modal):
-    """The report form: a required Title and an optional Description."""
+    """The report form: a required Title plus the route's questions for the issue type."""
 
     def __init__(
-        self, issue_type: IssueType, target: TargetConfig, on_candidate: CandidateHook
+        self,
+        issue_type: IssueType,
+        target: TargetConfig,
+        on_candidate: CandidateHook,
+        draft: Draft | None = None,
     ) -> None:
         super().__init__(title=f"New {issue_type}", timeout=MODAL_TIMEOUT)
         self.issue_type = issue_type
         self.target = target
         self.on_candidate = on_candidate
+        self.questions = target.questions[issue_type]
         self.title_input: discord.ui.TextInput = discord.ui.TextInput(
-            style=discord.TextStyle.short, required=True, max_length=TITLE_MAX_LENGTH
-        )
-        self.description_input: discord.ui.TextInput = discord.ui.TextInput(
-            style=discord.TextStyle.paragraph,
-            required=False,
-            max_length=DESCRIPTION_MAX_LENGTH,
+            style=discord.TextStyle.short,
+            required=True,
+            max_length=TITLE_MAX_LENGTH,
+            default=draft.title if draft else None,
         )
         self.add_item(discord.ui.Label(text="Title", component=self.title_input))
-        self.add_item(discord.ui.Label(text="Description", component=self.description_input))
+        self.answer_inputs: list[discord.ui.TextInput] = []
+        for index, question in enumerate(self.questions):
+            answer_input: discord.ui.TextInput = discord.ui.TextInput(
+                style=(
+                    discord.TextStyle.short
+                    if question.style is QuestionStyle.SHORT
+                    else discord.TextStyle.paragraph
+                ),
+                required=question.required,
+                max_length=ANSWER_MAX_LENGTH,
+                default=draft.answers[index][1] if draft else None,
+            )
+            self.answer_inputs.append(answer_input)
+            self.add_item(discord.ui.Label(text=question.label, component=answer_input))
 
     async def on_submit(self, interaction: discord.Interaction, /) -> None:
         """Post the public summary, hand it and its candidate to the hook, then confirm privately."""
@@ -91,7 +116,10 @@ class IntakeModal(discord.ui.Modal):
         # public message update.
         await interaction.response.defer(ephemeral=True, thinking=True)
         title = " ".join(self.title_input.value.split())
-        description = self.description_input.value.strip()
+        answers = tuple(
+            (question.label, answer_input.value.strip())
+            for question, answer_input in zip(self.questions, self.answer_inputs)
+        )
         if not any(character.isalnum() for character in title):
             await _reply(interaction, BLANK_TITLE_REPLY, self.issue_type)
             return
@@ -133,7 +161,7 @@ class IntakeModal(discord.ui.Modal):
             candidate_from_submission(
                 self.issue_type,
                 title,
-                (("Description", description),),
+                answers,
                 interaction.user,
                 summary,
                 self.target,

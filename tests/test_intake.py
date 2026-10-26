@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections.abc import Sequence
 from unittest.mock import AsyncMock, Mock
 
 import discord
@@ -9,6 +10,7 @@ from issue_bot.bot import filing_hook
 from issue_bot.config import Config, TargetConfig, UnroutedCommands
 from issue_bot.github import FiledIssue, GitHubError
 from issue_bot.intake import (
+    ANSWER_MAX_LENGTH,
     BLANK_TITLE_REPLY,
     FILING_UNAVAILABLE_REPLY,
     INTAKE_ERROR_REPLY,
@@ -18,6 +20,7 @@ from issue_bot.intake import (
     SUBMITTED_REPLY,
     SUMMARY_FAILED_REPLY,
     CandidateHook,
+    Draft,
     FilingCheck,
     IntakeModal,
     intake_command,
@@ -50,28 +53,60 @@ def filled_modal(
     *,
     issue_type: IssueType = IssueType.BUG,
     title: str = "Fix it",
-    description: str = "Steps",
+    answers: Sequence[str] = ("Steps",),
 ) -> IntakeModal:
     modal = IntakeModal(issue_type, route, hook)
     # discord.py's own seed for a submitted value: a real submit needs the Gateway.
     modal.title_input._value = title
-    modal.description_input._value = description
+    for index, answer in enumerate(answers):
+        modal.answer_inputs[index]._value = answer
     return modal
 
 
-def test_modal_fields(route: TargetConfig) -> None:
+def test_bug_modal_fields(route: TargetConfig) -> None:
+    modal = IntakeModal(IssueType.BUG, route, AsyncMock())
+    assert modal.title == "New bug"
+    assert modal.timeout == MODAL_TIMEOUT
+    assert len(modal.children) == 3
+    assert all(isinstance(child, discord.ui.Label) for child in modal.children)
+    assert [child.text for child in modal.children] == ["Title", "What happened?", "Device"]
+    assert modal.title_input.style is discord.TextStyle.short
+    assert modal.title_input.required is True
+    assert modal.title_input.max_length == 100
+    assert modal.answer_inputs[0].style is discord.TextStyle.paragraph
+    assert modal.answer_inputs[0].required is True
+    assert modal.answer_inputs[0].max_length == ANSWER_MAX_LENGTH
+    assert modal.answer_inputs[1].style is discord.TextStyle.short
+    assert modal.answer_inputs[1].required is False
+
+
+def test_feature_modal_fields(route: TargetConfig) -> None:
     modal = IntakeModal(IssueType.FEATURE, route, AsyncMock())
     assert modal.title == "New feature"
     assert modal.timeout == MODAL_TIMEOUT
     assert len(modal.children) == 2
     assert all(isinstance(child, discord.ui.Label) for child in modal.children)
-    assert [child.text for child in modal.children] == ["Title", "Description"]
+    assert [child.text for child in modal.children] == ["Title", "The idea"]
     assert modal.title_input.style is discord.TextStyle.short
     assert modal.title_input.required is True
     assert modal.title_input.max_length == 100
-    assert modal.description_input.style is discord.TextStyle.paragraph
-    assert modal.description_input.required is False
-    assert modal.description_input.max_length == 4000
+
+
+def test_modal_prefills_from_draft(route: TargetConfig) -> None:
+    draft = Draft("Fix it", (("What happened?", "Steps"), ("Device", "")))
+    modal = IntakeModal(IssueType.BUG, route, AsyncMock(), draft=draft)
+    assert modal.title_input.default == "Fix it"
+    assert modal.answer_inputs[0].default == "Steps"
+    assert modal.answer_inputs[1].default == ""
+    blank = IntakeModal(IssueType.BUG, route, AsyncMock())
+    assert blank.title_input.default is None
+    assert all(answer_input.default is None for answer_input in blank.answer_inputs)
+
+
+def test_draft_repr_hides_text() -> None:
+    text = repr(Draft("Secret title words", (("Q", "Secret body words"),)))
+    assert "Secret title words" not in text
+    assert "Secret body words" not in text
 
 
 def test_command_names_follow_issue_type(config: Config) -> None:
@@ -350,7 +385,7 @@ async def test_submit_hands_summary_and_candidate_to_hook(
     assert awaited_message is summary
     assert candidate.type is IssueType.BUG
     assert candidate.title == "Fix it"
-    assert candidate.answers == (("Description", "Steps"),)
+    assert candidate.answers == (("What happened?", "Steps"), ("Device", ""))
     assert candidate.author_name == "Alice"
     assert candidate.author_id == 7
     assert candidate.message_id == 99
@@ -373,11 +408,11 @@ async def test_submit_normalizes_title_and_description(
     route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
     hook = AsyncMock()
-    modal = filled_modal(route, hook, title="  Fix   it \n", description="\n Steps \n more \n")
+    modal = filled_modal(route, hook, title="  Fix   it \n", answers=("\n Steps \n more \n",))
     await modal.on_submit(make_interaction())
     _message, candidate = hook.await_args.args
     assert candidate.title == "Fix it"
-    assert candidate.answers == (("Description", "Steps \n more"),)
+    assert candidate.answers == (("What happened?", "Steps \n more"), ("Device", ""))
 
 
 async def test_submit_files_issue_through_filing_hook(
@@ -410,7 +445,7 @@ async def test_submit_files_issue_through_filing_hook(
 async def test_submit_logs_ids_not_text(
     route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
 ) -> None:
-    modal = filled_modal(route, AsyncMock(), title="Secret title words", description="Secret body words")
+    modal = filled_modal(route, AsyncMock(), title="Secret title words", answers=("Secret body words",))
     with caplog.at_level(logging.INFO):
         await modal.on_submit(make_interaction())
     messages = intake_messages(caplog, logging.INFO)

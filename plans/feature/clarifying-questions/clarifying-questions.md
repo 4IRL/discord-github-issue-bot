@@ -324,7 +324,7 @@ Carry `(label, answer)` pairs on `IssueCandidate` and render them through one sh
 Build Title plus one input per question from `target.questions[issue_type]`, with optional prefill for Edit.
 
 **To-do:**
-- [ ] **Red.** In `tests/test_intake.py`:
+- [x] **Red.** In `tests/test_intake.py`:
   - rewrite `test_modal_fields` as two tests. Bug: `len(modal.children) == 3`; labels
     `["Title", "What happened?", "Device"]`; `modal.answer_inputs[0]` is paragraph, required,
     `max_length == ANSWER_MAX_LENGTH`; `modal.answer_inputs[1]` is short and not required.
@@ -347,7 +347,7 @@ Build Title plus one input per question from `target.questions[issue_type]`, wit
     `"Secret title words"` nor `"Secret body words"`;
   - add `ANSWER_MAX_LENGTH` and `Draft` to test_intake.py's `from issue_bot.intake import (...)`
     list, keeping it sorted.
-- [ ] **Green.** In `issue_bot/intake.py`:
+- [x] **Green.** In `issue_bot/intake.py`:
   - rename `DESCRIPTION_MAX_LENGTH` to `ANSWER_MAX_LENGTH`, keeping its comment;
   - add `@dataclass(frozen=True) class Draft` (above `IntakeModal`) with
     `title: str = field(repr=False)` and
@@ -367,10 +367,10 @@ Build Title plus one input per question from `target.questions[issue_type]`, wit
     (not `field`, which would shadow `dataclasses.field`);
   - import `QuestionStyle` from `issue_bot.config`, and `dataclass`/`field` if they aren't
     imported yet.
-- [ ] Update `tests/test_bot.py`'s `test_filing_hook_unexpected_error_reaches_modal_on_error` and
+- [x] Update `tests/test_bot.py`'s `test_filing_hook_unexpected_error_reaches_modal_on_error` and
   `test_command_callback_reaches_hook_end_to_end` to seed `answer_inputs[0]._value`
   instead of `description_input._value`.
-- [ ] **Verify:** `.venv/bin/pytest` passes in full.
+- [x] **Verify:** `.venv/bin/pytest` passes in full.
 
 ### 4. Private preview with File and Edit
 Show an ephemeral preview on submit; File runs the existing summary and filing path; Edit reopens the modal prefilled; timeout files nothing. The bot-level tests go submit → preview → File, so the step ends green.

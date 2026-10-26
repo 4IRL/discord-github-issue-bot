@@ -440,7 +440,7 @@ async def test_filing_hook_unexpected_error_reaches_modal_on_error(
     interaction = make_interaction()
     # discord.py's own seed for a submitted value: a real submit needs the Gateway.
     modal.title_input._value = "Secret title words"
-    modal.description_input._value = "Secret body words"
+    modal.answer_inputs[0]._value = "Secret body words"
     with caplog.at_level(logging.INFO):
         # discord.py's own dispatch path (2.7.1: interaction, components, resolved): empty
         # components keep the seeded values, and an exception in on_submit reaches on_error.
@@ -967,7 +967,7 @@ async def test_command_callback_reaches_hook_end_to_end(
     modal = interaction.response.send_modal.await_args.args[0]
     # discord.py's own seed for a submitted value: a real submit needs the Gateway.
     modal.title_input._value = "Fix it"
-    modal.description_input._value = "Steps"
+    modal.answer_inputs[0]._value = "Steps"
     await modal.on_submit(interaction)
     hook.assert_awaited_once()
     summary, candidate = hook.await_args.args
