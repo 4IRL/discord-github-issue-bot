@@ -350,7 +350,7 @@ async def test_submit_hands_summary_and_candidate_to_hook(
     assert awaited_message is summary
     assert candidate.type is IssueType.BUG
     assert candidate.title == "Fix it"
-    assert candidate.body == "Steps"
+    assert candidate.answers == (("Description", "Steps"),)
     assert candidate.author_name == "Alice"
     assert candidate.author_id == 7
     assert candidate.message_id == 99
@@ -377,7 +377,7 @@ async def test_submit_normalizes_title_and_description(
     await modal.on_submit(make_interaction())
     _message, candidate = hook.await_args.args
     assert candidate.title == "Fix it"
-    assert candidate.body == "Steps \n more"
+    assert candidate.answers == (("Description", "Steps \n more"),)
 
 
 async def test_submit_files_issue_through_filing_hook(

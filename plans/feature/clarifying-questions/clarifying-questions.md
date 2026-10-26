@@ -269,7 +269,7 @@ Load and validate per-route, per-type question sets at startup as a required rou
 Carry `(label, answer)` pairs on `IssueCandidate` and render them through one shared body formatter.
 
 **To-do:**
-- [ ] **Red.** In `tests/test_issues.py`, replace the body-based tests with answer-based ones:
+- [x] **Red.** In `tests/test_issues.py`, replace the body-based tests with answer-based ones:
   - exact string: `issue_body(make_candidate(answers=(("What happened?", "It broke"), ("Device", "Pixel"))))` ==
     ``"Reported by `Alice` in Discord: https://discord.com/channels/111/555/99\n\n---\n\n### What happened?\n\nIt broke\n\n### Device\n\nPixel"``;
   - a blank (`""`) or whitespace-only answer leaves its section out;
@@ -287,12 +287,12 @@ Carry `(label, answer)` pairs on `IssueCandidate` and render them through one sh
   sets `candidate.answers == (("Q", "A"),)` in place of `candidate.body == "Steps"`, and
   `repr(candidate)` hides "Secret body words" when it is passed as
   `(("Q", "Secret body words"),)`. Run them and confirm they fail.
-- [ ] **Green.** In `issue_bot/handler.py`, replace `body: str = field(repr=False)` with
+- [x] **Green.** In `issue_bot/handler.py`, replace `body: str = field(repr=False)` with
   `answers: tuple[tuple[str, str], ...] = field(repr=False)` (in the same position, with the
   docstring updated). Change the signature to
   `candidate_from_submission(issue_type: IssueType, title: str, answers: Sequence[tuple[str, str]], reporter: discord.abc.User, message: discord.Message, target: TargetConfig) -> IssueCandidate`
   and set `answers=tuple(answers)`. Add `from collections.abc import Sequence` (stdlib group).
-- [ ] **Green.** In `issue_bot/issues.py`:
+- [x] **Green.** In `issue_bot/issues.py`:
   - add `from collections.abc import Sequence` as a stdlib import above the project imports
     (the module has no `from __future__ import annotations`, so the annotation is evaluated at
     import);
@@ -306,7 +306,7 @@ Carry `(label, answer)` pairs on `IssueCandidate` and render them through one sh
     docstring's "then the member's body (or a placeholder)" to "then one section per answered
     question (or a placeholder)";
   - keep the module docstring's "only place an issue body is formatted" claim true.
-- [ ] Update the callers so the suite stays green:
+- [x] Update the callers so the suite stays green:
   - `tests/conftest.py` `make_candidate`: replace the `body: str = "Steps"` parameter and
     `body=body` with `answers: tuple[tuple[str, str], ...] = (("What happened?", "Steps"),)` and
     `answers=answers`;
@@ -317,7 +317,7 @@ Carry `(label, answer)` pairs on `IssueCandidate` and render them through one sh
   - `test_submit_hands_summary_and_candidate_to_hook` and
     `test_submit_normalizes_title_and_description` in test_intake.py, which assert `candidate.body`: assert
     `candidate.answers == (("Description", "Steps"),)` and the normalized pair.
-- [ ] **Verify:** `.venv/bin/pytest` passes in full. `grep -rn "\.body\b\|body=" issue_bot tests`
+- [x] **Verify:** `.venv/bin/pytest` passes in full. `grep -rn "\.body\b\|body=" issue_bot tests`
   shows no reference to the removed field.
 
 ### 3. The modal asks the route's questions, with optional prefill

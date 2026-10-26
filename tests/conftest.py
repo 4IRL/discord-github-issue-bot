@@ -218,7 +218,7 @@ def make_candidate(route: TargetConfig) -> CandidateFactory:
         *,
         type: IssueType = IssueType.BUG,
         title: str = "Fix it",
-        body: str = "Steps",
+        answers: tuple[tuple[str, str], ...] = (("What happened?", "Steps"),),
         author_name: str = "Alice",
         author_id: int = 7,
         message_id: int = 99,
@@ -228,7 +228,7 @@ def make_candidate(route: TargetConfig) -> CandidateFactory:
         return IssueCandidate(
             type=type,
             title=title,
-            body=body,
+            answers=answers,
             author_id=author_id,
             author_name=author_name,
             message_id=message_id,

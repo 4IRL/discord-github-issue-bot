@@ -131,7 +131,12 @@ class IntakeModal(discord.ui.Modal):
         await self.on_candidate(
             summary,
             candidate_from_submission(
-                self.issue_type, title, description, interaction.user, summary, self.target
+                self.issue_type,
+                title,
+                (("Description", description),),
+                interaction.user,
+                summary,
+                self.target,
             ),
         )
         await _reply(interaction, SUBMITTED_REPLY.format(url=summary.jump_url), self.issue_type)

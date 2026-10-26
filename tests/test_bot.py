@@ -128,7 +128,9 @@ async def test_default_hook_logs_ids_not_text(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     message = make_message()
-    candidate = make_candidate(title="Secret title words", body="Secret body words")
+    candidate = make_candidate(
+        title="Secret title words", answers=(("What happened?", "Secret body words"),)
+    )
     with caplog.at_level(logging.INFO):
         await open_issue_thread(message, candidate)
     info_messages = [
@@ -200,7 +202,9 @@ async def test_default_hook_logs_when_thread_fails(
 
 def secret_candidate(make_candidate: CandidateFactory) -> IssueCandidate:
     return make_candidate(
-        title="Secret title words", body="Secret body words", author_name="Alice"
+        title="Secret title words",
+        answers=(("What happened?", "Secret body words"),),
+        author_name="Alice",
     )
 
 
