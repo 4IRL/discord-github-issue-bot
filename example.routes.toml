@@ -17,3 +17,44 @@ repo_id = 0
 [routes.c4i.labels]
 bug = "bug"
 feature = "enhancement"
+
+# The modal's questions for each issue type: 1 to 4 per type, asked below the Title.
+# They replace a free-form description; the filed issue gets one section per answered question.
+# Each question has exactly these keys:
+#   label    - the question text, 1 to 45 characters, unique within the type
+#   style    - "short" (one line) or "paragraph" (several lines)
+#   required - true or false
+[[routes.c4i.questions.bug]]
+label = "Steps to reproduce"
+style = "paragraph"
+required = true
+
+[[routes.c4i.questions.bug]]
+label = "Expected"
+style = "paragraph"
+required = true
+
+[[routes.c4i.questions.bug]]
+label = "Actual"
+style = "paragraph"
+required = true
+
+[[routes.c4i.questions.bug]]
+label = "Device / browser"
+style = "short"
+required = false
+
+[[routes.c4i.questions.feature]]
+label = "Who is it for?"
+style = "short"
+required = true
+
+[[routes.c4i.questions.feature]]
+label = "What problem does it solve?"
+style = "paragraph"
+required = true
+
+[[routes.c4i.questions.feature]]
+label = 'What does "done" look like?'
+style = "paragraph"
+required = false

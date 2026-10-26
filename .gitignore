@@ -24,3 +24,6 @@ data/
 *.db-*
 *.sqlite
 *.bak
+
+# --- local scratch (images etc.) ---
+public/

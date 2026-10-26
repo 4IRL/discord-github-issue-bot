@@ -1,5 +1,6 @@
 """The issue candidate a slash-command report becomes."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 import discord
@@ -12,12 +13,13 @@ from issue_bot.issue_type import IssueType
 class IssueCandidate:
     """A report ready for the thread and filing steps.
 
+    ``answers`` holds one ``(question label, answer)`` pair per question the modal asked.
     Member text and names are hidden from ``repr`` so logs and tracebacks never carry them.
     """
 
     type: IssueType
     title: str = field(repr=False)
-    body: str = field(repr=False)
+    answers: tuple[tuple[str, str], ...] = field(repr=False)
     author_id: int
     author_name: str = field(repr=False)
     message_id: int
@@ -28,7 +30,7 @@ class IssueCandidate:
 def candidate_from_submission(
     issue_type: IssueType,
     title: str,
-    description: str,
+    answers: Sequence[tuple[str, str]],
     reporter: discord.abc.User,
     message: discord.Message,
     target: TargetConfig,
@@ -37,7 +39,7 @@ def candidate_from_submission(
     return IssueCandidate(
         type=issue_type,
         title=title,
-        body=description,
+        answers=tuple(answers),
         author_id=reporter.id,
         author_name=reporter.display_name,
         message_id=message.id,

@@ -8,7 +8,7 @@ The run happens against a **private scratch repo** and a **test channel**, never
 
 - **Startup:** the bot registers `/bug` and `/feature` in the guild `DISCORD_GUILD_ID` names. It overwrites them on every start, and they stay after teardown (see section 5).
 - **Probe:** one installation token on GitHub, which expires within an hour. Nothing else.
-- **Success checks:** two issues in the scratch repo (three with the optional `@someone` check), and one summary message plus one public thread with one link post in it per submission in the test channel.
+- **Success checks:** two issues in the scratch repo (three with the optional `@someone` check), and one summary message plus one public thread with one link post in it per report filed with **File** in the test channel; an expired or edited preview writes nothing.
 - **Failure check:** one private reply to you. It posts nothing in the test channel and writes nothing to GitHub.
 - **Re-runs:** every re-run repeats its writes.
 
@@ -69,7 +69,44 @@ repo_id = <REPO_ID>
 [routes.smoke.labels]
 bug = "bug"
 feature = "enhancement"
+
+[[routes.smoke.questions.bug]]
+label = "Steps to reproduce"
+style = "paragraph"
+required = true
+
+[[routes.smoke.questions.bug]]
+label = "Expected"
+style = "paragraph"
+required = true
+
+[[routes.smoke.questions.bug]]
+label = "Actual"
+style = "paragraph"
+required = true
+
+[[routes.smoke.questions.bug]]
+label = "Device / browser"
+style = "short"
+required = false
+
+[[routes.smoke.questions.feature]]
+label = "Who is it for?"
+style = "short"
+required = true
+
+[[routes.smoke.questions.feature]]
+label = "What problem does it solve?"
+style = "paragraph"
+required = true
+
+[[routes.smoke.questions.feature]]
+label = 'What does "done" look like?'
+style = "paragraph"
+required = false
 ```
+
+The `questions` tables are required: without them the bot exits at startup with code 2.
 
 The bot syncs `/bug` and `/feature` to the `DISCORD_GUILD_ID` guild, so leaving example.env's value would register them in the live server. Set it to the test guild's ID.
 
@@ -115,7 +152,12 @@ If any of these differs, stop and fix it before going on.
 
 The log shows `synced 2 commands to guild <DISCORD_GUILD_ID>`. In the test channel:
 
-1. Run `/bug` and submit the modal with a Title and a Description, then do the same with `/feature`. Then check the following:
+1. Run `/bug`. The form shows Title and the route's bug questions (Steps to reproduce, Expected, Actual, Device / browser). Fill in the Title and the required answers, leave **Device / browser** blank, and submit.
+   - A private preview appears, reading "Here's your report as it will be filed. **File** posts it; **Edit** changes it. This preview expires in 10 minutes.", with the issue body below it and `(link added when filed)` in place of the summary link. Nothing is posted in the channel yet.
+   - Press **Edit**. The form reopens with your Title and answers filled in. Change one answer and submit. The same preview message updates in place with the changed answer, and no second message appears.
+   - Press **File**. The preview changes to "Filing your report…".
+
+   Then do the same with `/feature` (Who is it for?, What problem does it solve?, What does "done" look like?), and check the following:
 
    | Where | What to see |
    |---|---|
@@ -123,14 +165,16 @@ The log shows `synced 2 commands to guild <DISCORD_GUILD_ID>`. In the test chann
    | Discord thread | A thread on each summary, with one bot message `Filed as GitHub issue #<n>: <title>` and the issue link on the next line, and no preview card |
    | Discord confirmation | A private "Thanks! Your report is posted: <summary link>" that only you see |
    | Issue title | The modal's Title |
-   | Issue body | Opens with ``Reported by `<display name>` in Discord: <summary message link>``, then `---`, then the Description |
+   | Issue body | Opens with ``Reported by `<display name>` in Discord: <summary message link>``, then `---`, then one `### <question>` section per answered question, with the edited answer; the blank optional question has no section |
    | Issue label | `bug` on the `/bug` issue, `enhancement` on the `/feature` one |
    | Issue author | `<app-slug>[bot]` |
-   | Log | One `filed bug …` and one `filed feature …` INFO line with the issue URL, and no member text |
+   | Log | `previewed bug …` and `previewed feature …` lines (one per submit, including each Edit submit), then one `filed bug …` and one `filed feature …` INFO line with the issue URL, and no member text |
 
 2. In the modal, type past 100 characters in the Title. The field stops at 100 characters. Cancel the modal.
 3. Run `/bug` in another channel. You get a private refusal ("Reports go in the intake channel: run this command there."), no modal opens, and the log shows `refused bug outside the intake channel …`.
-4. Optionally, a Description containing `@someone`. It files a third issue, and nobody is notified.
+4. Optionally, an answer containing `@someone`, filed with **File**. It files a third issue, and nobody is notified.
+5. Run `/bug`, submit the form and leave the preview for 10 minutes without pressing anything. That same preview message changes to "This preview expired, so nothing was filed. Run the command again to report it.", keeps the body and loses its buttons. Nothing is posted in the channel or filed, and the log shows `preview expired bug …`.
+6. Run `/bug`, submit, press **Edit**, submit again and leave the new preview for 10 minutes. That same message says it expired, and nothing is filed.
 
 ## 3. Failure path
 
@@ -138,7 +182,7 @@ The log shows `synced 2 commands to guild <DISCORD_GUILD_ID>`. In the test chann
 2. Run one `/bug`. No form opens; you get the private reply "Sorry, reports can't be filed to GitHub right now, so the form didn't open. Try again later." The log shows `filing unavailable for bug interaction_id=…: GitHubError stage=token status=…` with no member text. Nothing is posted in the channel and nothing goes to GitHub.
 3. Restore the right ID.
 
-A filing failure after a submit (the `FILING_ERROR_REPLY` posted in the thread, or as a reply to the summary when no thread opened) can't be triggered this way, since the check now stops the form first; the unit tests cover it.
+A filing failure after File (the `FILING_ERROR_REPLY` posted in the thread, or as a reply to the summary when no thread opened) can't be triggered this way, since the check now stops the form first; the unit tests cover it.
 
 Restart the bot after every `.env` or route-file change. It reads its configuration only at startup.
 
@@ -178,7 +222,7 @@ docker run --rm --env-file .env \
   discord-github-issue-bot
 ```
 
-Submit one `/bug`. It is filed as in section 2. Set the key path and `ROUTES_PATH` back to the host paths afterwards.
+Submit one `/bug` and press **File** on the preview. It is filed as in section 2. Set the key path and `ROUTES_PATH` back to the host paths afterwards.
 
 For a quick test, add `--user "$(id -u)"` instead and mount the original `github-app.pem`. The container then runs as you.
 
@@ -209,7 +253,7 @@ For a quick test, add `--user "$(id -u)"` instead and mount the original `github
 | `/bug` says reports can't be filed | The bot can't get a GitHub token for the repo. Check the startup log's `github access check failed …` line (its `status`) and the `filing unavailable …` lines, then the App ID, installation ID, the route's `repo_id` in the route file and private key; the token probe in section 1 shows the same failure. Restart the bot after fixing `.env` or the route file. |
 | `configuration error: routes.<name>.repo must be in GITHUB_ORG` (exit 2) | The route's `repo` owner isn't `GITHUB_ORG`. Point the route at a repo in that org (for the smoke test, `4IRL/issue-bot-scratch`) or fix `GITHUB_ORG`. |
 | `configuration error: ROUTES_PATH must name a readable TOML route file` (exit 2) | A wrong path, or a TOML syntax error. In a container run, also a `-v` route-file mount left off, a `-v` source path that didn't exist (Docker then created an empty directory there: remove it with `sudo rmdir` and create the file), or a route file uid 10001 can't read. To find a syntax error, run from the repo root `.venv/bin/python -c 'import sys, tomllib; sys.excepthook = lambda t, e, tb: print(f"{t.__name__}: {e}"); tomllib.load(open(sys.argv[1], "rb")); print("ok")' <route file>`. It prints only the parser's one-line position message, e.g. `TOMLDecodeError: Invalid value (at line 2, column 14)` (exit 1); a valid file prints `ok`, and a missing file prints a `FileNotFoundError: …` line. A file saved with a UTF-8 BOM fails at line 1, column 1 (`TOMLDecodeError: Invalid statement (at line 1, column 1)`): re-save it as UTF-8 without a BOM. |
-| A submit gets a private error and no summary | The bot can't post in the channel. Check the startup log for `connected as …` with no channel ERROR or WARNING after it, and that the bot has View Channel, Read Message History, Send Messages, Create Public Threads and Send Messages in Threads there. |
+| Pressing File gets a private error and no summary | The bot can't post in the channel. Check the startup log for `connected as …` with no channel ERROR or WARNING after it, and that the bot has View Channel, Read Message History, Send Messages, Create Public Threads and Send Messages in Threads there. |
 | The issue is filed but no link appears in the thread | The bot couldn't post it. Check the log for `could not send issue link …` (its status and code): the thread post needs Send Messages in Threads; the reply on the summary (when no thread opened) needs Send Messages and Read Message History. |
 | The probe prints `JWT generation failed` | The key couldn't be loaded. Check the `<KEY_PATH>` argument and the Python error above that line. |
 | The probe returns 401 | The JWT was rejected. The App ID may be wrong, the key may belong to another App, or the system clock may be off by more than a minute. |

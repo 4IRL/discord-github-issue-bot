@@ -8,11 +8,15 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
 from issue_bot.config import (
+    MAX_QUESTIONS,
     ROUTE_KEYS,
     Config,
     ConfigError,
+    Question,
+    QuestionStyle,
     TargetConfig,
     UnroutedCommands,
+    _route_questions,
     load_routes,
 )
 from issue_bot.issue_type import IssueType
@@ -31,6 +35,14 @@ ALL_KEYS = [
 ID_KEYS = ["DISCORD_GUILD_ID", "GITHUB_APP_ID", "GITHUB_APP_INSTALLATION_ID"]
 PRIVATE_KEY_ERROR = "GITHUB_APP_PRIVATE_KEY_PATH must name a readable RSA private key"
 REPO_ROOT = Path(__file__).resolve().parent.parent
+# The questions ONE_ROUTE_TOML defines, for literals compared with a loaded route.
+ONE_ROUTE_QUESTIONS = {
+    IssueType.BUG: (
+        Question("What happened?", QuestionStyle.PARAGRAPH, True),
+        Question("Device", QuestionStyle.SHORT, False),
+    ),
+    IssueType.FEATURE: (Question("The idea", QuestionStyle.PARAGRAPH, True),),
+}
 
 
 def test_full_env_loads(test_env: dict[str, str]) -> None:
@@ -50,6 +62,7 @@ def test_full_env_loads(test_env: dict[str, str]) -> None:
         github_repo="example-org/example-repo",
         github_repo_id=222,
         labels={IssueType.BUG: "bug", IssueType.FEATURE: "enhancement"},
+        questions=ONE_ROUTE_QUESTIONS,
     )
 
 
@@ -237,7 +250,10 @@ def test_labels_read_only(route: TargetConfig) -> None:
         route.labels[IssueType.BUG] = "x"  # type: ignore[index]
 
 
-def make_target(labels: dict[IssueType, str]) -> TargetConfig:
+def make_target(
+    labels: dict[IssueType, str],
+    questions: Mapping[IssueType, tuple[Question, ...]] = ONE_ROUTE_QUESTIONS,
+) -> TargetConfig:
     return TargetConfig(
         name="intake",
         channel_id=555,
@@ -246,6 +262,7 @@ def make_target(labels: dict[IssueType, str]) -> TargetConfig:
         github_repo="example-org/example-repo",
         github_repo_id=222,
         labels=labels,
+        questions=questions,
     )
 
 
@@ -279,7 +296,9 @@ NAME_ERROR = "route names must be lowercase letters, digits, - or _"
 LABELS_ERROR = "routes.intake.labels must map bug and feature to label names"
 ONE_ROUTE_LINES = ONE_ROUTE_TOML.splitlines()
 LABELS_HEADER = "[routes.intake.labels]"
-# File-key order of the route's keys; "labels" is the trailing [routes.intake.labels] table.
+# File-key order of the route's scalar keys and labels; cutting at the [routes.intake.labels]
+# header also drops the question arrays after it. "questions" is left out: its arrays have no
+# single line to drop, so without_questions covers it.
 ROUTE_FILE_KEYS = ["channel_id", "channel_name", "category", "repo", "repo_id", "labels"]
 
 
@@ -302,12 +321,20 @@ def with_route_line(key: str, value: str) -> str:
 
 
 def without_route_keys(keys: list[str]) -> str:
-    """ONE_ROUTE_TOML with the named route keys removed (``labels`` drops its whole table)."""
+    """ONE_ROUTE_TOML with the named route keys removed.
+
+    Dropping ``labels`` cuts at its header, which also drops the question arrays that follow it.
+    """
     lines = list(ONE_ROUTE_LINES)
     if "labels" in keys:
         lines = lines[: lines.index(LABELS_HEADER)]
     lines = [line for line in lines if line.split(" = ")[0] not in keys]
     return "\n".join(lines) + "\n"
+
+
+def without_questions(text: str) -> str:
+    """``text`` cut at its first ``[[routes.intake.questions.`` header."""
+    return text[: text.index("[[routes.intake.questions.")]
 
 
 def test_one_route_loads(tmp_path: Path) -> None:
@@ -321,6 +348,7 @@ def test_one_route_loads(tmp_path: Path) -> None:
             github_repo="example-org/example-repo",
             github_repo_id=222,
             labels={IssueType.BUG: "bug", IssueType.FEATURE: "enhancement"},
+            questions=ONE_ROUTE_QUESTIONS,
         )
     }
 
@@ -455,7 +483,9 @@ def test_route_repo_owner_matches_org_case_insensitively(tmp_path: Path) -> None
     "text",
     [
         without_route_keys(["feature"]),
-        ONE_ROUTE_TOML + 'docs = "documentation"\n',
+        ONE_ROUTE_TOML.replace(
+            'feature = "enhancement"', 'feature = "enhancement"\ndocs = "documentation"'
+        ),
         without_route_keys(["labels"]) + 'labels = "bug"\n',
         ONE_ROUTE_TOML.replace('feature = "enhancement"', 'feature = "  "'),
         ONE_ROUTE_TOML.replace('feature = "enhancement"', "feature = 5"),
@@ -469,6 +499,227 @@ def test_bad_route_labels_raise(tmp_path: Path, text: str) -> None:
 def test_duplicate_channel_id_raises(tmp_path: Path) -> None:
     text = TWO_ROUTE_TOML.replace("channel_id = 556", "channel_id = 555")
     assert route_error(tmp_path, text) == "routes.intake and routes.other share channel_id"
+
+
+QUESTIONS_MAP_ERROR = "routes.intake.questions must map bug and feature to question lists"
+FEATURE_INLINE = '[{ label = "The idea", style = "paragraph", required = true }]'
+FEATURE_TABLE = """
+[[routes.intake.questions.feature]]
+label = "The idea"
+style = "paragraph"
+required = true
+"""
+
+
+def with_inline_questions(value: str) -> str:
+    """ONE_ROUTE_TOML with its question arrays replaced by ``questions = value`` in the route."""
+    return without_questions(ONE_ROUTE_TOML).replace(
+        "[routes.intake]\n", f"[routes.intake]\nquestions = {value}\n"
+    )
+
+
+def extra_bug_questions(labels: list[str]) -> str:
+    """ONE_ROUTE_TOML plus one paragraph bug question per label, appended after its arrays."""
+    tables = "".join(
+        f'\n[[routes.intake.questions.bug]]\nlabel = "{label}"\nstyle = "paragraph"\n'
+        "required = true\n"
+        for label in labels
+    )
+    return ONE_ROUTE_TOML + tables
+
+
+def test_route_questions_load(tmp_path: Path) -> None:
+    route = load_text(tmp_path, ONE_ROUTE_TOML)[555]
+    assert route.questions[IssueType.BUG] == (
+        Question("What happened?", QuestionStyle.PARAGRAPH, True),
+        Question("Device", QuestionStyle.SHORT, False),
+    )
+    assert route.questions[IssueType.BUG][1].style is QuestionStyle.SHORT
+    assert route.questions[IssueType.FEATURE] == (
+        Question("The idea", QuestionStyle.PARAGRAPH, True),
+    )
+
+
+def test_second_route_has_its_own_questions(tmp_path: Path) -> None:
+    routes = load_text(tmp_path, TWO_ROUTE_TOML)
+    assert routes[556].questions[IssueType.BUG] == (
+        Question("Steps", QuestionStyle.PARAGRAPH, True),
+    )
+    assert routes[556].questions[IssueType.FEATURE] == (
+        Question("Why?", QuestionStyle.SHORT, False),
+    )
+
+
+def test_route_questions_read_only(tmp_path: Path) -> None:
+    route = load_text(tmp_path, ONE_ROUTE_TOML)[555]
+    with pytest.raises(TypeError):
+        route.questions[IssueType.BUG] = ()  # type: ignore[index]
+
+
+def test_direct_construction_makes_questions_read_only() -> None:
+    questions = dict(ONE_ROUTE_QUESTIONS)
+    target = make_target({IssueType.BUG: "bug", IssueType.FEATURE: "enhancement"}, questions)
+    questions[IssueType.BUG] = (Question("Changed", QuestionStyle.SHORT, False),)
+    assert target.questions[IssueType.BUG] == ONE_ROUTE_QUESTIONS[IssueType.BUG]
+    with pytest.raises(TypeError):
+        target.questions[IssueType.BUG] = ()  # type: ignore[index]
+
+
+@pytest.mark.parametrize(
+    "questions",
+    [
+        {IssueType.BUG: ONE_ROUTE_QUESTIONS[IssueType.BUG]},
+        {**ONE_ROUTE_QUESTIONS, "extra": ONE_ROUTE_QUESTIONS[IssueType.BUG]},
+        {**ONE_ROUTE_QUESTIONS, IssueType.BUG: ()},
+        {**ONE_ROUTE_QUESTIONS, IssueType.BUG: ONE_ROUTE_QUESTIONS[IssueType.FEATURE] * 5},
+        {**ONE_ROUTE_QUESTIONS, IssueType.BUG: list(ONE_ROUTE_QUESTIONS[IssueType.BUG])},
+        {**ONE_ROUTE_QUESTIONS, IssueType.BUG: ("What happened?",)},
+        list(ONE_ROUTE_QUESTIONS),
+    ],
+    ids=[
+        "missing-type",
+        "extra-type",
+        "empty",
+        "too-many",
+        "not-a-tuple",
+        "not-a-question",
+        "list",
+    ],
+)
+def test_direct_construction_rejects_bad_questions(questions: object) -> None:
+    labels = {IssueType.BUG: "bug", IssueType.FEATURE: "enhancement"}
+    with pytest.raises(ConfigError) as excinfo:
+        make_target(labels, questions)  # type: ignore[arg-type]
+    assert str(excinfo.value) == "questions must have one entry per IssueType"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (without_questions(ONE_ROUTE_TOML), "routes.intake.questions is required"),
+        (
+            ONE_ROUTE_TOML.replace(FEATURE_TABLE, ""),
+            QUESTIONS_MAP_ERROR,
+        ),
+        (
+            ONE_ROUTE_TOML
+            + '\n[[routes.intake.questions.docs]]\nlabel = "Page"\nstyle = "short"\n'
+            "required = true\n",
+            QUESTIONS_MAP_ERROR,
+        ),
+        (with_inline_questions("1"), QUESTIONS_MAP_ERROR),
+        (with_inline_questions('{ bug = "x", feature = "y" }'), QUESTIONS_MAP_ERROR),
+        (
+            with_inline_questions(f"{{ bug = [], feature = {FEATURE_INLINE} }}"),
+            "routes.intake.questions.bug must have 1 to 4 questions",
+        ),
+        (
+            extra_bug_questions(["Expected", "Actual", "Browser"]),
+            "routes.intake.questions.bug must have 1 to 4 questions",
+        ),
+        (
+            with_inline_questions(f'{{ bug = ["x"], feature = {FEATURE_INLINE} }}'),
+            "routes.intake.questions.bug[1] must be a table",
+        ),
+        (
+            ONE_ROUTE_TOML + 'hint = "Say more"\n',
+            "routes.intake.questions.feature[1] has unknown key 'hint'",
+        ),
+        (
+            ONE_ROUTE_TOML.replace('label = "Device"\n', ""),
+            "routes.intake.questions.bug[2].label is required",
+        ),
+        (
+            ONE_ROUTE_TOML.replace('label = "Device"', 'label = "  "'),
+            "routes.intake.questions.bug[2].label is required",
+        ),
+        (
+            ONE_ROUTE_TOML.replace('label = "Device"', "label = 5"),
+            "routes.intake.questions.bug[2].label must be a string",
+        ),
+        (
+            ONE_ROUTE_TOML.replace('label = "Device"', f'label = "{"x" * 46}"'),
+            "routes.intake.questions.bug[2].label must be at most 45 characters",
+        ),
+        (
+            ONE_ROUTE_TOML.replace('style = "short"\n', ""),
+            "routes.intake.questions.bug[2].style is required",
+        ),
+        (
+            ONE_ROUTE_TOML.replace('style = "short"', 'style = "long"'),
+            "routes.intake.questions.bug[2].style must be short or paragraph",
+        ),
+        (
+            ONE_ROUTE_TOML.replace("required = false\n", ""),
+            "routes.intake.questions.bug[2].required is required",
+        ),
+        (
+            ONE_ROUTE_TOML.replace("required = false", "required = 1"),
+            "routes.intake.questions.bug[2].required must be true or false",
+        ),
+        (
+            ONE_ROUTE_TOML.replace("required = false", 'required = "yes"'),
+            "routes.intake.questions.bug[2].required must be true or false",
+        ),
+        (
+            ONE_ROUTE_TOML.replace('label = "Device"', 'label = "What happened?"'),
+            "routes.intake.questions.bug labels must be unique",
+        ),
+    ],
+    ids=[
+        "missing-questions",
+        "missing-type",
+        "extra-type",
+        "not-a-table",
+        "type-not-an-array",
+        "zero-questions",
+        "five-questions",
+        "question-not-a-table",
+        "unknown-key",
+        "missing-label",
+        "blank-label",
+        "non-string-label",
+        "label-too-long",
+        "missing-style",
+        "bad-style",
+        "missing-required",
+        "integer-required",
+        "string-required",
+        "duplicate-label",
+    ],
+)
+def test_bad_route_questions_raise(tmp_path: Path, text: str, expected: str) -> None:
+    assert route_error(tmp_path, text) == expected
+
+
+def test_label_of_45_characters_loads(tmp_path: Path) -> None:
+    text = ONE_ROUTE_TOML.replace('label = "Device"', f'label = "{"x" * 45}"')
+    assert load_text(tmp_path, text)[555].questions[IssueType.BUG][1].label == "x" * 45
+
+
+def test_padded_question_label_is_stripped(tmp_path: Path) -> None:
+    text = ONE_ROUTE_TOML.replace('label = "Device"', f'label = " {"x" * 45} "')
+    assert load_text(tmp_path, text)[555].questions[IssueType.BUG][1].label == "x" * 45
+
+
+def test_same_label_in_both_types_loads(tmp_path: Path) -> None:
+    text = ONE_ROUTE_TOML.replace('label = "The idea"', 'label = "What happened?"')
+    route = load_text(tmp_path, text)[555]
+    assert route.questions[IssueType.FEATURE][0].label == "What happened?"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        ONE_ROUTE_TOML.replace('label = "Device"', f'label = "Secret words {"x" * 40}"'),
+        ONE_ROUTE_TOML.replace('label = "Device"', 'label = "Secret words"').replace(
+            'label = "What happened?"', 'label = "Secret words"'
+        ),
+    ],
+    ids=["label-too-long", "duplicate-label"],
+)
+def test_question_errors_do_not_quote_labels(tmp_path: Path, text: str) -> None:
+    assert "Secret words" not in route_error(tmp_path, text)
 
 
 def test_example_env_lists_every_key() -> None:
@@ -487,6 +738,11 @@ def test_example_routes_shape() -> None:
     routes = data["routes"]
     assert isinstance(routes, dict)
     assert routes
-    for route in routes.values():
+    for name, route in routes.items():
         assert set(route) == set(ROUTE_KEYS)
         assert set(route["labels"]) == {t.value for t in IssueType}
+        assert set(route["questions"]) == {t.value for t in IssueType}
+        for questions in route["questions"].values():
+            assert 1 <= len(questions) <= MAX_QUESTIONS
+        # The real validator checks every example question's keys, style and label length.
+        _route_questions(route, f"routes.{name}")

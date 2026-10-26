@@ -151,8 +151,9 @@ class IntakeTree(app_commands.CommandTree):
 class IssueBot(discord.Client):
     """Registers ``/bug`` and ``/feature`` in the configured guild.
 
-    Each submitted report is posted as a public summary message in the route's intake channel, and
-    that message and its candidate go to ``on_candidate`` (default: open its thread).
+    A report is posted as a public summary message in the route's intake channel once its
+    reporter presses **File** on the private preview, and that message and its candidate go to
+    ``on_candidate`` (default: open its thread).
     ``filing_check``, when set, guards each command before its modal opens and runs once
     at startup. Production wires ``filing_hook`` as ``on_candidate`` and
     ``GitHubClient.check_access`` as ``filing_check`` in ``__main__``.

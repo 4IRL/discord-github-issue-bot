@@ -27,6 +27,21 @@ repo_id = 222
 [routes.intake.labels]
 bug = "bug"
 feature = "enhancement"
+
+[[routes.intake.questions.bug]]
+label = "What happened?"
+style = "paragraph"
+required = true
+
+[[routes.intake.questions.bug]]
+label = "Device"
+style = "short"
+required = false
+
+[[routes.intake.questions.feature]]
+label = "The idea"
+style = "paragraph"
+required = true
 """
 
 TWO_ROUTE_TOML = (
@@ -42,6 +57,16 @@ repo_id = 223
 [routes.other.labels]
 bug = "defect"
 feature = "idea"
+
+[[routes.other.questions.bug]]
+label = "Steps"
+style = "paragraph"
+required = true
+
+[[routes.other.questions.feature]]
+label = "Why?"
+style = "short"
+required = false
 """
 )
 
@@ -193,7 +218,7 @@ def make_candidate(route: TargetConfig) -> CandidateFactory:
         *,
         type: IssueType = IssueType.BUG,
         title: str = "Fix it",
-        body: str = "Steps",
+        answers: tuple[tuple[str, str], ...] = (("What happened?", "Steps"),),
         author_name: str = "Alice",
         author_id: int = 7,
         message_id: int = 99,
@@ -203,7 +228,7 @@ def make_candidate(route: TargetConfig) -> CandidateFactory:
         return IssueCandidate(
             type=type,
             title=title,
-            body=body,
+            answers=answers,
             author_id=author_id,
             author_name=author_name,
             message_id=message_id,
@@ -216,7 +241,7 @@ def make_candidate(route: TargetConfig) -> CandidateFactory:
 
 @pytest.fixture
 def make_interaction(make_message: MessageFactory) -> InteractionFactory:
-    """Build a duck-typed stand-in for a slash-command or modal ``discord.Interaction``."""
+    """Build a duck-typed stand-in for a slash-command, modal or button ``discord.Interaction``."""
 
     def factory(
         *,
@@ -237,12 +262,16 @@ def make_interaction(make_message: MessageFactory) -> InteractionFactory:
             send_modal=AsyncMock(),
             send_message=AsyncMock(),
             defer=AsyncMock(),
+            edit_message=AsyncMock(),
             is_done=Mock(return_value=False),
         )
-        # A deferred interaction reports is_done() True, as in production (DD-2).
-        response.defer.side_effect = lambda *args, **kwargs: setattr(
-            response.is_done, "return_value", True
-        )
+
+        def mark_done(*args: object, **kwargs: object) -> None:
+            response.is_done.return_value = True
+
+        # A deferred or edit-acked interaction reports is_done() True, as in production (DD-2).
+        response.defer.side_effect = mark_done
+        response.edit_message.side_effect = mark_done
         return SimpleNamespace(
             id=interaction_id,
             channel_id=channel_id,
@@ -250,6 +279,9 @@ def make_interaction(make_message: MessageFactory) -> InteractionFactory:
             user=SimpleNamespace(id=user_id, display_name=display_name, mention=f"<@{user_id}>"),
             response=response,
             followup=SimpleNamespace(send=AsyncMock()),
+            edit_original_response=AsyncMock(),
+            # discord.py 2.7.1's View._scheduled_task reads it before a button callback.
+            data={},
         )
 
     return factory

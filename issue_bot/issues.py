@@ -1,9 +1,12 @@
 """Turns a candidate into the GitHub issue's title, body and labels; the only place an issue body is formatted."""
 
+from collections.abc import Sequence
+
 from issue_bot.github import FiledIssue, GitHubClient
 from issue_bot.handler import IssueCandidate
 
 ISSUE_TITLE_LIMIT = 256  # GitHub's maximum issue-title length.
+PREVIEW_LINK = "(link added when filed)"  # Stands in for the summary link in the private preview.
 
 
 def issue_title(candidate: IssueCandidate) -> str:
@@ -18,15 +21,28 @@ def _defang_mentions(text: str) -> str:
     return text.replace("@", "@\u200b")
 
 
-def issue_body(candidate: IssueCandidate) -> str:
-    """Return the issue body: the author and message link, then the member's body (or a placeholder).
+def render_body(author_name: str, link: str, answers: Sequence[tuple[str, str]]) -> str:
+    """Return a body: the author and ``link``, then one section per answered question (or a placeholder).
 
     The author line comes first so member Markdown (an unclosed comment or fence, a fake author
     line) can't hide or precede it; backticks are stripped so the name can't close its code span.
+    Blank answers are left out.
     """
-    body = _defang_mentions(candidate.body) or "_No description given._"
-    author = _defang_mentions(candidate.author_name.replace("`", ""))
-    return f"Reported by `{author}` in Discord: {candidate.message_url}\n\n---\n\n{body}"
+    sections = "\n\n".join(
+        f"### {_defang_mentions(label)}\n\n{_defang_mentions(answer.strip())}"
+        for label, answer in answers
+        if answer.strip()
+    )
+    author = _defang_mentions(author_name.replace("`", ""))
+    return (
+        f"Reported by `{author}` in Discord: {link}\n\n---\n\n"
+        f"{sections or '_No description given._'}"
+    )
+
+
+def issue_body(candidate: IssueCandidate) -> str:
+    """Return the issue body: the author and message link, then one section per answered question (or a placeholder)."""
+    return render_body(candidate.author_name, candidate.message_url, candidate.answers)
 
 
 def issue_labels(candidate: IssueCandidate) -> list[str]:
