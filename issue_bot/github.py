@@ -23,6 +23,7 @@ USER_AGENT = "discord-github-issue-bot"
 TOKEN_REFRESH_MARGIN = 300  # seconds before expires_at
 JWT_LIFETIME = 540  # GitHub rejects exp > 10 minutes ahead
 REQUEST_TIMEOUT = 30  # seconds
+LABEL_COLOR = "c5def5"  # the colour new labels get; any later colour change happens on GitHub
 
 Transport = Callable[[str, str, Mapping[str, str], object], Awaitable[tuple[int, Any]]]
 
@@ -53,7 +54,7 @@ class FiledIssue:
 class GitHubError(Exception):
     """A GitHub request failed; carries the stage and HTTP status only, never response text.
 
-    ``stage`` is ``"token"`` or ``"issue"``; ``status`` is None for a transport failure.
+    ``stage`` is ``"token"``, ``"label"`` or ``"issue"``; ``status`` is None for a transport failure.
     """
 
     def __init__(self, stage: str, status: int | None) -> None:
@@ -89,7 +90,10 @@ def _parse_token_response(data: Any) -> tuple[str, float] | None:
 
 
 class GitHubClient:
-    """Creates issues as a GitHub App installation, caching a repo-scoped token per repo."""
+    """Creates issues, and the labels they need, as a GitHub App installation.
+
+    Caches a repo-scoped token per repo.
+    """
 
     def __init__(
         self,
@@ -106,6 +110,7 @@ class GitHubClient:
         self._transport = transport or aiohttp_transport
         self._clock = clock
         self._tokens: dict[int, tuple[str, float]] = {}
+        self._labels: set[tuple[int, str]] = set()
 
     def __repr__(self) -> str:
         return f"GitHubClient(app_id={self._app_id}, installation_id={self._installation_id})"
@@ -149,6 +154,29 @@ class GitHubClient:
     async def check_access(self, target: TargetConfig) -> None:
         """Confirm a repo-scoped installation token can be had for the target; raise GitHubError otherwise."""
         await self._installation_token(target.github_repo_id)
+
+    async def ensure_label(self, target: TargetConfig, name: str) -> None:
+        """Create the label in the target repo unless it exists; raise GitHubError otherwise."""
+        key = (target.github_repo_id, name)
+        if key in self._labels:
+            return
+        token = await self._installation_token(target.github_repo_id)
+        status, _data = await self._request(
+            "label",
+            f"{API_URL}/repos/{target.github_repo}/labels",
+            self._headers(token),
+            {"name": name, "color": LABEL_COLOR},
+        )
+        if status == 401:
+            # Never a keyed del: a concurrent filing may already have dropped it.
+            self._tokens.pop(target.github_repo_id, None)
+            raise GitHubError("label", status) from None
+        # Every 422 is taken as "already exists": GitHub also uses 422 for other
+        # validation errors, unlikely with a fixed name and colour. Labels stay cached
+        # for the process, so one deleted on GitHub is re-created only after a restart.
+        if status not in (201, 422):
+            raise GitHubError("label", status) from None
+        self._labels.add(key)
 
     async def create_issue(
         self, target: TargetConfig, title: str, body: str, labels: list[str]

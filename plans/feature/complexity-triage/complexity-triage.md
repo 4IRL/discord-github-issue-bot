@@ -121,11 +121,11 @@ Add the pure, log-free `issue_bot/complexity.py` and its unit tests (Red → Gre
   Run `.venv/bin/pytest tests/test_complexity.py` and confirm it is green.
 - [x] Refactor if needed, then run `.venv/bin/pytest` and confirm the full suite is green.
 
-### 2. `GitHubClient.ensure_label`
+### 2. `GitHubClient.ensure_label` - COMPLETE (2026-10-27)
 Create a missing label explicitly before filing (DD-2).
 
 **To-do:**
-- [ ] Red: in `tests/test_github.py`, reuse the existing `token_response()` / fake-transport pattern
+- [x] Red: in `tests/test_github.py`, reuse the existing `token_response()` / fake-transport pattern
   (`AsyncMock(side_effect=[...])`, calls unpacked as `(method, url, headers, payload)`) and add:
   - `ensure_label(route, "complexity:M")` with responses `[token_response(), (201, {...})]` sends
     `POST {API_URL}/repos/example-org/example-repo/labels` with payload
@@ -145,7 +145,7 @@ Create a missing label explicitly before filing (DD-2).
     request (`side_effect=[token_response(), error]`) raises `GitHubError("label", None)` with
     `__context__ is None`. A failed name is not cached.
   Run them and confirm they fail (an `ImportError` on `LABEL_COLOR` when test_github.py is collected).
-- [ ] Green: in `issue_bot/github.py`, add `LABEL_COLOR = "c5def5"` (comment: the colour new
+- [x] Green: in `issue_bot/github.py`, add `LABEL_COLOR = "c5def5"` (comment: the colour new
   labels get; any later colour change happens on GitHub). Add `self._labels: set[tuple[int, str]] =
   set()` in `__init__`, and add
   `async def ensure_label(self, target: TargetConfig, name: str) -> None` (docstring: create the
@@ -160,10 +160,10 @@ Create a missing label explicitly before filing (DD-2).
   uses 422 for other validation errors, unlikely with a fixed name and colour), and labels stay
   cached for the process, so one deleted on GitHub is re-created only after a restart (review
   DD-3, dd-261027-050).
-- [ ] Update the `GitHubError` docstring: ``stage`` is ``"token"``, ``"label"`` or ``"issue"``.
+- [x] Update the `GitHubError` docstring: ``stage`` is ``"token"``, ``"label"`` or ``"issue"``.
   Update the `GitHubClient` docstring: it creates issues, and the labels they need, as a GitHub App
   installation, caching a repo-scoped token per repo.
-- [ ] Run `.venv/bin/pytest tests/test_github.py`, then `.venv/bin/pytest`, and confirm both are green.
+- [x] Run `.venv/bin/pytest tests/test_github.py`, then `.venv/bin/pytest`, and confirm both are green.
 
 ### 3. Carry the band from submit to the filed label
 Rate each submission, carry the band (and the override flag) on `Draft` and the band on
