@@ -6,7 +6,7 @@ The code itself is target-agnostic: it holds no 4irl values (never as a code def
 
 ## Status
 
-F2 (thread per report), F3 (per-type questions with a private preview before filing), F5 (issue filing), F7 (issue link in the thread), F8 (routes: several intake channels, each filing to its own repo, from the route file) and F10 (slash-command intake) exist: the bot registers `/bug` and `/feature` and files each report as described under [Reporting](#reporting). The thread is named from the title, and the issue gets its type's label. A filed issue is logged by issue type, message id, message URL, thread id and issue URL. On success the bot posts the issue number, title and link in the thread (`Filed as GitHub issue #<number>: <title>` with the link on the next line, no preview card); if filing fails it posts a fixed error reply there. With no thread, either goes as a reply to the summary message.
+F2 (thread per report), F3 (per-type questions with a private preview before filing), F4 (S/M/L/XL complexity triage), F5 (issue filing), F7 (issue link in the thread), F8 (routes: several intake channels, each filing to its own repo, from the route file) and F10 (slash-command intake) exist: the bot registers `/bug` and `/feature` and files each report as described under [Reporting](#reporting). The thread is named from the title, and the issue gets its type's label plus one `complexity:<band>` label. A filed issue is logged by issue type, message id, message URL, thread id and issue URL. On success the bot posts the issue number, complexity band, title and link in the thread (`Filed as GitHub issue #<number> (complexity <band>): <title>` with the link on the next line, no preview card); if filing fails it posts a fixed error reply there. With no thread, either goes as a reply to the summary message.
 
 - The commands are synced to the `DISCORD_GUILD_ID` guild only, once per start. Outside a routed intake channel they are refused, or ignored with no reply when `UNROUTED_COMMANDS=ignore`.
 - Each route's intake channel is matched by its `channel_id`; its name, category and guild are only checked at startup, per route (a mismatch logs a warning; a channel the bot cannot see logs an error).
@@ -15,11 +15,12 @@ F2 (thread per report), F3 (per-type questions with a private preview before fil
 
 1. Run `/bug` or `/feature` in an intake channel. A "New bug" or "New feature" form opens.
 2. Fill in **Title** (required, up to 100 characters) and the route's questions for that type (one to four, set in the [route file](#configuration); each answer up to 4000 characters), then submit.
-3. You get a private preview that only you see: "Here's your report as it will be filed. **File** posts it; **Edit** changes it. This preview expires in 10 minutes.", with the issue body below it, the summary link shown as `(link added when filed)`.
+3. You get a private preview that only you see: "Here's your report as it will be filed. Pick a complexity if the suggested one is off; **File** posts it; **Edit** changes it. This preview expires in 10 minutes.", with the issue body below it, the summary link shown as `(link added when filed)`, and a **Complexity** field with the band the rules suggest.
+   - **S**, **M**, **L** and **XL** buttons change the band the issue is filed with; the rules and the bands are in [`docs/COMPLEXITY.md`](docs/COMPLEXITY.md).
    - **Edit** reopens the form with your text filled in; submitting it updates the same preview in place, with a fresh 10 minutes.
    - **File** changes the preview to "Filing your report…" and files the report, once.
    - A preview left 10 minutes changes to "This preview expired, so nothing was filed. Run the command again to report it." and keeps your text, so you can copy it. Pressing a button never extends the 10 minutes.
-4. After **File**, the bot posts a public summary in the channel: the type, the title and you as a mention that pings nobody. It opens a thread on the summary, files the issue, then posts the issue's number, title and link in the thread. The issue body has one section per answered question; a blank optional question is left out.
+4. After **File**, the bot posts a public summary in the channel: the type, the title and you as a mention that pings nobody. It opens a thread on the summary, files the issue, then posts the issue's number, complexity band, title and link in the thread. The issue body has one section per answered question; a blank optional question is left out.
 5. You get a private confirmation linking the summary. Only you see it.
 
 - A title with no letter or digit shows no preview; you get a private reply asking you to run the command again (after **Edit**, to press Edit and fix it).
@@ -102,7 +103,7 @@ Add one table per intake channel. For `channel_id`, enable Developer Mode in Dis
 | `labels.bug` / `labels.feature` | string | Label for `/bug` / `/feature` (a `[routes.<name>.labels]` table) |
 | `questions.bug` / `questions.feature` | array of tables | The form's questions for `/bug` / `/feature`, asked below the Title, 1 to 4 per type (`[[routes.<name>.questions.bug]]` tables). Each has exactly `label` (string, 1 to 45 characters, unique within the type), `style` (`"short"` for one line or `"paragraph"` for several) and `required` (`true` or `false`) |
 
-Each `labels.*` label must already exist in its route's repo: a label an App requests that doesn't exist may be dropped or auto-created depending on its permissions _(unverified)_. The scratch-repo [smoke test](docs/SMOKE-TEST.md) confirms the label was applied.
+Each route's `labels.*` type labels must already exist in its repo: a label an App requests that doesn't exist may be dropped or auto-created depending on its permissions _(unverified)_. The scratch-repo [smoke test](docs/SMOKE-TEST.md) confirms the label was applied. The bot creates the `complexity:<band>` labels itself ([`docs/COMPLEXITY.md`](docs/COMPLEXITY.md)).
 
 Pointing the bot at another channel or repo (for example a test channel) means changing only the route file. The bot reads the file once at startup, so restart it after editing the file.
 

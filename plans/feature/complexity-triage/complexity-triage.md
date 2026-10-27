@@ -383,11 +383,11 @@ The preview shows the band in an embed field, and the S/M/L/XL buttons change it
   logs no member text, and `test_preview_flow_logs_ids_not_text` still passes unchanged (it never
   presses a band button).
 
-### 5. Member-readable rules and docs
+### 5. Member-readable rules and docs - COMPLETE (2026-10-27)
 Document the rules where members can read them, and bring the README, runbook and CLAUDE.md up to date.
 
 **To-do:**
-- [ ] Create `docs/COMPLEXITY.md`. It covers what the four bands mean (S=1, M=2, L=3, XL=5 points);
+- [x] Create `docs/COMPLEXITY.md`. It covers what the four bands mean (S=1, M=2, L=3, XL=5 points);
   the rules (the starting band per type, the 800 and 2000 total-character thresholds, the XL cap)
   with two worked examples; that the reporter can override in the preview and that an override
   survives Edit; the filed `complexity:<band>` label, which the bot creates if missing (on each
@@ -399,14 +399,14 @@ Document the rules where members can read them, and bring the README, runbook an
   band (without quoting the message text, whose home is README's Status paragraph); and that
   other members change the label on GitHub after filing (the preview is private, open risk c).
   It also says the rules live in `issue_bot/complexity.py`.
-- [ ] Drift test in `tests/test_complexity.py`: read
+- [x] Drift test in `tests/test_complexity.py`: read
   `Path(__file__).resolve().parent.parent / "docs" / "COMPLEXITY.md"` (the `REPO_ROOT` pattern of
   tests/test_config.py) and assert it contains
   `str(RAISE_ONE_AT)`, `str(RAISE_TWO_AT)` and, for each `IssueType`, the line
   `` `<type>` starts at <band> `` built from `STARTING_BAND` (write the doc's rule lines in exactly
   that form). tests/test_complexity.py adds `from pathlib import Path` and imports `STARTING_BAND`,
   `RAISE_ONE_AT` and `RAISE_TWO_AT` from `issue_bot.complexity`.
-- [ ] `README.md`:
+- [x] `README.md`:
   - Replace the quoted `PREVIEW_REPLY` text in the usage step with the new one, and add one sentence
     on the S/M/L/XL buttons with a link to `docs/COMPLEXITY.md`.
   - Change the labels note (in Configuration, "must already exist … may be dropped or auto-created …
@@ -418,7 +418,7 @@ Document the rules where members can read them, and bring the README, runbook an
     message `Filed as GitHub issue #<number>: <title>` to
     `Filed as GitHub issue #<number> (complexity <band>): <title>`, and "the issue gets its type's
     label" to say it also gets one `complexity:<band>` label.
-- [ ] `docs/SMOKE-TEST.md`: add a step to the filing run: check that the preview shows the
+- [x] `docs/SMOKE-TEST.md`: add a step to the filing run: check that the preview shows the
   Complexity field, that pressing a band button highlights it, and that the filed issue carries that
   `complexity:<band>` label (created on the test repo on first use). Change the "filed without its
   label" troubleshooting row to cover only type labels. Also:
@@ -436,10 +436,10 @@ Document the rules where members can read them, and bring the README, runbook an
     log shows `could not create complexity label … stage=label`" → the bot could not create that
     label. A 401 is a stale token (run the command again). A 403 or 404 means the App lacks
     Issues: write on that repo, or the repo isn't in the installation.
-- [ ] `CLAUDE.md` Stack line: change "complexity ratings are planned as rule-based, with no LLM" to
+- [x] `CLAUDE.md` Stack line: change "complexity ratings are planned as rule-based, with no LLM" to
   "complexity ratings are rule-based (`issue_bot/complexity.py`, documented in
   `docs/COMPLEXITY.md`), with no LLM".
-- [ ] Run `.venv/bin/pytest` and confirm it is green.
+- [x] Run `.venv/bin/pytest` and confirm it is green.
 
 ### 6. Verify All Tests Pass
 Run the full suite and the Expected-end-state checks.
