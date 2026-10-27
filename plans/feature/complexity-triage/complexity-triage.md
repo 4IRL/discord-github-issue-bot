@@ -277,11 +277,11 @@ show it in the thread's link message (Decisions DD-5).
   (`grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py'
   issue_bot`) and confirm it prints nothing.
 
-### 4. Show the rating and the override buttons in the preview
+### 4. Show the rating and the override buttons in the preview - COMPLETE (2026-10-27)
 The preview shows the band in an embed field, and the S/M/L/XL buttons change it in place (DD-3, DD-4).
 
 **To-do:**
-- [ ] Red: in `tests/test_intake.py` add:
+- [x] Red: in `tests/test_intake.py` add:
   - `preview_embed(Draft("T", answers, Complexity.M, Complexity.M, False), "Alice")` has one field
     with `name == COMPLEXITY_FIELD` and `value == COMPLEXITY_SUGGESTED.format(band="M")`, and its
     description is still exactly `render_body("Alice", PREVIEW_LINK, answers)`. With
@@ -337,12 +337,12 @@ The preview shows the band in an embed field, and the S/M/L/XL buttons change it
   - tests/test_intake.py adds `COMPLEXITY_CHOSEN`, `COMPLEXITY_FIELD` and `COMPLEXITY_SUGGESTED` to
     its `issue_bot.intake` import.
   Run them and confirm they fail.
-- [ ] `issue_bot/intake.py` constants, next to the other fixed text (none carries member text):
+- [x] `issue_bot/intake.py` constants, next to the other fixed text (none carries member text):
   `COMPLEXITY_FIELD = "Complexity"`, `COMPLEXITY_SUGGESTED = "{band}, suggested by the rules"` and
   `COMPLEXITY_CHOSEN = "{band}, your choice (the rules suggested {suggested})"`. Change
   `PREVIEW_REPLY` to `"Here's your report as it will be filed. Pick a complexity if the suggested one
   is off; **File** posts it; **Edit** changes it. This preview expires in 10 minutes."`.
-- [ ] `preview_embed(draft: Draft, author_name: str)` (it replaces the `title, answers` parameters):
+- [x] `preview_embed(draft: Draft, author_name: str)` (it replaces the `title, answers` parameters):
   build the embed as today from `draft.title` and `draft.answers`, then
   `embed.add_field(name=COMPLEXITY_FIELD, value=...)` with
   `COMPLEXITY_CHOSEN.format(band=draft.complexity, suggested=draft.suggested)` when
@@ -350,10 +350,10 @@ The preview shows the band in an embed field, and the S/M/L/XL buttons change it
   DD-6). Update its docstring. In `on_submit`, bind `draft = Draft(title, answers, suggested,
   complexity, overridden)` once, pass it to `PreviewView`, and call
   `preview_embed(draft, interaction.user.display_name)`.
-- [ ] Update intake.py's module docstring to mention the S/M/L/XL buttons and the Complexity field
+- [x] Update intake.py's module docstring to mention the S/M/L/XL buttons and the Complexity field
   (they carry no member text and log nothing), and `PreviewView`'s docstring: the band buttons
   override the rated band, **File** files the draft once, **Edit** reopens the modal.
-- [ ] `PreviewView`:
+- [x] `PreviewView`:
   - Add four decorated buttons, `@discord.ui.button(label="S", style=discord.ButtonStyle.secondary,
     row=0)` and likewise for M, L and XL (`s_button`, `m_button`, `l_button`, `xl_button`). Each body
     is `await self._choose(interaction, Complexity.<band>)`.
@@ -369,14 +369,17 @@ The preview shows the band in an embed field, and the S/M/L/XL buttons change it
     the view and restarts its timeout, so the expiry drifts later by the edit's sub-second round
     trip; this is accepted (review DD-7), as on the Edit-submit path. A press racing File can
     re-show dead buttons on the filed preview; this is harmless, and the issue files once (Pass 2
-    review DD-3, dd-261027-055). (Extend intake.py's
+    review DD-3, dd-261027-055). A band press on the old preview while its Edit modal is being
+    submitted is not carried into the new draft, and if that press's edit lands last the message
+    briefly shows the old, dead buttons; this is accepted, as it is sub-second and the modal covers
+    the preview (assumed: dd-policy, dd-261027-058). (Extend intake.py's
     `from dataclasses import dataclass, field` to `from dataclasses import dataclass, field,
     replace`). Then it awaits
     `interaction.response.edit_message(embed=preview_embed(self.draft,
     interaction.user.display_name), view=self)`. Errors
     reach the existing `PreviewView.on_error`. It logs nothing: neither band nor answers is needed in
     the logs.
-- [ ] Run `.venv/bin/pytest` and confirm it is green. The band-press log test proves `_choose`
+- [x] Run `.venv/bin/pytest` and confirm it is green. The band-press log test proves `_choose`
   logs no member text, and `test_preview_flow_logs_ids_not_text` still passes unchanged (it never
   presses a band button).
 

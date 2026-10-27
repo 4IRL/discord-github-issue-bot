@@ -1,7 +1,9 @@
 """Slash-command intake: ``/bug`` and ``/feature`` open a modal; a submit shows a private preview.
 
-The preview's **File** button posts the public summary and hands it to ``on_candidate``;
-**Edit** reopens the modal prefilled; an expired preview files nothing.
+The preview shows the rated band in a **Complexity** field, and its S/M/L/XL buttons override
+it in place (the field and buttons carry no member text, and a band press logs nothing). Its
+**File** button posts the public summary and hands it to ``on_candidate``; **Edit** reopens the
+modal prefilled; an expired preview files nothing.
 
 Modal text and interaction payloads are member text: logs carry the issue type, the
 interaction, message and channel ids and the summary URL only, and a Discord API error by its
@@ -11,8 +13,8 @@ type, HTTP status and Discord error code.
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass, field, replace
 
 import discord
 from discord import app_commands
@@ -44,11 +46,14 @@ FILING_UNAVAILABLE_REPLY = "Sorry, reports can't be filed to GitHub right now, s
 INTAKE_ERROR_REPLY = "Sorry, something went wrong with this report. Check the channel before running the command again."
 PREVIEW_TIMEOUT = 600  # Seconds; under Discord's 15-minute interaction token (DD-5).
 PREVIEW_EMBED_LIMIT = 4096  # Discord's maximum embed description.
-PREVIEW_REPLY = "Here's your report as it will be filed. **File** posts it; **Edit** changes it. This preview expires in 10 minutes."
+PREVIEW_REPLY = "Here's your report as it will be filed. Pick a complexity if the suggested one is off; **File** posts it; **Edit** changes it. This preview expires in 10 minutes."
 PREVIEW_SHORTENED_NOTE = "\n\n_…preview shortened; the full text will be filed._"
 FILING_REPLY = "Filing your report…"
 PREVIEW_EXPIRED_REPLY = "This preview expired, so nothing was filed. Run the command again to report it."
 BLANK_TITLE_EDIT_REPLY = "The title needs a letter or digit. Press Edit to fix it."
+COMPLEXITY_FIELD = "Complexity"
+COMPLEXITY_SUGGESTED = "{band}, suggested by the rules"
+COMPLEXITY_CHOSEN = "{band}, your choice (the rules suggested {suggested})"
 
 
 def discord_error_fields(error: BaseException) -> tuple[int | None, int | None]:
@@ -134,18 +139,23 @@ class Draft:
     overridden: bool
 
 
-def preview_embed(
-    title: str, answers: Sequence[tuple[str, str]], author_name: str
-) -> discord.Embed:
+def preview_embed(draft: Draft, author_name: str) -> discord.Embed:
     """Return the preview embed: the issue body as filed, with ``PREVIEW_LINK`` for the summary link.
 
     A body past ``PREVIEW_EMBED_LIMIT`` is cut and ends with ``PREVIEW_SHORTENED_NOTE``; the
-    filed issue is never cut (DD-3).
+    filed issue is never cut (DD-3). A **Complexity** field shows the band to file:
+    ``COMPLEXITY_CHOSEN`` once the reporter has pressed a band, else ``COMPLEXITY_SUGGESTED``.
     """
-    text = render_body(author_name, PREVIEW_LINK, answers)
+    text = render_body(author_name, PREVIEW_LINK, draft.answers)
     if len(text) > PREVIEW_EMBED_LIMIT:
         text = text[: PREVIEW_EMBED_LIMIT - len(PREVIEW_SHORTENED_NOTE)] + PREVIEW_SHORTENED_NOTE
-    return discord.Embed(title=title, description=text)
+    embed = discord.Embed(title=draft.title, description=text)
+    if draft.overridden:
+        value = COMPLEXITY_CHOSEN.format(band=draft.complexity, suggested=draft.suggested)
+    else:
+        value = COMPLEXITY_SUGGESTED.format(band=draft.complexity)
+    embed.add_field(name=COMPLEXITY_FIELD, value=value)
+    return embed
 
 
 async def _post_and_file(
@@ -205,7 +215,10 @@ async def _post_and_file(
 
 
 class PreviewView(discord.ui.View):
-    """The private preview's buttons: **File** files the draft once, **Edit** reopens the modal.
+    """The private preview's buttons.
+
+    The S/M/L/XL buttons override the rated band, **File** files the draft once, and **Edit**
+    reopens the modal.
 
     The preview expires ``PREVIEW_TIMEOUT`` seconds after the submit that showed it; a button
     press never extends that deadline (DD-5).
@@ -228,13 +241,72 @@ class PreviewView(discord.ui.View):
         self.interaction = interaction
         self._closed = False
         self._deadline = time.monotonic() + PREVIEW_TIMEOUT
+        self._band_buttons: dict[Complexity, discord.ui.Button] = {
+            Complexity.S: self.s_button,
+            Complexity.M: self.m_button,
+            Complexity.L: self.l_button,
+            Complexity.XL: self.xl_button,
+        }
+        self._paint()
+
+    def _paint(self) -> None:
+        """Style the band to file ``primary`` and the other band buttons ``secondary``."""
+        for band, button in self._band_buttons.items():
+            button.style = (
+                discord.ButtonStyle.primary
+                if band is self.draft.complexity
+                else discord.ButtonStyle.secondary
+            )
 
     def _keep_deadline(self) -> None:
         # discord.py 2.7.1 resets the expiry to now + timeout before every callback; the
         # timeout setter puts it back on the deadline.
         self.timeout = max(self._deadline - time.monotonic(), 1.0)
 
-    @discord.ui.button(label="File", style=discord.ButtonStyle.success)
+    async def _choose(self, interaction: discord.Interaction, band: Complexity) -> None:
+        """Set the band to file to ``band`` and redraw the preview in place; logs nothing."""
+        self._keep_deadline()
+        if self._closed:
+            return
+        # The band is set before the edit so a concurrent File sees it; if the edit fails, the
+        # view keeps the new band (accepted, review DD-4). The edit re-stores the view and
+        # restarts its timeout, so the expiry drifts later by the edit's round trip (accepted,
+        # review DD-7). A press racing File can re-show dead buttons on the filed preview; this
+        # is harmless, and the issue files once (Pass 2 review DD-3). A press on the old preview
+        # while its Edit modal is submitted is not carried into the new draft, and if its edit
+        # lands last the message briefly shows the old, dead buttons; accepted (sub-second, the
+        # modal covers the preview).
+        self.draft = replace(self.draft, complexity=band, overridden=True)
+        self._paint()
+        await interaction.response.edit_message(
+            embed=preview_embed(self.draft, interaction.user.display_name), view=self
+        )
+
+    @discord.ui.button(label="S", style=discord.ButtonStyle.secondary, row=0)
+    async def s_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        await self._choose(interaction, Complexity.S)
+
+    @discord.ui.button(label="M", style=discord.ButtonStyle.secondary, row=0)
+    async def m_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        await self._choose(interaction, Complexity.M)
+
+    @discord.ui.button(label="L", style=discord.ButtonStyle.secondary, row=0)
+    async def l_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        await self._choose(interaction, Complexity.L)
+
+    @discord.ui.button(label="XL", style=discord.ButtonStyle.secondary, row=0)
+    async def xl_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        await self._choose(interaction, Complexity.XL)
+
+    @discord.ui.button(label="File", style=discord.ButtonStyle.success, row=1)
     async def file_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
@@ -249,7 +321,7 @@ class PreviewView(discord.ui.View):
             interaction, self.issue_type, self.target, self.on_candidate, self.draft
         )
 
-    @discord.ui.button(label="Edit", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Edit", style=discord.ButtonStyle.secondary, row=1)
     async def edit_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
@@ -363,16 +435,11 @@ class IntakeModal(discord.ui.Modal):
             complexity, overridden = self.preview.draft.complexity, True
         else:
             complexity, overridden = suggested, False
+        draft = Draft(title, answers, suggested, complexity, overridden)
         # Always a fresh preview with its own deadline, even if the old one expired (DD-6).
-        view = PreviewView(
-            self.issue_type,
-            self.target,
-            self.on_candidate,
-            Draft(title, answers, suggested, complexity, overridden),
-            interaction,
-        )
+        view = PreviewView(self.issue_type, self.target, self.on_candidate, draft, interaction)
         logger.info("previewed %s interaction_id=%s", self.issue_type, interaction.id)
-        embed = preview_embed(title, answers, interaction.user.display_name)
+        embed = preview_embed(draft, interaction.user.display_name)
         if self.preview is None:
             try:
                 await interaction.followup.send(
