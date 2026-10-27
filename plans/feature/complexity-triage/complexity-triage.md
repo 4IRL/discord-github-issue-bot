@@ -441,18 +441,18 @@ Document the rules where members can read them, and bring the README, runbook an
   `docs/COMPLEXITY.md`), with no LLM".
 - [x] Run `.venv/bin/pytest` and confirm it is green.
 
-### 6. Verify All Tests Pass
+### 6. Verify All Tests Pass - COMPLETE (2026-10-27)
 Run the full suite and the Expected-end-state checks.
 
 **To-do:**
-- [ ] Run `.venv/bin/pytest` and confirm every test passes.
-- [ ] Confirm the Expected end state. `docs/COMPLEXITY.md` exists and `grep -n 'COMPLEXITY.md'
+- [x] Run `.venv/bin/pytest` and confirm every test passes.
+- [x] Confirm the Expected end state. `docs/COMPLEXITY.md` exists and `grep -n 'COMPLEXITY.md'
   README.md` prints a link. `issue_labels` returns exactly one `complexity:` label, with
   `ensure_label` before `create_issue`, and a failed `ensure_label` files with the type label only
   and logs a WARNING (steps 2-3 tests). `filed_reply` shows the band (step 3 tests). The
   invariant-1 grep prints nothing.
-- [ ] Investigate and fix any failures before marking the plan finished.
-- [ ] Copy the Manual checks below verbatim into the final report.
+- [x] Investigate and fix any failures before marking the plan finished.
+- [x] Copy the Manual checks below verbatim into the final report.
 
 ## Manual checks (owner, live; never run by an agent)
 - On the separate test server (`docs/SMOKE-TEST.md`), run `/bug` with short answers. The preview
@@ -471,4 +471,4 @@ Run the full suite and the Expected-end-state checks.
   `complexity:L` label is not created again.
 
 ## Status
-finished: false
+finished: true
