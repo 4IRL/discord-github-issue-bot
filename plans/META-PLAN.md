@@ -119,7 +119,7 @@ holds its supersession note, not edges; readers skip it. -->
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F4 — Complexity triage (S/M/L/XL)** ★FOCUS | in-progress | `feature/complexity-triage` | — |
+| **F4 — Complexity triage (S/M/L/XL)** ★FOCUS | in-review | `feature/complexity-triage` | [#21](https://github.com/4IRL/discord-github-issue-bot/pull/21) |
 | **F6 — Add the issue to the chores4irl roadmap Project** | pending | `feature/roadmap-project` | — |
 
 ---
