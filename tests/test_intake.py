@@ -8,6 +8,7 @@ import discord
 import pytest
 
 from issue_bot.bot import filing_hook
+from issue_bot.complexity import Complexity, rate
 from issue_bot.config import Config, TargetConfig, UnroutedCommands
 from issue_bot.github import FiledIssue, GitHubError
 from issue_bot.intake import (
@@ -137,7 +138,13 @@ def test_feature_modal_fields(route: TargetConfig) -> None:
 
 
 def test_modal_prefills_from_draft(route: TargetConfig) -> None:
-    draft = Draft("Fix it", (("What happened?", "Steps"), ("Device", "")))
+    draft = Draft(
+        "Fix it",
+        (("What happened?", "Steps"), ("Device", "")),
+        Complexity.S,
+        Complexity.S,
+        False,
+    )
     modal = IntakeModal(IssueType.BUG, route, AsyncMock(), draft=draft)
     assert modal.title_input.default == "Fix it"
     assert modal.answer_inputs[0].default == "Steps"
@@ -148,7 +155,15 @@ def test_modal_prefills_from_draft(route: TargetConfig) -> None:
 
 
 def test_draft_repr_hides_text() -> None:
-    text = repr(Draft("Secret title words", (("Q", "Secret body words"),)))
+    text = repr(
+        Draft(
+            "Secret title words",
+            (("Q", "Secret body words"),),
+            Complexity.S,
+            Complexity.S,
+            False,
+        )
+    )
     assert "Secret title words" not in text
     assert "Secret body words" not in text
 
@@ -380,7 +395,7 @@ async def test_second_route_file_files_to_its_repo_with_its_labels(
     target, _title, body, labels = github.create_issue.await_args.args
     assert target is other
     assert target.github_repo == "example-org/other-repo"
-    assert labels == ["defect"]
+    assert labels == ["defect", "complexity:S"]
     assert body.startswith(
         "Reported by `Alice` in Discord: https://discord.com/channels/111/556/99"
     )
@@ -566,12 +581,12 @@ async def test_file_files_issue_through_filing_hook(
     target, title, body, labels = github.create_issue.await_args.args
     assert target is route
     assert title == "Fix it"
-    assert labels == ["bug"]
+    assert labels == ["bug", "complexity:S"]
     assert body.startswith(
         "Reported by `Alice` in Discord: https://discord.com/channels/111/555/99"
     )
     summary.create_thread.return_value.send.assert_awaited_once_with(
-        filed_reply(FiledIssue(7, ISSUE_URL), "Fix it"),
+        filed_reply(FiledIssue(7, ISSUE_URL), "Fix it", Complexity.S),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )
@@ -987,3 +1002,25 @@ async def test_modal_on_error_reply_non_http_failure_swallowed(
     )
     for text in record_texts(caplog):
         assert "Secret exception words" not in text
+
+
+async def test_fresh_submit_draft_carries_suggested_band(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction(), answers=("Steps",))
+    expected = rate(IssueType.BUG, (("What happened?", "Steps"), ("Device", "")))
+    assert view.draft.suggested == view.draft.complexity == expected
+    assert view.draft.overridden is False
+
+
+async def test_long_bug_is_filed_with_raised_band(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    github = fake_github(FiledIssue(7, ISSUE_URL))
+    view = await submitted_preview(
+        route, filing_hook(github), make_interaction(), answers=("x" * 900,)
+    )
+    await view.file_button.callback(make_interaction())
+    github.create_issue.assert_awaited_once()
+    _target, _title, _body, labels = github.create_issue.await_args.args
+    assert labels == ["bug", "complexity:M"]

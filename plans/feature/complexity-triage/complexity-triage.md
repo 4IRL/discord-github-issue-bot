@@ -165,13 +165,13 @@ Create a missing label explicitly before filing (DD-2).
   installation, caching a repo-scoped token per repo.
 - [x] Run `.venv/bin/pytest tests/test_github.py`, then `.venv/bin/pytest`, and confirm both are green.
 
-### 3. Carry the band from submit to the filed label
+### 3. Carry the band from submit to the filed label - COMPLETE (2026-10-27)
 Rate each submission, carry the band (and the override flag) on `Draft` and the band on
 `IssueCandidate`, file it as a label (skipped with a WARNING if the label can't be created), and
 show it in the thread's link message (Decisions DD-5).
 
 **To-do:**
-- [ ] Red: update and add tests first:
+- [x] Red: update and add tests first:
   - In `tests/test_issues.py`, change
     `test_issue_labels_follow_config` to expect `["bug", "complexity:S"]` /
     `["enhancement", "complexity:S"]` (make_candidate's default band, below), change
@@ -226,16 +226,16 @@ show it in the thread's link message (Decisions DD-5).
     imports `Complexity` (test_intake also `rate`) from `issue_bot.complexity`, and so does
     conftest.py.
   Run `.venv/bin/pytest` and confirm these fail.
-- [ ] `tests/conftest.py`: in `fake_github(result)`, both branches (the exception `side_effect` one
+- [x] `tests/conftest.py`: in `fake_github(result)`, both branches (the exception `side_effect` one
   and the `return_value` one) also set `ensure_label=AsyncMock(return_value=None)`. `make_candidate` gains the keyword
   `complexity: Complexity = Complexity.S` and passes it through (update the `CandidateFactory` alias
   if it spells out the parameters).
-- [ ] `issue_bot/handler.py`: add the field `complexity: Complexity` to `IssueCandidate` after
+- [x] `issue_bot/handler.py`: add the field `complexity: Complexity` to `IssueCandidate` after
   `answers`, with no default (it is not member text, so no `repr=False`). `candidate_from_submission`
   gains the parameter `complexity: Complexity` after `answers` and passes it through. Update the
   `IssueCandidate` docstring to say `complexity` is the band the reporter filed with (not member
   text, so it stays in `repr`). Import `Complexity` from `issue_bot.complexity`.
-- [ ] `issue_bot/intake.py`:
+- [x] `issue_bot/intake.py`:
   - `Draft` gains `suggested: Complexity`, `complexity: Complexity` and `overridden: bool`, in that
     order after `answers`, no defaults and in `repr` (the docstring says `suggested` is the rules'
     band, `complexity` the band to file, and `overridden` whether the reporter pressed a band
@@ -247,7 +247,7 @@ show it in the thread's link message (Decisions DD-5).
     `Draft(title, answers, suggested, complexity, overridden)`.
   - In `_post_and_file`, pass `draft.complexity` to `candidate_from_submission` after `draft.answers`.
   - Import `Complexity` and `rate` from `issue_bot.complexity`.
-- [ ] `issue_bot/issues.py`: add `import logging`, `GitHubError` to the `issue_bot.github` import,
+- [x] `issue_bot/issues.py`: add `import logging`, `GitHubError` to the `issue_bot.github` import,
   and a module logger `logger = logging.getLogger(__name__)` (the form bot.py, intake.py and
   threads.py use). `issue_labels` returns `[candidate.target.labels[candidate.type],
   complexity_label(candidate.complexity)]` (type label first). `file_candidate` sets
@@ -267,13 +267,13 @@ show it in the thread's link message (Decisions DD-5).
   issue type, the message id and the `GitHubError`'s type, stage and status only, never member
   text or response text; and update the `issue_labels` / `file_candidate` docstrings: the type label plus one
   `complexity:<band>` label, and a label that can't be created is skipped with a WARNING.
-- [ ] `issue_bot/threads.py`: `FILED_REPLY = "Filed as GitHub issue #{number} (complexity {band}):
+- [x] `issue_bot/threads.py`: `FILED_REPLY = "Filed as GitHub issue #{number} (complexity {band}):
   {title}\n{url}"` and `def filed_reply(issue: FiledIssue, title: str, complexity: Complexity) ->
   str`, passing `band=complexity` to `format` (the band is fixed text, not escaped). Import
   `Complexity` from `issue_bot.complexity` (no cycle: complexity imports only `issue_type`).
-- [ ] `issue_bot/bot.py` `filing_hook`: pass `candidate.complexity` as the third argument of
+- [x] `issue_bot/bot.py` `filing_hook`: pass `candidate.complexity` as the third argument of
   `filed_reply(issue, candidate.title, candidate.complexity)`.
-- [ ] Run `.venv/bin/pytest` and confirm it is green. Then run the invariant-1 grep from META-PLAN
+- [x] Run `.venv/bin/pytest` and confirm it is green. Then run the invariant-1 grep from META-PLAN
   (`grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py'
   issue_bot`) and confirm it prints nothing.
 

@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 import discord
 from discord import app_commands
 
+from issue_bot.complexity import Complexity, rate
 from issue_bot.config import QuestionStyle, TargetConfig, UnroutedCommands
 from issue_bot.github import GitHubError
 from issue_bot.handler import IssueCandidate, candidate_from_submission
@@ -120,10 +121,17 @@ async def _report_error(
 
 @dataclass(frozen=True)
 class Draft:
-    """A report's title and ``(label, answer)`` pairs: member text, hidden from repr."""
+    """A report's title and ``(label, answer)`` pairs (member text, hidden from repr) and its band.
+
+    ``suggested`` is the rules' band, ``complexity`` the band to file, and ``overridden`` whether
+    the reporter pressed a band button; none is member text, so they stay in repr.
+    """
 
     title: str = field(repr=False)
     answers: tuple[tuple[str, str], ...] = field(repr=False)
+    suggested: Complexity
+    complexity: Complexity
+    overridden: bool
 
 
 def preview_embed(
@@ -187,6 +195,7 @@ async def _post_and_file(
             issue_type,
             draft.title,
             draft.answers,
+            draft.complexity,
             interaction.user,
             summary,
             target,
@@ -348,9 +357,19 @@ class IntakeModal(discord.ui.Modal):
             else:
                 await interaction.response.send_message(BLANK_TITLE_EDIT_REPLY, ephemeral=True)
             return
+        suggested = rate(self.issue_type, answers)
+        if self.preview is not None and self.preview.draft.overridden:
+            # An override sticks across Edit; an unpressed draft is re-rated.
+            complexity, overridden = self.preview.draft.complexity, True
+        else:
+            complexity, overridden = suggested, False
         # Always a fresh preview with its own deadline, even if the old one expired (DD-6).
         view = PreviewView(
-            self.issue_type, self.target, self.on_candidate, Draft(title, answers), interaction
+            self.issue_type,
+            self.target,
+            self.on_candidate,
+            Draft(title, answers, suggested, complexity, overridden),
+            interaction,
         )
         logger.info("previewed %s interaction_id=%s", self.issue_type, interaction.id)
         embed = preview_embed(title, answers, interaction.user.display_name)

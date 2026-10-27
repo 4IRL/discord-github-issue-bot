@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import discord
 import pytest
 
+from issue_bot.complexity import Complexity
 from issue_bot.github import FiledIssue
 from issue_bot.threads import (
     FILING_ERROR_REPLY,
@@ -124,6 +125,6 @@ def test_filing_error_reply_is_fixed_text() -> None:
 
 
 def test_filed_reply_has_number_title_and_url() -> None:
-    assert filed_reply(FiledIssue(7, ISSUE_URL), "Fix *it*") == (
-        f"Filed as GitHub issue #7: Fix \\*it\\*\n{ISSUE_URL}"
+    assert filed_reply(FiledIssue(7, ISSUE_URL), "Fix *it*", Complexity.L) == (
+        f"Filed as GitHub issue #7 (complexity L): Fix \\*it\\*\n{ISSUE_URL}"
     )

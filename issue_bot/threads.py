@@ -8,6 +8,7 @@ import logging
 
 import discord
 
+from issue_bot.complexity import Complexity
 from issue_bot.github import FiledIssue
 
 logger = logging.getLogger(__name__)
@@ -16,13 +17,19 @@ THREAD_NAME_LIMIT = 100  # Discord's maximum thread-name length.
 THREAD_ALREADY_CREATED = 160004  # Discord error code: the message already has a thread.
 # Fixed text: it carries no member text and no GitHub response text.
 FILING_ERROR_REPLY = "Sorry, I couldn't file this as a GitHub issue. Check the repo before reporting it again; to retry, run the command again."
-FILED_REPLY = "Filed as GitHub issue #{number}: {title}\n{url}"
+FILED_REPLY = "Filed as GitHub issue #{number} (complexity {band}): {title}\n{url}"
 
 
-def filed_reply(issue: FiledIssue, title: str) -> str:
-    """Return the issue-link reply; the title is member text: escaped here, sent with no mentions, never logged."""
+def filed_reply(issue: FiledIssue, title: str, complexity: Complexity) -> str:
+    """Return the issue-link reply with the filed band (fixed text, not escaped).
+
+    The title is member text: escaped here, sent with no mentions, never logged.
+    """
     return FILED_REPLY.format(
-        number=issue.number, title=discord.utils.escape_markdown(title), url=issue.html_url
+        number=issue.number,
+        band=complexity,
+        title=discord.utils.escape_markdown(title),
+        url=issue.html_url,
     )
 
 

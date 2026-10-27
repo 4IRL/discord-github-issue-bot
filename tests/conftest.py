@@ -8,6 +8,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+from issue_bot.complexity import Complexity
 from issue_bot.config import Config, TargetConfig
 from issue_bot.github import FiledIssue
 from issue_bot.handler import IssueCandidate
@@ -91,8 +92,14 @@ def forbidden(code: int, text: str) -> discord.Forbidden:
 
 def fake_github(result: FiledIssue | Exception) -> SimpleNamespace:
     if isinstance(result, Exception):
-        return SimpleNamespace(create_issue=AsyncMock(side_effect=result))
-    return SimpleNamespace(create_issue=AsyncMock(return_value=result))
+        return SimpleNamespace(
+            create_issue=AsyncMock(side_effect=result),
+            ensure_label=AsyncMock(return_value=None),
+        )
+    return SimpleNamespace(
+        create_issue=AsyncMock(return_value=result),
+        ensure_label=AsyncMock(return_value=None),
+    )
 
 
 def assert_no_member_text(caplog: pytest.LogCaptureFixture) -> None:
@@ -219,6 +226,7 @@ def make_candidate(route: TargetConfig) -> CandidateFactory:
         type: IssueType = IssueType.BUG,
         title: str = "Fix it",
         answers: tuple[tuple[str, str], ...] = (("What happened?", "Steps"),),
+        complexity: Complexity = Complexity.S,
         author_name: str = "Alice",
         author_id: int = 7,
         message_id: int = 99,
@@ -229,6 +237,7 @@ def make_candidate(route: TargetConfig) -> CandidateFactory:
             type=type,
             title=title,
             answers=answers,
+            complexity=complexity,
             author_id=author_id,
             author_name=author_name,
             message_id=message_id,

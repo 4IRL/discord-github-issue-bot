@@ -16,6 +16,7 @@ from issue_bot.bot import (
     filing_hook,
     open_issue_thread,
 )
+from issue_bot.complexity import Complexity
 from issue_bot.config import Config, TargetConfig
 from issue_bot.github import FiledIssue, GitHubClient, GitHubError
 from issue_bot.handler import IssueCandidate
@@ -222,9 +223,9 @@ async def test_filing_hook_files_issue_posts_link_and_logs_url(
     github.create_issue.assert_awaited_once()
     target, _title, _body, labels = github.create_issue.await_args.args
     assert target == route
-    assert labels == ["bug"]
+    assert labels == ["bug", "complexity:S"]
     message.create_thread.return_value.send.assert_awaited_once_with(
-        filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words"),
+        filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words", Complexity.S),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )
@@ -238,6 +239,36 @@ async def test_filing_hook_files_issue_posts_link_and_logs_url(
         part in filed[0]
         for part in ("message_id=99", message.jump_url, "thread_id=1234", ISSUE_URL)
     )
+    assert_no_member_text(caplog)
+
+
+async def test_filing_hook_files_without_complexity_label_when_label_fails(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = fake_github(FiledIssue(7, ISSUE_URL))
+    github.ensure_label.side_effect = GitHubError("label", 403)
+    message = make_message()
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github)(message, secret_candidate(make_candidate))
+    github.create_issue.assert_awaited_once()
+    _target, _title, _body, labels = github.create_issue.await_args.args
+    assert labels == ["bug"]
+    message.create_thread.return_value.send.assert_awaited_once_with(
+        filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words", Complexity.S),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
+    warnings = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "issue_bot.issues" and record.levelno == logging.WARNING
+    ]
+    assert len(warnings) == 1
+    assert "stage=label" in warnings[0]
+    assert "status=403" in warnings[0]
+    assert not [record for record in bot_records(caplog) if record.levelno == logging.ERROR]
     assert_no_member_text(caplog)
 
 
@@ -290,7 +321,7 @@ async def test_filing_hook_without_thread_replies_link_on_summary(
         for record in bot_records(caplog)
     )
     message.reply.assert_awaited_once_with(
-        filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words"),
+        filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words", Complexity.S),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )
