@@ -145,8 +145,8 @@ only `issue_type`): `Complexity` StrEnum `S`, `M`, `L`, `XL` in that order;
 XL; `complexity_label(band)` is `complexity:<band>`. `issue_bot/handler.py`: frozen
 `IssueCandidate` (type, title, `answers`, `complexity`, author id/name, message id/url, target),
 built only by `candidate_from_submission(issue_type, title, answers, complexity, reporter,
-message, target)` with the bot's summary message as `message`. `answers` is a tuple of `(question label, answer)` pairs in
-question order, blanks included. Member text and names are `repr=False`. Adding or changing a
+message, target)` with the bot's summary message as `message`. `answers` is a tuple of
+`(question label, answer)` pairs in question order, blanks included. Member text and names are `repr=False`. Adding or changing a
 type's questions is route-file data; a new issue type still needs an `IssueType` member (it is a
 slash command and a required label).
 
@@ -293,8 +293,9 @@ files must add `questions` tables (or the bot exits 2). The owner's live smoke-t
 `docs/SMOKE-TEST.md` (it uses a separate test server, never the live one). The owner's smoke
 run of F10 passed before PR #13 merged (2026-10-21). The owner confirmed F7 works on its branch
 before PR #15 merged (2026-10-21), F8 before PR #17 merged (2026-10-25), F3 before PR #19
-merged (2026-10-26), and F4 before PR #21 merged (2026-10-28). Before PR #9 merged, the owner's run filed issues #1 and #2 in a private
-scratch repo, torn down on 2026-10-18 (recorded in PR #9's description).
+merged (2026-10-26), and F4 before PR #21 merged (2026-10-28). Before PR #9 merged, the owner's
+run filed issues #1 and #2 in a private scratch repo, torn down on 2026-10-18 (recorded in PR
+#9's description).
 Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
 
 ### Standing invariants (must not regress)
@@ -529,7 +530,7 @@ config. Per F8's kept contract, the Project number and field IDs are per-route c
 
 **Sizing.** unscored (intake estimate M); split check pending.
 
-**Assumed starting state** = **Baseline** plus F5's GitHub client. Verify:
+**Assumed starting state** = **Baseline**. Verify:
 - The new roadmap Project exists and is linked to chores4irl (Assumption 2).
 
 **Expected end state** (repo-checkable):
