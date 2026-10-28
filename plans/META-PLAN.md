@@ -43,23 +43,25 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 
 ## Where the work stands
 
-**★FOCUS: `F4` — Complexity triage (S/M/L/XL)** (runnable; branch `feature/complexity-triage`).
+**★FOCUS: `F6` — Add the issue to the chores4irl roadmap Project** (gated; branch `feature/roadmap-project`).
 
-Phases 1, 1.5 and 2 are complete on `main`: each route's `/bug`/`/feature` modal asks that route's
-questions, the reporter files from a private preview, and the issue's body has one section per
-answer (F3). F4 is runnable now and opens Phase 3. F6 is gated on creating the new chores4irl
-roadmap Project.
+Phases 1, 1.5 and 2 are complete on `main`, and Phase 3's rating has shipped: each report is rated
+S/M/L/XL, the reporter can override it in the private preview, and it is filed as a
+`complexity:<band>` label (F4). F6, Phase 3's last feature, is gated on creating the new
+chores4irl roadmap Project.
 
 <!-- Two or three sentences at most: what is runnable today, what is gated and on what.
 Shipped work is git's record (`gh pr list --state merged`), not this file's. -->
 
 ### Shortest path to the focus feature
 
-F4 has no open prerequisites: F3's answers (`IssueCandidate.answers`) and private preview
-(`PreviewView`) are what it builds on.
+F6's code prerequisites have shipped (F5's client, F8's routes, F4's band). Its one open
+prerequisite is the owner's manual gate.
 
-1. **Run F4** (`/run-feature F4`, effort M). Rules rate each report S/M/L/XL from its answers; the
-   preview shows the rating and files it as a label.
+1. **Create the new chores4irl roadmap Project** (owner, Assumption 2), with a Status field and a
+   Complexity single-select whose options are exactly `S`, `M`, `L`, `XL` (F4's kept contract).
+2. **Run F6** (`/run-feature F6`, effort M): filing adds the issue to that Project and sets Status
+   and Complexity.
 
 A live run needs the bot invited with the `bot` and `applications.commands` scopes and View
 Channel, Read Message History, Send Messages, Create Public Threads and Send Messages in Threads
@@ -74,7 +76,6 @@ on each route's intake channel, plus F5's GitHub App (README § Discord setup an
 
 **Next F-ID:** `F11`
 
-- [ ] **F4** (added 2026-10-16): Evaluate the issue's complexity (triage).
 - [ ] **F6** (added 2026-10-16): Add the created issue to the chores4irl roadmap (split from "create the issue in the 4IRL/chores4irl GitHub repo and add it to its roadmap").
 
 ---
@@ -83,8 +84,7 @@ on each route's intake channel, plus F5's GitHub App (README § Discord setup an
 
 | Order | Feature | Effort | Depends on | Phase |
 |---|---|---|---|---|
-| ★ 1 | **F4** — Complexity triage (S/M/L/XL) **[FOCUS]** | M | F3 | 3 |
-| 2 | **F6** — Add the issue to the chores4irl roadmap Project | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
+| ★ 1 | **F6** — Add the issue to the chores4irl roadmap Project **[FOCUS]** | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
 
 <!-- *Depends on* holds dependency edges in the grammar of
 /home/rmila/Code/_STRONGHOLD/plans/roadmap.md §3.1 *Dependency edges and `NEXT.md`*, which is
@@ -108,7 +108,7 @@ gate), unsplit like `cond:`; any other text not in the grammar is reported, neve
 superseded row (Feature cell struck through with `~~`, *Depends on* starting `**superseded`)
 holds its supersession note, not edges; readers skip it. -->
 
-**Effort tally (remaining).** 4 pts (S=1 / M=2 / L=3 / XL=5).
+**Effort tally (remaining).** 2 pts (S=1 / M=2 / L=3 / XL=5).
 
 ---
 
@@ -119,12 +119,11 @@ holds its supersession note, not edges; readers skip it. -->
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F4 — Complexity triage (S/M/L/XL)** ★FOCUS | in-review | `feature/complexity-triage` | [#21](https://github.com/4IRL/discord-github-issue-bot/pull/21) |
-| **F6 — Add the issue to the chores4irl roadmap Project** | pending | `feature/roadmap-project` | — |
+| **F6 — Add the issue to the chores4irl roadmap Project** ★FOCUS | pending | `feature/roadmap-project` | — |
 
 ---
 
-## Baseline: the codebase as it exists today (`main` at PR #19, `338bf7b`)
+## Baseline: the codebase as it exists today (`main` at PR #21, `69d6af9`)
 
 > The Assumed starting state for every remaining feature unless its section says
 > otherwise. Describe what *is*, never what changed.
@@ -135,13 +134,18 @@ lists the pre-rename folder path.
 
 **Stack.** Python 3.12 + discord.py (Gateway client), aiohttp for the GitHub REST API and
 PyJWT + cryptography for GitHub App auth, packaged as a Docker image. Clarifying questions are
-per-route, per-type data in the route file; triage is planned as documented rules.
+per-route, per-type data in the route file; triage is documented rules in code
+(`issue_bot/complexity.py`, members' copy `docs/COMPLEXITY.md`).
 
 **Domain model.** `issue_bot/issue_type.py`: `IssueType` (`bug`, `feature`), a leaf module;
-each type is one slash command and one target label. `issue_bot/handler.py`: frozen
-`IssueCandidate` (type, title, `answers`, author id/name, message id/url, target), built only by
-`candidate_from_submission(issue_type, title, answers, reporter, message, target)` with the
-bot's summary message as `message`. `answers` is a tuple of `(question label, answer)` pairs in
+each type is one slash command and one target label. `issue_bot/complexity.py` (pure, imports
+only `issue_type`): `Complexity` StrEnum `S`, `M`, `L`, `XL` in that order;
+`rate(issue_type, answers)` starts at `STARTING_BAND` (bug S, feature M) and raises one step at
+`RAISE_ONE_AT` (800) and two at `RAISE_TWO_AT` (2000) total stripped answer characters, capped at
+XL; `complexity_label(band)` is `complexity:<band>`. `issue_bot/handler.py`: frozen
+`IssueCandidate` (type, title, `answers`, `complexity`, author id/name, message id/url, target),
+built only by `candidate_from_submission(issue_type, title, answers, complexity, reporter,
+message, target)` with the bot's summary message as `message`. `answers` is a tuple of `(question label, answer)` pairs in
 question order, blanks included. Member text and names are `repr=False`. Adding or changing a
 type's questions is route-file data; a new issue type still needs an `IssueType` member (it is a
 slash command and a required label).
@@ -183,12 +187,19 @@ private `FILING_UNAVAILABLE_REPLY` and opens no modal. Then it opens `IntakeModa
 target, on_candidate, draft=None, preview=None)`: a required Title (`ui.Label`-wrapped
 `TextInput`, max 100 = `THREAD_NAME_LIMIT`), then one `TextInput` per
 `target.questions[issue_type]` (`answer_inputs`, max `ANSWER_MAX_LENGTH` 4000), prefilled from a
-`Draft(title, answers)` when one is given, and a 30-minute timeout. A fresh `on_submit` defers
-privately (`thinking=True`), normalizes the title (no letter or digit gets `BLANK_TITLE_REPLY`)
-and sends a private preview (`PREVIEW_REPLY`, an embed from `preview_embed`, cut past 4096
-characters with `PREVIEW_SHORTENED_NOTE`) with a `PreviewView`; nothing is posted or filed
-(logged `previewed <type> interaction_id=…`). `PreviewView` (fixed `PREVIEW_TIMEOUT` 600 s
-deadline from the submit; each button press trims the view's timeout back to it):
+`Draft(title, answers, suggested, complexity, overridden)` when one is given, and a 30-minute
+timeout. `on_submit` rates the answers (`suggested`); the band is the previous draft's when that
+draft was `overridden` (an override sticks across Edit), else `suggested`. A fresh `on_submit`
+defers privately (`thinking=True`), normalizes the title (no letter or digit gets
+`BLANK_TITLE_REPLY`) and sends a private preview (`PREVIEW_REPLY`, an embed from
+`preview_embed(draft, author_name)`, its description cut past 4096 characters with
+`PREVIEW_SHORTENED_NOTE`, plus a `COMPLEXITY_FIELD` field reading `COMPLEXITY_CHOSEN` when
+overridden, else `COMPLEXITY_SUGGESTED`) with a `PreviewView`; nothing is posted or filed (logged
+`previewed <type> interaction_id=…`). `PreviewView` (fixed `PREVIEW_TIMEOUT` 600 s deadline from
+the submit; each button press trims the view's timeout back to it) has S/M/L/XL buttons on row 0
+(the current band `primary`, set by `_paint`) and File and Edit on row 1:
+- **S/M/L/XL** (`_choose`) sets the band and `overridden=True` before any `await`, then edits the
+  preview in place (embed and view only); it logs nothing, and a closed view ignores it;
 - **File** sets its close guard before any `await`, acks with `FILING_REPLY` (buttons removed,
   embed kept), then runs `_post_and_file`: post the public summary `**New <type>** from <@id>:
   <escaped title>` with `AllowedMentions.none()` and `suppress_embeds=True` (a missing channel or
@@ -222,9 +233,9 @@ Thread helpers live in `issue_bot/threads.py`: `thread_name` (title cut to 100 c
 `…`) and `open_thread(message, name)`. `open_thread` reuses `message.thread`, else calls
 `create_thread(name=…)` (channel-default auto-archive), recovers a 160004 "already created"
 with `message.fetch_thread()`, and logs any other `HTTPException` by type, status and code,
-returning `None`. `filed_reply(issue, title)` formats the link message,
-`Filed as GitHub issue #<number>: <escaped title>` with the `html_url` on the next line
-(`FILED_REPLY`).
+returning `None`. `filed_reply(issue, title, complexity)` formats the link message,
+`Filed as GitHub issue #<number> (complexity <band>): <escaped title>` with the `html_url` on the
+next line (`FILED_REPLY`).
 
 The bot needs the `bot` and `applications.commands` invite scopes and View Channel, Read
 Message History, Send Messages, Create Public Threads and Send Messages in Threads on each
@@ -236,15 +247,21 @@ mints an App JWT, then an installation token scoped to the target's repo id with
 `issues: write`, cached per repo id until 5 minutes before expiry (dropped on a 401).
 `create_issue(target, title, body, labels)` POSTs to `repos/<target.github_repo>/issues` and
 returns `FiledIssue(number, html_url)`, or raises `GitHubError(stage, status)` (`stage` is
-`token` or `issue`; `status` is None on a transport failure). `check_access(target)` mints (or
-reuses) the target's token and raises `GitHubError` on failure; it is the `filing_check`. The module never logs, and the
+`token`, `label` or `issue`; `status` is None on a transport failure).
+`ensure_label(target, name)` POSTs `repos/<repo>/labels` (`LABEL_COLOR` `c5def5`); a 201 or any
+422 counts as "exists" and is cached per (repo id, name) for the process; a 401 drops the cached
+token. `check_access(target)` mints (or reuses) the target's token and raises `GitHubError` on
+failure; it is the `filing_check`. The module never logs, and the
 HTTP transport is injectable (tests pass a fake). `issue_bot/issues.py` builds the issue:
 `issue_title` (cut to 256 characters with `…`), `issue_body` (the only body formatter: an
 author line ``` Reported by `<author>` in Discord: <summary message url> ```, `---`, then one
 `### <label>` section per non-blank answer, or `_No description given._`, with every `@` defanged
 by a zero-width space in labels and answers; it calls `render_body(author_name, link, answers)`,
 which the preview calls with `PREVIEW_LINK` in place of the URL), `issue_labels` (the target's
-label for the type) and `file_candidate(github, candidate)`. `bot.filing_hook(github)` is the
+label for the type, then `complexity:<band>`) and `file_candidate(github, candidate)`, which
+calls `ensure_label` first and, on a `GitHubError` there, logs a WARNING (`could not create
+complexity label for <type> message_id=…: <exc type> stage=… status=…`) and files with the type
+label only. issues.py's one log line carries no member or response text. `bot.filing_hook(github)` is the
 production `on_candidate`: it opens the issue's thread, files the issue even if no thread
 opened, and on success logs `filed … issue=<html_url>` and then posts `filed_reply`. On a
 `GitHubError` it logs type, stage and status and posts the fixed `threads.FILING_ERROR_REPLY`
@@ -255,8 +272,9 @@ opened, always with `AllowedMentions.none()` and `suppress_embeds=True`. A
 by type, status, code and ids. Any other exception reaches `PreviewView.on_error`. `issue_bot/__main__.py` builds the client, wires `filing_hook` and
 `filing_check=github.check_access`, and runs at INFO with `log_handler=None` (discord loggers never at DEBUG).
 
-**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 333 tests across
-`tests/test_{handler,config,bot,intake,threads,github,issues,smoke}.py`, with Discord
+**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 371 tests across
+`tests/test_{handler,config,bot,intake,threads,github,issues,complexity,smoke}.py`
+(`test_complexity.py` also pins `docs/COMPLEXITY.md`'s thresholds and starting bands), with Discord
 interactions and the GitHub transport fully mocked (`make_interaction`, `make_candidate`,
 `make_message` fixtures, plus `routes_file`, `route`, `two_route_config` and `write_routes` with
 `ONE_ROUTE_TOML`/`TWO_ROUTE_TOML`, both with question sets, in `tests/conftest.py`). Button tests
@@ -274,8 +292,8 @@ old `.env` target keys to route fields, and *Upgrading to per-type questions* sa
 files must add `questions` tables (or the bot exits 2). The owner's live smoke-test runbook is
 `docs/SMOKE-TEST.md` (it uses a separate test server, never the live one). The owner's smoke
 run of F10 passed before PR #13 merged (2026-10-21). The owner confirmed F7 works on its branch
-before PR #15 merged (2026-10-21), F8 before PR #17 merged (2026-10-25), and F3 before PR #19
-merged (2026-10-26). Before PR #9 merged, the owner's run filed issues #1 and #2 in a private
+before PR #15 merged (2026-10-21), F8 before PR #17 merged (2026-10-25), F3 before PR #19
+merged (2026-10-26), and F4 before PR #21 merged (2026-10-28). Before PR #9 merged, the owner's run filed issues #1 and #2 in a private
 scratch repo, torn down on 2026-10-18 (recorded in PR #9's description).
 Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
 
@@ -322,7 +340,7 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F1 — Channel listener and tag parsing · merged (#2)
 
-*Kept because F4 and F6 build on it.*
+*Kept because F6 builds on it.*
 - `IssueBot(config, on_candidate=...)`: the `on_candidate(message, candidate)` hook is the
   single seam for candidates; F5's `filing_hook`, with F7's link post, plugs in there.
   Don't add a second candidate dispatch path. F3's File button feeds it (`_post_and_file`) with
@@ -332,32 +350,34 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F5 — File the issue in 4IRL/chores4irl · merged (#9)
 
-*Kept because F4 and F6 build on it.*
-- `issue_bot/issues.py` is the only place an issue body is formatted (`render_body`, which
-  `issue_body` and F3's preview share); later features extend it rather than formatting a
-  second body.
+*Kept because F6 builds on it.*
+- `issue_bot/issues.py` is the only place an issue body and its labels are formatted
+  (`render_body`, which `issue_body` and the preview share; `issue_labels`); later features
+  extend it rather than formatting a second body.
 - `GitHubClient.create_issue` returns `FiledIssue(number, html_url)`; the posted link is that
   `html_url`, never a URL built from config. Failures surface only as
-  `GitHubError(stage, status)`, which callers log by type, stage and status.
+  `GitHubError(stage, status)`, which callers log by type, stage and status. Inside
+  `file_candidate`, F4's `ensure_label` runs before `create_issue`; its `GitHubError` is caught
+  there (a WARNING, then filing with the type label only) and never reaches `filing_hook`.
 - `filing_hook(github)` is the one production `on_candidate`: it opens the thread first and
-  files even when no thread opened. It runs only after F3's File press; F4's label rides the
-  same `create_issue` call and F6 adds roadmap placement after filing, both inside this hook.
+  files even when no thread opened. It runs only after the preview's File press; F6 adds roadmap
+  placement after filing, inside this hook.
 - Auth is one GitHub App installation (instance-wide `GITHUB_APP_*` config); each token is
   scoped to one route's repo id with `issues: write` and cached per repo id. Every route's repo
   joins that one installation (which is why each must be in `GITHUB_ORG`); F6 widens the token
   request's `permissions` for Projects.
 
-## F3 — Per-tag modal questions with preview and confirm · merged (#19)
+## F4 — Complexity triage (S/M/L/XL) · merged (#21)
 
-*Kept because F4 builds on it.*
-- `PreviewView` (issue_bot/intake.py) is the one pre-filing step: F4 shows its rating and the
-  reporter's override there, before File. The preview body comes from `preview_embed`, i.e.
-  `issues.render_body` with `PREVIEW_LINK`, so preview and filed body never diverge.
-- The reporter's answers reach filing as `IssueCandidate.answers` (`(label, answer)` pairs in
-  question order); a `Draft(title, answers)` carries them between the modal, the preview and
-  Edit. Both are `repr=False` member text.
-- The modal is full at Title plus four questions (Discord's five-field cap), so F4 adds no modal
-  field; its override lives in the preview.
+*Kept because F6 builds on it (couples: the band names).*
+- `issue_bot.complexity.Complexity` (`S`, `M`, `L`, `XL`) is the one home of the band names.
+  F6's Project Complexity single-select options must equal `str(band)`, never a second list.
+- The band to file is `IssueCandidate.complexity` (the reporter's override if they pressed one,
+  else the rules' rating); F6 reads it inside `filing_hook`, never re-rates.
+- The label is `complexity_label(band)` (`complexity:<band>`), created on demand by
+  `GitHubClient.ensure_label`; a failed label create is non-fatal.
+- The thread's link message already shows the band (`filed_reply(issue, title, complexity)`);
+  F6 adds roadmap placement to that outcome via `_post_outcome`.
 
 ## F7 — Post the issue link in the thread · merged (#15)
 
@@ -366,9 +386,9 @@ Parallel features: `/worktree <F-ID>...`.
   outcome: in the thread, else as a reply to the summary message, always with
   `AllowedMentions.none()` and `suppress_embeds=True`, logging a Discord failure by type,
   status, code and ids. Any new outcome message (e.g. F6's roadmap result) reuses it rather than
-  adding a second send path. F3's private preview is not an outcome: it is the interaction's own
+  adding a second send path. The private preview is not an outcome: it is the interaction's own
   ephemeral response (`followup.send`, `edit_message`, `edit_original_response`).
-- The link message is `threads.filed_reply(issue, title)`, built from the route's own
+- The link message is `threads.filed_reply(issue, title, complexity)` (F4 added the band), built from the route's own
   `FiledIssue.html_url`. It is posted after the
   `filed … issue=<url>` log line, so a failed post never hides the issue URL.
 
@@ -467,6 +487,23 @@ Parallel features: `/worktree <F-ID>...`.
   client while an Edit modal is open in another can file a second issue (close the duplicate).
   Question labels with control characters are rejected by Discord at modal send, not at startup;
   label uniqueness is case-sensitive (dd-261026-042, -043, -045).
+- **F4 push-review polish.** The unticked minor to-dos in
+  `plans/feature/complexity-triage/reviews/push-review-feature-complexity-triage.md`, Review 1:
+  - name the labels in `file_candidate` instead of indexing `labels[1]` / `labels[:1]`;
+  - an end-to-end override → Edit → File test;
+  - parametrize the `ensure_label` raise test over 403/404/500;
+  - explain or drop `docs/COMPLEXITY.md`'s Points column;
+  - a test that `STARTING_BAND` covers every `IssueType`;
+  - optional tidies: an explicit step count in `rate()`, loop-built band buttons, a `Draft`
+    `__post_init__` check that `overridden or complexity == suggested`.
+
+  None blocks a remaining feature.
+- **F4 accepted limits.** Every 422 from the label endpoint counts as "already exists", and
+  created labels stay cached until a restart (a label deleted on GitHub is re-created only then).
+  A band press racing File, or the old preview's Edit submit, can briefly re-show dead buttons
+  (code comments in `PreviewView._choose`; dd-261027-050, -051, -055, -058).
+- **ROADMAP Current-state row 3** (Complexity rating) still reads "not started": its Maintaining
+  rule refreshes Current-state rows only at a phase's close-out, which is F6's fold-back.
 - **Drop the pre-rename `allowWrite` path.** `.claude/settings.json` still lists
   `/home/rmila/Code/c4i-issue-bot`; removing it is an optional owner edit in its own small
   PR (agents can't write that file).
@@ -474,38 +511,6 @@ Parallel features: `/worktree <F-ID>...`.
 ---
 
 # REMAINING FEATURES
-
-## F4 — Complexity triage (S/M/L/XL) · Phase 3 · Effort M · (added 2026-10-16)
-
-**Goal.** From the tag and F3's modal answers, documented rules assign an S/M/L/XL
-complexity (S=1, M=2, L=3, XL=5 points). The rating appears in F3's private preview, where
-the reporter can override it before filing, and it is filed as a `complexity:<band>` label.
-Feature-list line F4.
-
-**Rank rationale.** It reads F3's answers, so it can't come earlier.
-
-**Dependencies.** F3.
-
-**Sizing.** unscored (intake estimate M); split check pending.
-
-**Assumed starting state** = **Baseline** plus F3's modal answers and preview. Verify:
-- F3's preview step exists and is where the rating is shown.
-
-**Expected end state** (repo-checkable):
-- The rating rules are data or one documented module, and members can read them (linked
-  from a help reply or the README).
-- Filed issues carry exactly one `complexity:S|M|L|XL` label, created if it doesn't exist.
-- All suites green; Standing invariants untouched.
-
-**Test-suite deltas.** Rule unit tests for each band, plus override tests.
-
-**Open risks / decisions.** (a) The owner sets the rules themselves (which answers raise
-the band); draft them at planning for approval. (b) Creating labels needs the
-issues/metadata write permission on chores4irl. (c) F3's preview is ephemeral, so only the
-reporter overrides before filing; other members change the label on GitHub afterwards.
-
-**Session.** `/run-feature F4` on branch `feature/complexity-triage`; plan at
-`plans/feature/complexity-triage/complexity-triage.md`.
 
 ## F6 — Add the issue to the chores4irl roadmap Project · Phase 3 · Effort M · (added 2026-10-16)
 
@@ -529,8 +534,8 @@ config. Per F8's kept contract, the Project number and field IDs are per-route c
 
 **Expected end state** (repo-checkable):
 - The Project number and field IDs are config, never hardcoded.
-- Filing adds the issue to the Project and sets Status (and, once F4 has merged, the
-  complexity field), with all GraphQL calls mocked in tests.
+- Filing adds the issue to the Project and sets Status and the Complexity field from
+  `IssueCandidate.complexity` (F4's kept contract), with all GraphQL calls mocked in tests.
 - All suites green; Standing invariants untouched.
 
 **Test-suite deltas.** GraphQL mutation tests (add item, set single-select field) against a
@@ -539,7 +544,8 @@ mocked transport.
 **Open risks / decisions.** (a) Org Projects need the `organization_projects` write
 permission (App) or a classic `project` scope; this widens F5's auth, so confirm at
 planning. (b) The Project's own fields (Status values, a Complexity single-select with
-S/M/L/XL) are designed when it is created.
+S/M/L/XL) are designed when it is created. (c) Whether a failed Project write blocks
+filing or, like F4's label, is logged and skipped.
 
 **Session.** `/run-feature F6` on branch `feature/roadmap-project`; plan at
 `plans/feature/roadmap-project/roadmap-project.md`.
@@ -552,19 +558,16 @@ S/M/L/XL) are designed when it is created.
 Phase 1:    done       (F1 #2; F9 rename #5; F2 threads #7; F5 filing #9; F10 intake #13; F7 link #15)
 Phase 1.5:  done       (F8 routes #17)
 Phase 2:    done       (F3 questions + preview #19)
-Phase 3:    F3 ──► ★ F4
-            F5 ──► F6   [cond: new roadmap Project] (couples F4; soft: after F8)
+Phase 3:    F4 rating #21 (done)
+            F5 ──► ★ F6   [cond: new roadmap Project] (couples F4; soft: after F8)
 ```
 
-- **Hard chains:** F3 → F4, F5 → F6. F1, F2, F3, F5, F7, F8, F9 and F10 have shipped; refs to
-  them stay valid, so F4 is runnable and F6 waits on its roadmap-Project gate.
+- **Hard chains:** F5 → F6. F1, F2, F3, F4, F5, F7, F8, F9 and F10 have shipped; refs to them
+  stay valid, so F6 waits only on its roadmap-Project gate.
 - **Soft preferences:** F8 (shipped) before F6, so Project config is per-route from the start.
-  F6 could start any time after F5 once its Project exists; the ROADMAP keeps it in Phase 3 so
-  the Project fields are designed alongside F4.
-- **Couplings to honor:** F4 ↔ F3: F4 reads `IssueCandidate.answers` and shows its rating in
-  F3's `PreviewView` (F3's kept contract). F6 puts its per-route settings under `[routes.<name>]`
-  (F8's kept contract). F4 ↔ F6: both use the same S/M/L/XL band names, one as a label and one
-  as a Project field.
+- **Couplings to honor:** F6 puts its per-route settings under `[routes.<name>]` (F8's kept
+  contract). F4 ↔ F6: both use the same S/M/L/XL band names, one as a label and one as a
+  Project field (F4's kept contract).
 
 ---
 
