@@ -1,11 +1,13 @@
 import dataclasses
+import logging
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from issue_bot.complexity import Complexity
 from issue_bot.config import TargetConfig
-from issue_bot.github import FiledIssue
+from issue_bot.github import FiledIssue, GitHubError
 from issue_bot.issue_type import IssueType
 from issue_bot.issues import (
     ISSUE_TITLE_LIMIT,
@@ -16,7 +18,7 @@ from issue_bot.issues import (
     issue_title,
     render_body,
 )
-from tests.conftest import CandidateFactory
+from tests.conftest import CandidateFactory, assert_no_member_text
 
 
 def test_issue_title_is_message_title(make_candidate: CandidateFactory) -> None:
@@ -107,7 +109,10 @@ def test_render_body_with_preview_link_matches_issue_body(
 
 @pytest.mark.parametrize(
     ("issue_type", "expected"),
-    [(IssueType.BUG, ["bug"]), (IssueType.FEATURE, ["enhancement"])],
+    [
+        (IssueType.BUG, ["bug", "complexity:S"]),
+        (IssueType.FEATURE, ["enhancement", "complexity:S"]),
+    ],
 )
 def test_issue_labels_follow_config(
     make_candidate: CandidateFactory, issue_type: IssueType, expected: list[str]
@@ -122,17 +127,65 @@ def test_issue_labels_use_target_mapping(
         route, labels={IssueType.BUG: "bug", IssueType.FEATURE: "idea"}
     )
     candidate = make_candidate(type=IssueType.FEATURE, title="T", answers=(), target=custom_route)
-    assert issue_labels(candidate) == ["idea"]
+    assert issue_labels(candidate) == ["idea", "complexity:S"]
+
+
+def test_issue_labels_end_with_candidate_band(make_candidate: CandidateFactory) -> None:
+    labels = issue_labels(make_candidate(complexity=Complexity.XL))
+    assert labels[-1] == "complexity:XL"
 
 
 async def test_file_candidate_passes_title_body_labels(make_candidate: CandidateFactory) -> None:
     candidate = make_candidate(title="T", answers=(("What happened?", "Steps here"),))
     filed = FiledIssue(7, "u")
-    github = SimpleNamespace(create_issue=AsyncMock(return_value=filed))
+    github = SimpleNamespace(
+        create_issue=AsyncMock(return_value=filed), ensure_label=AsyncMock()
+    )
+    order = Mock()
+    order.attach_mock(github.ensure_label, "ensure_label")
+    order.attach_mock(github.create_issue, "create_issue")
 
     result = await file_candidate(github, candidate)  # type: ignore[arg-type]
 
     assert result is filed
+    github.ensure_label.assert_awaited_once_with(candidate.target, "complexity:S")
     github.create_issue.assert_awaited_once_with(
-        candidate.target, issue_title(candidate), issue_body(candidate), ["bug"]
+        candidate.target, issue_title(candidate), issue_body(candidate), ["bug", "complexity:S"]
     )
+    call_names = [name for name, _args, _kwargs in order.mock_calls]
+    assert call_names.index("ensure_label") < call_names.index("create_issue")
+
+
+async def test_file_candidate_files_without_complexity_label_when_label_fails(
+    make_candidate: CandidateFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    candidate = make_candidate(
+        title="Secret title words",
+        answers=(("What happened?", "Secret body words"),),
+        author_name="Alice",
+    )
+    filed = FiledIssue(7, "u")
+    github = SimpleNamespace(
+        create_issue=AsyncMock(return_value=filed),
+        ensure_label=AsyncMock(side_effect=GitHubError("label", 500)),
+    )
+
+    with caplog.at_level(logging.INFO):
+        result = await file_candidate(github, candidate)  # type: ignore[arg-type]
+
+    assert result is filed
+    github.create_issue.assert_awaited_once()
+    _target, _title, _body, labels = github.create_issue.await_args.args
+    assert labels == ["bug"]
+    warnings = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "issue_bot.issues" and record.levelno == logging.WARNING
+    ]
+    assert len(warnings) == 1
+    assert "could not create complexity label for bug" in warnings[0]
+    assert "message_id=99" in warnings[0]
+    assert "GitHubError" in warnings[0]
+    assert "stage=label" in warnings[0]
+    assert "status=500" in warnings[0]
+    assert_no_member_text(caplog)

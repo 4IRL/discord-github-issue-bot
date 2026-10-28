@@ -8,12 +8,16 @@ import discord
 import pytest
 
 from issue_bot.bot import filing_hook
+from issue_bot.complexity import Complexity, rate
 from issue_bot.config import Config, TargetConfig, UnroutedCommands
 from issue_bot.github import FiledIssue, GitHubError
 from issue_bot.intake import (
     ANSWER_MAX_LENGTH,
     BLANK_TITLE_EDIT_REPLY,
     BLANK_TITLE_REPLY,
+    COMPLEXITY_CHOSEN,
+    COMPLEXITY_FIELD,
+    COMPLEXITY_SUGGESTED,
     FILING_REPLY,
     FILING_UNAVAILABLE_REPLY,
     INTAKE_ERROR_REPLY,
@@ -137,7 +141,13 @@ def test_feature_modal_fields(route: TargetConfig) -> None:
 
 
 def test_modal_prefills_from_draft(route: TargetConfig) -> None:
-    draft = Draft("Fix it", (("What happened?", "Steps"), ("Device", "")))
+    draft = Draft(
+        "Fix it",
+        (("What happened?", "Steps"), ("Device", "")),
+        Complexity.S,
+        Complexity.S,
+        False,
+    )
     modal = IntakeModal(IssueType.BUG, route, AsyncMock(), draft=draft)
     assert modal.title_input.default == "Fix it"
     assert modal.answer_inputs[0].default == "Steps"
@@ -148,7 +158,15 @@ def test_modal_prefills_from_draft(route: TargetConfig) -> None:
 
 
 def test_draft_repr_hides_text() -> None:
-    text = repr(Draft("Secret title words", (("Q", "Secret body words"),)))
+    text = repr(
+        Draft(
+            "Secret title words",
+            (("Q", "Secret body words"),),
+            Complexity.S,
+            Complexity.S,
+            False,
+        )
+    )
     assert "Secret title words" not in text
     assert "Secret body words" not in text
 
@@ -380,7 +398,7 @@ async def test_second_route_file_files_to_its_repo_with_its_labels(
     target, _title, body, labels = github.create_issue.await_args.args
     assert target is other
     assert target.github_repo == "example-org/other-repo"
-    assert labels == ["defect"]
+    assert labels == ["defect", "complexity:S"]
     assert body.startswith(
         "Reported by `Alice` in Discord: https://discord.com/channels/111/556/99"
     )
@@ -449,11 +467,14 @@ def test_preview_embed_boundary() -> None:
     answers = (("What happened?", "x" * length),)
     body = render_body("Alice", PREVIEW_LINK, answers)
     assert len(body) == PREVIEW_EMBED_LIMIT
-    embed = preview_embed("T", answers, "Alice")
+    embed = preview_embed(Draft("T", answers, Complexity.S, Complexity.S, False), "Alice")
     assert embed.title == "T"
     assert embed.description == body
     assert not embed.description.endswith(PREVIEW_SHORTENED_NOTE)
-    longer = preview_embed("T", (("What happened?", "x" * (length + 1)),), "Alice")
+    longer_answers = (("What happened?", "x" * (length + 1)),)
+    longer = preview_embed(
+        Draft("T", longer_answers, Complexity.S, Complexity.S, False), "Alice"
+    )
     assert len(longer.description) == PREVIEW_EMBED_LIMIT
     assert longer.description.endswith(PREVIEW_SHORTENED_NOTE)
 
@@ -566,12 +587,12 @@ async def test_file_files_issue_through_filing_hook(
     target, title, body, labels = github.create_issue.await_args.args
     assert target is route
     assert title == "Fix it"
-    assert labels == ["bug"]
+    assert labels == ["bug", "complexity:S"]
     assert body.startswith(
         "Reported by `Alice` in Discord: https://discord.com/channels/111/555/99"
     )
     summary.create_thread.return_value.send.assert_awaited_once_with(
-        filed_reply(FiledIssue(7, ISSUE_URL), "Fix it"),
+        filed_reply(FiledIssue(7, ISSUE_URL), "Fix it", Complexity.S),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )
@@ -731,7 +752,16 @@ async def test_edit_submit_updates_preview_in_place(
     edit_call = edit_interaction.response.edit_message.await_args
     assert set(edit_call.kwargs) == {"content", "embed", "view"}
     assert edit_call.kwargs["content"] == PREVIEW_REPLY
-    expected = preview_embed("Fix it now", (("What happened?", "Steps v2"), ("Device", "")), "Alice")
+    expected = preview_embed(
+        Draft(
+            "Fix it now",
+            (("What happened?", "Steps v2"), ("Device", "")),
+            Complexity.S,
+            Complexity.S,
+            False,
+        ),
+        "Alice",
+    )
     assert edit_call.kwargs["embed"].title == expected.title
     assert edit_call.kwargs["embed"].description == expected.description
     new_view = edit_call.kwargs["view"]
@@ -987,3 +1017,202 @@ async def test_modal_on_error_reply_non_http_failure_swallowed(
     )
     for text in record_texts(caplog):
         assert "Secret exception words" not in text
+
+
+async def test_fresh_submit_draft_carries_suggested_band(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction(), answers=("Steps",))
+    expected = rate(IssueType.BUG, (("What happened?", "Steps"), ("Device", "")))
+    assert view.draft.suggested == view.draft.complexity == expected
+    assert view.draft.overridden is False
+
+
+async def test_long_bug_is_filed_with_raised_band(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    github = fake_github(FiledIssue(7, ISSUE_URL))
+    view = await submitted_preview(
+        route, filing_hook(github), make_interaction(), answers=("x" * 900,)
+    )
+    await view.file_button.callback(make_interaction())
+    github.create_issue.assert_awaited_once()
+    _target, _title, _body, labels = github.create_issue.await_args.args
+    assert labels == ["bug", "complexity:M"]
+
+
+BAND_BUTTONS = ("s_button", "m_button", "l_button", "xl_button")
+
+
+def primary_bands(view: PreviewView) -> list[str]:
+    """Return the names of the band buttons styled ``primary``."""
+    return [
+        name
+        for name in BAND_BUTTONS
+        if getattr(view, name).style is discord.ButtonStyle.primary
+    ]
+
+
+async def edit_submit_with(
+    view: PreviewView, make_interaction: InteractionFactory, answer: str
+) -> tuple[PreviewView, SimpleNamespace]:
+    """Press Edit, submit ``answer`` as the first answer, and return the new view and interaction."""
+    modal = await reopened_modal(view, make_interaction)
+    # discord.py's own seed for a submitted value; the Device input keeps its "" default.
+    modal.answer_inputs[0]._value = answer
+    edit_interaction = make_interaction()
+    await modal.on_submit(edit_interaction)
+    return edit_interaction.response.edit_message.await_args.kwargs["view"], edit_interaction
+
+
+def test_preview_embed_shows_suggested_band() -> None:
+    answers = (("What happened?", "Steps"),)
+    embed = preview_embed(Draft("T", answers, Complexity.M, Complexity.M, False), "Alice")
+    assert len(embed.fields) == 1
+    assert embed.fields[0].name == COMPLEXITY_FIELD
+    assert embed.fields[0].value == COMPLEXITY_SUGGESTED.format(band="M")
+    assert embed.description == render_body("Alice", PREVIEW_LINK, answers)
+
+
+@pytest.mark.parametrize(("band", "expected"), [(Complexity.L, "L"), (Complexity.M, "M")])
+def test_preview_embed_shows_chosen_band(band: Complexity, expected: str) -> None:
+    answers = (("What happened?", "Steps"),)
+    embed = preview_embed(Draft("T", answers, Complexity.M, band, True), "Alice")
+    assert len(embed.fields) == 1
+    assert embed.fields[0].name == COMPLEXITY_FIELD
+    assert embed.fields[0].value == COMPLEXITY_CHOSEN.format(band=expected, suggested="M")
+
+
+async def test_preview_buttons_rows_and_suggested_band_highlighted(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    for name in BAND_BUTTONS:
+        assert getattr(view, name).row == 0
+    assert view.file_button.row == 1
+    assert view.edit_button.row == 1
+    assert [getattr(view, name).label for name in BAND_BUTTONS] == ["S", "M", "L", "XL"]
+    assert primary_bands(view) == ["s_button"]
+
+
+async def test_band_press_overrides_in_place(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    click = make_interaction()
+    await view.l_button.callback(click)
+    assert view.draft.complexity is Complexity.L
+    assert view.draft.overridden is True
+    assert view.draft.suggested is Complexity.S
+    click.response.edit_message.assert_awaited_once()
+    edit_call = click.response.edit_message.await_args
+    assert set(edit_call.kwargs) == {"embed", "view"}
+    assert edit_call.kwargs["view"] is view
+    fields = edit_call.kwargs["embed"].fields
+    assert len(fields) == 1
+    assert fields[0].value == COMPLEXITY_CHOSEN.format(band="L", suggested="S")
+    assert primary_bands(view) == ["l_button"]
+
+
+async def test_band_press_logs_no_member_text(
+    route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    view = await submitted_preview(
+        route,
+        AsyncMock(),
+        make_interaction(),
+        title="Secret title words",
+        answers=("Secret body words",),
+    )
+    with caplog.at_level(logging.INFO):
+        await view.l_button.callback(make_interaction())
+    assert_no_member_text(caplog)
+
+
+async def test_band_press_then_file_files_chosen_label(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    github = fake_github(FiledIssue(7, ISSUE_URL))
+    view = await submitted_preview(route, filing_hook(github), make_interaction())
+    await view.l_button.callback(make_interaction())
+    await view.file_button.callback(make_interaction())
+    github.create_issue.assert_awaited_once()
+    _target, _title, _body, labels = github.create_issue.await_args.args
+    assert labels[-1] == "complexity:L"
+
+
+async def test_override_survives_edit_submit(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    await view.l_button.callback(make_interaction())
+    new_view, edit_interaction = await edit_submit_with(view, make_interaction, "x" * 900)
+    assert new_view.draft.complexity is Complexity.L
+    assert new_view.draft.overridden is True
+    assert new_view.draft.suggested is Complexity.M
+    assert new_view.l_button.style is discord.ButtonStyle.primary
+    assert primary_bands(new_view) == ["l_button"]
+    fields = edit_interaction.response.edit_message.await_args.kwargs["embed"].fields
+    assert fields[0].value == COMPLEXITY_CHOSEN.format(band="L", suggested="M")
+
+
+async def test_unpressed_edit_submit_re_rates(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    new_view, edit_interaction = await edit_submit_with(view, make_interaction, "x" * 900)
+    assert new_view.draft.suggested is Complexity.M
+    assert new_view.draft.complexity is Complexity.M
+    assert new_view.draft.overridden is False
+    assert primary_bands(new_view) == ["m_button"]
+    fields = edit_interaction.response.edit_message.await_args.kwargs["embed"].fields
+    assert fields[0].value == COMPLEXITY_SUGGESTED.format(band="M")
+
+
+async def test_override_survives_two_edit_submits(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    await view.l_button.callback(make_interaction())
+    second_view, _ = await edit_submit_with(view, make_interaction, "x" * 2000)
+    assert second_view.draft.suggested is Complexity.L
+    third_view, _ = await edit_submit_with(second_view, make_interaction, "Short")
+    assert third_view.draft.suggested is Complexity.S
+    assert third_view.draft.complexity is Complexity.L
+    assert third_view.draft.overridden is True
+
+
+async def test_pressing_suggested_band_counts_as_override(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    click = make_interaction()
+    await view.s_button.callback(click)
+    fields = click.response.edit_message.await_args.kwargs["embed"].fields
+    assert fields[0].value == COMPLEXITY_CHOSEN.format(band="S", suggested="S")
+    new_view, _ = await edit_submit_with(view, make_interaction, "x" * 900)
+    assert new_view.draft.suggested is Complexity.M
+    assert new_view.draft.complexity is Complexity.S
+    assert new_view.draft.overridden is True
+
+
+async def test_band_press_after_close_does_nothing(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    view._closed = True
+    before = view.draft
+    click = make_interaction()
+    await view.l_button.callback(click)
+    click.response.edit_message.assert_not_awaited()
+    assert view.draft is before
+
+
+async def test_band_press_keeps_the_deadline(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    # Moving the deadline, not patching time.monotonic, which also drives the event loop.
+    view._deadline -= 120
+    await view.l_button.callback(make_interaction())
+    assert PREVIEW_TIMEOUT - 121 < view.timeout <= PREVIEW_TIMEOUT - 120

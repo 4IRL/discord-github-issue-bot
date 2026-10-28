@@ -8,9 +8,9 @@ The run happens against a **private scratch repo** and a **test channel**, never
 
 - **Startup:** the bot registers `/bug` and `/feature` in the guild `DISCORD_GUILD_ID` names. It overwrites them on every start, and they stay after teardown (see section 5).
 - **Probe:** one installation token on GitHub, which expires within an hour. Nothing else.
-- **Success checks:** two issues in the scratch repo (three with the optional `@someone` check), and one summary message plus one public thread with one link post in it per report filed with **File** in the test channel; an expired or edited preview writes nothing.
+- **Success checks:** two issues in the scratch repo (three with the optional `@someone` check), and one summary message plus one public thread with one link post in it per report filed with **File** in the test channel; an expired or edited preview writes nothing. The first filing with each band also creates that `complexity:<band>` label in the scratch repo.
 - **Failure check:** one private reply to you. It posts nothing in the test channel and writes nothing to GitHub.
-- **Re-runs:** every re-run repeats its writes.
+- **Re-runs:** every re-run repeats its writes, except that a `complexity:<band>` label already in the repo is not created again.
 
 ## 0. One-time setup
 
@@ -153,20 +153,21 @@ If any of these differs, stop and fix it before going on.
 The log shows `synced 2 commands to guild <DISCORD_GUILD_ID>`. In the test channel:
 
 1. Run `/bug`. The form shows Title and the route's bug questions (Steps to reproduce, Expected, Actual, Device / browser). Fill in the Title and the required answers, leave **Device / browser** blank, and submit.
-   - A private preview appears, reading "Here's your report as it will be filed. **File** posts it; **Edit** changes it. This preview expires in 10 minutes.", with the issue body below it and `(link added when filed)` in place of the summary link. Nothing is posted in the channel yet.
+   - A private preview appears, reading "Here's your report as it will be filed. Pick a complexity if the suggested one is off; **File** posts it; **Edit** changes it. This preview expires in 10 minutes.", with the issue body below it, `(link added when filed)` in place of the summary link and a **Complexity** field showing the suggested band. Nothing is posted in the channel yet.
+   - Press a band button other than the highlighted one (S, M, L or XL). The pressed button is now highlighted and the Complexity field shows your choice; note the band.
    - Press **Edit**. The form reopens with your Title and answers filled in. Change one answer and submit. The same preview message updates in place with the changed answer, and no second message appears.
-   - Press **File**. The preview changes to "Filing your report…".
+   - Press **File**. The preview changes to "Filing your report…". The filed issue carries the `complexity:<band>` label you chose.
 
    Then do the same with `/feature` (Who is it for?, What problem does it solve?, What does "done" look like?), and check the following:
 
    | Where | What to see |
    |---|---|
    | Discord summary | A message reading "New bug from @\<you\>: \<Title\>" ("New feature" for `/feature`), with the type in bold; the mention does not ping |
-   | Discord thread | A thread on each summary, with one bot message `Filed as GitHub issue #<n>: <title>` and the issue link on the next line, and no preview card |
+   | Discord thread | A thread on each summary, with one bot message `Filed as GitHub issue #<n> (complexity <band>): <title>`, with the band the preview showed, and the issue link on the next line, and no preview card |
    | Discord confirmation | A private "Thanks! Your report is posted: <summary link>" that only you see |
    | Issue title | The modal's Title |
    | Issue body | Opens with ``Reported by `<display name>` in Discord: <summary message link>``, then `---`, then one `### <question>` section per answered question, with the edited answer; the blank optional question has no section |
-   | Issue label | `bug` on the `/bug` issue, `enhancement` on the `/feature` one |
+   | Issue label | The type label (`bug` on the `/bug` issue, `enhancement` on the `/feature` one) plus exactly one `complexity:<band>` label, matching the band the preview showed |
    | Issue author | `<app-slug>[bot]` |
    | Log | `previewed bug …` and `previewed feature …` lines (one per submit, including each Edit submit), then one `filed bug …` and one `filed feature …` INFO line with the issue URL, and no member text |
 
@@ -230,7 +231,7 @@ For a quick test, add `--user "$(id -u)"` instead and mount the original `github
 
 1. In the PR description, record:
    - the scratch repo name
-   - each filed issue number and what each check showed: title, author line, label, `[bot]` author and the 100-character Title cap
+   - each filed issue number and what each check showed: title, author line, type label, `complexity:<band>` label (and whether the band was pressed), `[bot]` author and the 100-character Title cap
    - the teardown date
 
    Do this before deleting the repo, because the issue links stop working once it's gone.
@@ -261,4 +262,5 @@ For a quick test, add `--user "$(id -u)"` instead and mount the original `github
 | The probe returns 403 | The App is suspended, or the org hasn't approved its permissions. |
 | The probe returns 404 | The installation ID is wrong, or the installation belongs to another App. |
 | The probe returns 422 | The scratch repo isn't in the installation's selected repositories, or the App lacks Issues: write. |
-| An issue is filed without its label | The label doesn't exist in the repo. Create it. |
+| An issue is filed without its type label | The type label (`bug` / `enhancement`) doesn't exist in the repo. Create it. |
+| An issue is filed without its `complexity:<band>` label and the log shows `could not create complexity label … stage=label` | GitHub refused to create that label. Add it to the filed issue by hand rather than re-running, which files a second issue; the next filing with that band tries again. A 401 is a stale token, which the bot drops, so the next filing gets a fresh one. A 403 or 404 means the token can't create labels in that repo: check that the App has Issues: write there (that this covers labels is proven only by this run). With `stage=token` or `status=None` instead, the token request or the network failed. |

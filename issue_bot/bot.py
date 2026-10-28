@@ -120,7 +120,12 @@ def filing_hook(github: GitHubClient) -> CandidateHook:
             thread_id,
             issue.html_url,
         )
-        await _post_outcome(message, thread, filed_reply(issue, candidate.title), "issue link")
+        await _post_outcome(
+            message,
+            thread,
+            filed_reply(issue, candidate.title, candidate.complexity),
+            "issue link",
+        )
 
     return file_and_report
 

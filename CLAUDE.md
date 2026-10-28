@@ -19,7 +19,7 @@ Each fact has one home. Link to it from elsewhere; never copy it.
 
 ## Stack
 
-Python 3 with discord.py (Gateway connection) and aiohttp for the GitHub REST/GraphQL APIs, with PyJWT for GitHub App auth, packaged as a Docker container. Clarifying questions are per-route, per-type question sets in the route file, and complexity ratings are planned as rule-based, with no LLM. Docker commands run with `dangerouslyDisableSandbox: true`.
+Python 3 with discord.py (Gateway connection) and aiohttp for the GitHub REST/GraphQL APIs, with PyJWT for GitHub App auth, packaged as a Docker container. Clarifying questions are per-route, per-type question sets in the route file, and complexity ratings are rule-based (`issue_bot/complexity.py`, documented in `docs/COMPLEXITY.md`), with no LLM. Docker commands run with `dangerouslyDisableSandbox: true`.
 
 ## Commands
 

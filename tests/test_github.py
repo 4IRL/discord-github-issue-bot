@@ -9,10 +9,18 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from issue_bot.config import Config, TargetConfig
-from issue_bot.github import FiledIssue, GitHubClient, GitHubError, Transport, app_jwt
+from issue_bot.github import (
+    LABEL_COLOR,
+    FiledIssue,
+    GitHubClient,
+    GitHubError,
+    Transport,
+    app_jwt,
+)
 
 TOKEN_URL = "https://api.github.com/app/installations/444/access_tokens"
 ISSUE_URL = "https://api.github.com/repos/example-org/example-repo/issues"
+LABEL_URL = "https://api.github.com/repos/example-org/example-repo/labels"
 HTML_URL = "https://github.com/example-org/example-repo/issues/7"
 EXPIRES_AT = "2026-10-18T13:00:00Z"
 EXPIRES_AT_EPOCH = datetime.fromisoformat(EXPIRES_AT).timestamp()
@@ -372,3 +380,128 @@ async def test_check_access_transport_error_raises_status_none(
         await client.check_access(route)
 
     assert (exc_info.value.stage, exc_info.value.status) == ("token", None)
+
+
+async def test_ensure_label_creates_label(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), (201, {"name": "complexity:M"})])
+    client = make_client(github_private_key, transport)
+
+    await client.ensure_label(route, "complexity:M")
+
+    assert transport.await_count == 2
+    method, url, headers, payload = transport.call_args_list[1].args
+    assert (method, url) == ("POST", LABEL_URL)
+    assert payload == {"name": "complexity:M", "color": LABEL_COLOR}
+    assert headers["Authorization"] == "Bearer ghs_secret_token"
+
+
+async def test_ensure_label_422_is_success(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), (422, {"message": "already_exists"})])
+    client = make_client(github_private_key, transport)
+
+    await client.ensure_label(route, "complexity:M")
+
+    assert transport.await_count == 2
+
+
+async def test_ensure_label_is_cached_per_name(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), (201, {}), (201, {})])
+    client = make_client(github_private_key, transport, clock=lambda: EXPIRES_AT_EPOCH - 301)
+
+    await client.ensure_label(route, "complexity:M")
+    await client.ensure_label(route, "complexity:M")
+    assert transport.await_count == 2
+
+    await client.ensure_label(route, "complexity:L")
+    assert transport.await_count == 3
+    assert transport.call_args_list[2].args[1] == LABEL_URL
+    assert transport.call_args_list[2].args[3]["name"] == "complexity:L"
+
+
+async def test_ensure_label_is_cached_per_repo(
+    github_private_key: rsa.RSAPrivateKey, two_route_config: Config
+) -> None:
+    first, second = two_route_config.routes.values()
+    transport = AsyncMock(
+        side_effect=[token_response(), (201, {}), token_response(), (201, {})]
+    )
+    client = make_client(github_private_key, transport)
+
+    await client.ensure_label(first, "complexity:S")
+    await client.ensure_label(second, "complexity:S")
+
+    assert transport.await_count == 4
+    assert [call.args[1] for call in transport.call_args_list] == [
+        TOKEN_URL,
+        LABEL_URL,
+        TOKEN_URL,
+        "https://api.github.com/repos/example-org/other-repo/labels",
+    ]
+
+
+async def test_ensure_label_401_drops_cached_token(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[token_response(), (401, None), token_response(), (201, {})]
+    )
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.ensure_label(route, "complexity:M")
+    assert (exc_info.value.stage, exc_info.value.status) == ("label", 401)
+    await client.ensure_label(route, "complexity:M")
+
+    assert [call.args[1] for call in transport.call_args_list] == [
+        TOKEN_URL,
+        LABEL_URL,
+        TOKEN_URL,
+        LABEL_URL,
+    ]
+
+
+async def test_ensure_label_500_raises_and_is_not_cached(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    error_body = {"message": "Secret error words"}
+    transport = AsyncMock(side_effect=[token_response(), (500, error_body), (201, {})])
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.ensure_label(route, "complexity:M")
+    exc = exc_info.value
+    assert (exc.stage, exc.status) == ("label", 500)
+    assert exc.__cause__ is None
+    assert exc.__suppress_context__ is True
+    assert "Secret error words" not in str(exc)
+
+    await client.ensure_label(route, "complexity:M")
+    assert [call.args[1] for call in transport.call_args_list] == [
+        TOKEN_URL,
+        LABEL_URL,
+        LABEL_URL,
+    ]
+
+
+async def test_ensure_label_transport_error_raises_status_none(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    error = aiohttp.ClientConnectionError("Secret error words")
+    transport = AsyncMock(side_effect=[token_response(), error, (201, {})])
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.ensure_label(route, "complexity:M")
+    exc = exc_info.value
+    assert (exc.stage, exc.status) == ("label", None)
+    assert exc.__context__ is None
+    assert "Secret error words" not in str(exc)
+
+    await client.ensure_label(route, "complexity:M")
+    assert transport.await_count == 3
