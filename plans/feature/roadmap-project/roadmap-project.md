@@ -304,7 +304,7 @@ Call the Project step from `filing_hook` after filing, and add the roadmap line 
 message.
 
 **To-do:**
-- [ ] Red:
+- [x] Red:
   - `tests/test_threads.py`: `filed_reply(issue, title, band, None)` is unchanged from today;
     `True` appends `"\n" + ROADMAP_ADDED_NOTE`; `False` appends `"\n" + ROADMAP_FAILED_NOTE`;
     `test_roadmap_notes_are_fixed_text` (dd-261029-018, as `test_filing_error_reply_is_fixed_text`
@@ -331,7 +331,7 @@ message.
     plain route posts the `None` form and never calls `add_to_project`; the roadmap step runs
     after the `filed …` log line (record order in `caplog`).
   Run `.venv/bin/pytest`; confirm the new tests fail.
-- [ ] Green:
+- [x] Green:
   - `issue_bot/threads.py`: add `ROADMAP_ADDED_NOTE = "Added to the roadmap."` and (one note,
     true whether the add or the field set failed)
     `ROADMAP_FAILED_NOTE = "Couldn't finish adding it to the roadmap; the owner can fix it by hand."`;
@@ -354,7 +354,7 @@ message.
     returned `SimpleNamespace`s (the exception and the success branch);
   - update every other `filed_reply(...)` call in the tests to pass `None` (find them with
     `grep -rn 'filed_reply(' tests`).
-- [ ] Run `.venv/bin/pytest` and confirm all tests pass.
+- [x] Run `.venv/bin/pytest` and confirm all tests pass. — 440 passed (2026-10-29)
 
 ### 5. Check each Project at startup
 Look each Project route's fields up once at startup and log the result, as the access check does.

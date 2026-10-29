@@ -18,19 +18,29 @@ THREAD_ALREADY_CREATED = 160004  # Discord error code: the message already has a
 # Fixed text: it carries no member text and no GitHub response text.
 FILING_ERROR_REPLY = "Sorry, I couldn't file this as a GitHub issue. Check the repo before reporting it again; to retry, run the command again."
 FILED_REPLY = "Filed as GitHub issue #{number} (complexity {band}): {title}\n{url}"
+ROADMAP_ADDED_NOTE = "Added to the roadmap."
+# One note, true whether the add or the field set failed.
+ROADMAP_FAILED_NOTE = "Couldn't finish adding it to the roadmap; the owner can fix it by hand."
 
 
-def filed_reply(issue: FiledIssue, title: str, complexity: Complexity) -> str:
+def filed_reply(
+    issue: FiledIssue, title: str, complexity: Complexity, roadmap: bool | None
+) -> str:
     """Return the issue-link reply with the filed band (fixed text, not escaped).
 
-    The title is member text: escaped here, sent with no mentions, never logged.
+    ``roadmap`` is the roadmap step's outcome: ``True`` appends ``ROADMAP_ADDED_NOTE``,
+    ``False`` appends ``ROADMAP_FAILED_NOTE``, and ``None`` (a route with no Project) adds
+    no line. The title is member text: escaped here, sent with no mentions, never logged.
     """
-    return FILED_REPLY.format(
+    reply = FILED_REPLY.format(
         number=issue.number,
         band=complexity,
         title=discord.utils.escape_markdown(title),
         url=issue.html_url,
     )
+    if roadmap is None:
+        return reply
+    return f"{reply}\n{ROADMAP_ADDED_NOTE if roadmap else ROADMAP_FAILED_NOTE}"
 
 
 def thread_name(title: str) -> str:

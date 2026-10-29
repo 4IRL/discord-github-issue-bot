@@ -225,7 +225,9 @@ async def test_filing_hook_files_issue_posts_link_and_logs_url(
     assert target == route
     assert labels == ["bug", "complexity:S"]
     message.create_thread.return_value.send.assert_awaited_once_with(
-        filed_reply(FiledIssue(7, ISSUE_URL, "I_node7"), "Secret title words", Complexity.S),
+        filed_reply(
+            FiledIssue(7, ISSUE_URL, "I_node7"), "Secret title words", Complexity.S, None
+        ),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )
@@ -256,7 +258,9 @@ async def test_filing_hook_files_without_complexity_label_when_label_fails(
     _target, _title, _body, labels = github.create_issue.await_args.args
     assert labels == ["bug"]
     message.create_thread.return_value.send.assert_awaited_once_with(
-        filed_reply(FiledIssue(7, ISSUE_URL, "I_node7"), "Secret title words", Complexity.S),
+        filed_reply(
+            FiledIssue(7, ISSUE_URL, "I_node7"), "Secret title words", Complexity.S, None
+        ),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )
@@ -270,6 +274,89 @@ async def test_filing_hook_files_without_complexity_label_when_label_fails(
     assert "status=403" in warnings[0]
     assert not [record for record in bot_records(caplog) if record.levelno == logging.ERROR]
     assert_no_member_text(caplog)
+
+
+def project_candidate(
+    make_candidate: CandidateFactory, project_route: TargetConfig
+) -> IssueCandidate:
+    return make_candidate(
+        title="Secret title words",
+        answers=(("What happened?", "Secret body words"),),
+        author_name="Alice",
+        complexity=Complexity.M,
+        target=project_route,
+    )
+
+
+async def test_filing_hook_project_route_adds_to_roadmap_after_filed_log(
+    project_route: TargetConfig,
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    issue = FiledIssue(7, ISSUE_URL, "I_node7")
+    github = fake_github(issue)
+    message = make_message()
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github)(message, project_candidate(make_candidate, project_route))
+    github.add_to_project.assert_awaited_once_with(project_route, issue, Complexity.M)
+    message.create_thread.return_value.send.assert_awaited_once_with(
+        filed_reply(issue, "Secret title words", Complexity.M, True),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
+    messages = [record.getMessage() for record in caplog.records]
+    filed_index = next(index for index, text in enumerate(messages) if "filed bug" in text)
+    added_index = next(
+        index for index, text in enumerate(messages) if "to the roadmap" in text
+    )
+    assert filed_index < added_index
+    assert_no_member_text(caplog)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [GitHubError("project-field", 200), RuntimeError("Secret exception words")],
+    ids=["github-error", "other-error"],
+)
+async def test_filing_hook_roadmap_failure_posts_failed_note(
+    error: Exception,
+    project_route: TargetConfig,
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    issue = FiledIssue(7, ISSUE_URL, "I_node7")
+    github = fake_github(issue)
+    github.add_to_project.side_effect = error
+    message = make_message()
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github)(message, project_candidate(make_candidate, project_route))
+    message.create_thread.return_value.send.assert_awaited_once_with(
+        filed_reply(issue, "Secret title words", Complexity.M, False),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
+    assert any("filed bug" in record.getMessage() for record in bot_records(caplog))
+    assert not [record for record in bot_records(caplog) if record.levelno == logging.ERROR]
+    assert not [text for text in record_texts(caplog) if "Secret exception words" in text]
+    assert_no_member_text(caplog)
+
+
+async def test_filing_hook_plain_route_skips_roadmap(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+) -> None:
+    issue = FiledIssue(7, ISSUE_URL, "I_node7")
+    github = fake_github(issue)
+    message = make_message()
+    await filing_hook(github)(message, secret_candidate(make_candidate))
+    github.add_to_project.assert_not_awaited()
+    message.create_thread.return_value.send.assert_awaited_once_with(
+        filed_reply(issue, "Secret title words", Complexity.S, None),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
 
 
 async def test_filing_hook_failure_replies_and_logs_status(
@@ -321,7 +408,9 @@ async def test_filing_hook_without_thread_replies_link_on_summary(
         for record in bot_records(caplog)
     )
     message.reply.assert_awaited_once_with(
-        filed_reply(FiledIssue(7, ISSUE_URL, "I_node7"), "Secret title words", Complexity.S),
+        filed_reply(
+            FiledIssue(7, ISSUE_URL, "I_node7"), "Secret title words", Complexity.S, None
+        ),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )

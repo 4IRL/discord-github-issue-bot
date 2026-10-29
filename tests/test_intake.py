@@ -592,7 +592,7 @@ async def test_file_files_issue_through_filing_hook(
         "Reported by `Alice` in Discord: https://discord.com/channels/111/555/99"
     )
     summary.create_thread.return_value.send.assert_awaited_once_with(
-        filed_reply(FiledIssue(7, ISSUE_URL, "I_node7"), "Fix it", Complexity.S),
+        filed_reply(FiledIssue(7, ISSUE_URL, "I_node7"), "Fix it", Complexity.S, None),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )

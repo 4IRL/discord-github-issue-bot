@@ -98,10 +98,12 @@ def fake_github(result: FiledIssue | Exception) -> SimpleNamespace:
         return SimpleNamespace(
             create_issue=AsyncMock(side_effect=result),
             ensure_label=AsyncMock(return_value=None),
+            add_to_project=AsyncMock(return_value=None),
         )
     return SimpleNamespace(
         create_issue=AsyncMock(return_value=result),
         ensure_label=AsyncMock(return_value=None),
+        add_to_project=AsyncMock(return_value=None),
     )
 
 

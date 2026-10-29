@@ -18,7 +18,7 @@ from issue_bot.intake import (
     intake_command,
 )
 from issue_bot.issue_type import IssueType
-from issue_bot.issues import file_candidate
+from issue_bot.issues import file_candidate, place_on_roadmap
 from issue_bot.threads import FILING_ERROR_REPLY, filed_reply, open_thread, thread_name
 
 logger = logging.getLogger(__name__)
@@ -90,8 +90,10 @@ def filing_hook(github: GitHubClient) -> CandidateHook:
 
     The issue is filed even when the thread could not be opened. On success it posts
     ``filed_reply`` and on a ``GitHubError`` the fixed ``FILING_ERROR_REPLY``, in the thread
-    or, with no thread, as a reply to the summary message. It never logs member text
-    or GitHub response text: only the type, ids, URLs, error type, stage and status.
+    or, with no thread, as a reply to the summary message. A route with a Project also gets
+    the roadmap step after filing (``place_on_roadmap``); its failure is a WARNING and a note
+    in the link message, never a filing error. It never logs member text or GitHub response
+    text: only the type, ids, URLs, error type, stage and status.
     """
 
     async def file_and_report(message: discord.Message, candidate: IssueCandidate) -> None:
@@ -120,10 +122,11 @@ def filing_hook(github: GitHubClient) -> CandidateHook:
             thread_id,
             issue.html_url,
         )
+        roadmap = await place_on_roadmap(github, candidate, issue)
         await _post_outcome(
             message,
             thread,
-            filed_reply(issue, candidate.title, candidate.complexity),
+            filed_reply(issue, candidate.title, candidate.complexity, roadmap),
             "issue link",
         )
 
