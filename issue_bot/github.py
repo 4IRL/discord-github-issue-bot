@@ -7,7 +7,7 @@ by type, stage and status.
 
 import time
 from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from types import MappingProxyType
 from typing import Any
@@ -47,6 +47,11 @@ SET_FIELDS_MUTATION = (
     " effort: updateProjectV2ItemFieldValue(input: {projectId: $project, itemId: $item,"
     " fieldId: $effortField, value: {singleSelectOptionId: $effort}}) { projectV2Item { id } } }"
 )
+SET_TRACK_MUTATION = (
+    "mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {"
+    " track: updateProjectV2ItemFieldValue(input: {projectId: $project, itemId: $item,"
+    " fieldId: $field, value: {singleSelectOptionId: $option}}) { projectV2Item { id } } }"
+)
 
 Transport = Callable[[str, str, Mapping[str, str], object], Awaitable[tuple[int, Any]]]
 
@@ -77,25 +82,35 @@ class FiledIssue:
 
 @dataclass(frozen=True)
 class ProjectFields:
-    """A route's Project ids, looked up by name: the item's Status option and Effort options."""
+    """A route's Project ids, looked up by name: the item's Status option and Effort options.
+
+    ``track_field_id`` and ``track_option_ids`` hold the optional Track single-select (option
+    name -> id, in Project order); both are empty when the route sets no ``track_field`` or the
+    Project has no usable field by that name.
+    """
 
     project_id: str
     status_field_id: str
     status_option_id: str
     effort_field_id: str
     effort_option_ids: Mapping[str, str]  # complexity band name -> option id
+    track_field_id: str | None = None
+    track_option_ids: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(
             self, "effort_option_ids", MappingProxyType(dict(self.effort_option_ids))
+        )
+        object.__setattr__(
+            self, "track_option_ids", MappingProxyType(dict(self.track_option_ids))
         )
 
 
 class GitHubError(Exception):
     """A GitHub request failed; carries the stage and HTTP status only, never response text.
 
-    ``stage`` is ``"token"``, ``"label"``, ``"issue"``, ``"project"``, ``"project-item"`` or
-    ``"project-field"``; ``status`` is None for a transport failure.
+    ``stage`` is ``"token"``, ``"label"``, ``"issue"``, ``"project"``, ``"project-item"``,
+    ``"project-field"`` or ``"project-track"``; ``status`` is None for a transport failure.
     """
 
     def __init__(self, stage: str, status: int | None) -> None:
@@ -162,12 +177,21 @@ def _parse_project_fields(data: dict[str, Any], project: ProjectConfig) -> Proje
     effort_field_id, options = effort
     if not all(str(band) in options for band in Complexity):
         return None
+    track_field_id: str | None = None
+    track_option_ids: dict[str, str] = {}
+    if project.track_field is not None:
+        # Never a mismatch: a missing and a malformed Track field both mean no Track row (DD-3).
+        track = _single_select_options(nodes, project.track_field)
+        if track is not None:
+            track_field_id, track_option_ids = track
     return ProjectFields(
         project_id=project_id,
         status_field_id=status[0],
         status_option_id=status[1][project.status],
         effort_field_id=effort_field_id,
         effort_option_ids={str(band): options[str(band)] for band in Complexity},
+        track_field_id=track_field_id,
+        track_option_ids=track_option_ids,
     )
 
 
@@ -372,7 +396,8 @@ class GitHubClient:
         """Add the issue to the route's Project, set its Status and Effort and return the item id.
 
         The returned id is the ``addProjectV2ItemById`` Project item id, so a caller can set
-        more fields on that item. Raise GitHubError when any part of this fails.
+        more fields on that item (``set_track``). Raise GitHubError when any part of this fails;
+        a ``project-item`` or ``project-field`` failure drops the cached Project ids.
         """
         fields = await self.project_fields(target)
         try:
@@ -409,8 +434,54 @@ class GitHubClient:
             return item_id
         except GitHubError as exc:
             if exc.stage in ("project-item", "project-field"):
-                # Ids changed on GitHub (e.g. a deleted and re-created option) are looked up
-                # again on the next filing. Never a keyed del: a concurrent filing may have
-                # dropped them already.
-                self._projects.pop(self._project_key(target), None)
+                self._drop_project(target)
+            raise
+
+    def _drop_project(self, target: TargetConfig) -> None:
+        """Forget the route's cached Project ids after a failed Project write.
+
+        Ids changed on GitHub (e.g. a deleted and re-created option) are looked up again on
+        the next filing. Never a keyed del: a concurrent filing may have dropped them already.
+        """
+        self._projects.pop(self._project_key(target), None)
+
+    async def track_options(self, target: TargetConfig) -> tuple[str, ...]:
+        """Return the route's Track option names in Project order, from the cached Project ids.
+
+        Return ``()`` for a route with no Project or no Track field; raise GitHubError when the
+        Project lookup fails.
+        """
+        if target.project is None or target.project.track_field is None:
+            return ()
+        fields = await self.project_fields(target)
+        return tuple(fields.track_option_ids)
+
+    async def set_track(self, target: TargetConfig, item_id: str, track: str) -> None:
+        """Set the Project item's Track to the option named ``track``.
+
+        Raise ``GitHubError("project-track", ...)`` when the Project has no such Track option
+        (before any request) or the write fails; either drops the cached Project ids.
+        """
+        fields = await self.project_fields(target)
+        try:
+            option_id = fields.track_option_ids.get(track)
+            if fields.track_field_id is None or option_id is None:
+                raise GitHubError("project-track", 200) from None
+            updated = await self._graphql(
+                "project-track",
+                target,
+                SET_TRACK_MUTATION,
+                {
+                    "project": fields.project_id,
+                    "item": item_id,
+                    "field": fields.track_field_id,
+                    "option": option_id,
+                },
+            )
+            result = updated.get("track")
+            if not isinstance(result, dict) or not isinstance(result.get("projectV2Item"), dict):
+                raise GitHubError("project-track", 200) from None
+        except GitHubError as exc:
+            if exc.stage == "project-track":
+                self._drop_project(target)
             raise

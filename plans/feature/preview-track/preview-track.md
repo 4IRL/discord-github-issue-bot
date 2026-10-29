@@ -104,11 +104,11 @@ Track write follows F6's failed-Project-write policy.
   its Track keys in step 6). Run `.venv/bin/pytest tests/test_config.py` green, then the full
   `.venv/bin/pytest`.
 
-### 2. GitHub client: read Track options and set Track
+### 2. GitHub client: read Track options and set Track - COMPLETE (2026-10-29)
 `ProjectFields` carries the optional Track field; `GitHubClient` gains `track_options` and `set_track`.
 
 **To-do:**
-- [ ] Red in `tests/test_github.py`: add a `track_field(options: list[str] | None = None) -> dict`
+- [x] Red (2026-10-29) in `tests/test_github.py`: add a `track_field(options: list[str] | None = None) -> dict`
   helper beside `status_field`/`effort_field` (line ~646), default options `["A · Bugs",
   "B · Form & feedback"]` with ids `O_t0`, `O_t1`, field id `F_track`. Tests: (a) a project route
   whose `ProjectConfig` has `track_field="Track"` and a `project_response()` including `track_field()`
@@ -135,7 +135,7 @@ Track write follows F6's failed-Project-write policy.
   (line 636) only if equality checks need the new defaulted fields. Import `SET_TRACK_MUTATION` into
   the existing `from issue_bot.github import (...)` list, after `PROJECT_FIELDS_QUERY`. Run the file
   and confirm the new tests fail.
-- [ ] Green in `issue_bot/github.py`: add `track_field_id: str | None = None` and
+- [x] Green (2026-10-29) in `issue_bot/github.py`: add `track_field_id: str | None = None` and
   `track_option_ids: Mapping[str, str] = field(default_factory=dict)` (option name → id, Project
   order; import `field` alongside `dataclass` from `dataclasses`) to `ProjectFields`, frozen with
   `MappingProxyType` in `__post_init__` like `effort_option_ids`; update its docstring. In
@@ -155,7 +155,7 @@ Track write follows F6's failed-Project-write policy.
   a private `_drop_project(target)` and call it on a `project-item`, `project-field` or
   `project-track` failure. Add `"project-track"` to `GitHubError`'s documented stage list and update
   `add_to_project`'s docstring as needed.
-- [ ] Run `.venv/bin/pytest tests/test_github.py` green, then the full `.venv/bin/pytest`.
+- [x] (2026-10-29, test_github 96 passed, full suite 478 passed) Run `.venv/bin/pytest tests/test_github.py` green, then the full `.venv/bin/pytest`.
 
 ### 3. Carry the pick to filing
 `IssueCandidate` gains `track`; `place_on_roadmap` sets it on the new item.

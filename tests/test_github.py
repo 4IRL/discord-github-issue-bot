@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock
@@ -13,6 +14,7 @@ from issue_bot.config import Config, TargetConfig
 from issue_bot.github import (
     LABEL_COLOR,
     PROJECT_FIELDS_QUERY,
+    SET_TRACK_MUTATION,
     FiledIssue,
     GitHubClient,
     GitHubError,
@@ -662,6 +664,20 @@ def effort_field(options: list[str] | None = None) -> dict[str, Any]:
     }
 
 
+TRACK_OPTION_IDS = {"A · Bugs": "O_t0", "B · Form & feedback": "O_t1"}
+
+
+def track_field(options: list[str] | None = None) -> dict[str, Any]:
+    names = list(TRACK_OPTION_IDS) if options is None else options
+    return {
+        "id": "F_track",
+        "name": "Track",
+        "options": [
+            {"id": TRACK_OPTION_IDS.get(name, f"O_{name}"), "name": name} for name in names
+        ],
+    }
+
+
 def project_response(
     nodes: list[Any] | None = None,
 ) -> tuple[int, dict[str, Any]]:
@@ -1018,3 +1034,239 @@ async def test_successful_add_keeps_cached_project_ids(
     calls = transport.call_args_list
     assert len(calls) == 6
     assert calls[5].args[3]["variables"]["effort"] == "O_xl"
+
+
+
+@pytest.fixture
+def track_route(project_route: TargetConfig) -> TargetConfig:
+    """The project route with a Track field configured."""
+    assert project_route.project is not None
+    return replace(project_route, project=replace(project_route.project, track_field="Track"))
+
+
+def track_project_response(options: list[str] | None = None) -> tuple[int, dict[str, Any]]:
+    return project_response([status_field(), effort_field(), track_field(options)])
+
+
+def set_track_response() -> tuple[int, dict[str, Any]]:
+    return 200, {"data": {"track": {"projectV2Item": {"id": "PVTI_1"}}}}
+
+
+async def test_project_fields_reads_track_options(
+    github_private_key: rsa.RSAPrivateKey, track_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), track_project_response()])
+    client = make_client(github_private_key, transport)
+
+    fields = await client.project_fields(track_route)
+
+    assert fields == replace(
+        PROJECT_FIELDS, track_field_id="F_track", track_option_ids=TRACK_OPTION_IDS
+    )
+    with pytest.raises(TypeError):
+        fields.track_option_ids["A · Bugs"] = "O_other"  # type: ignore[index]
+
+
+async def test_project_fields_keeps_track_options_in_project_order(
+    github_private_key: rsa.RSAPrivateKey, track_route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[
+            token_response(),
+            track_project_response(["B · Form & feedback", "A · Bugs"]),
+        ]
+    )
+    client = make_client(github_private_key, transport)
+
+    fields = await client.project_fields(track_route)
+
+    assert tuple(fields.track_option_ids) == ("B · Form & feedback", "A · Bugs")
+
+
+@pytest.mark.parametrize(
+    "track_node",
+    [None, {"id": "F_track", "name": "Track", "options": None}],
+    ids=["no-track-field", "malformed-track-field"],
+)
+async def test_project_fields_missing_track_field_is_no_track(
+    github_private_key: rsa.RSAPrivateKey,
+    track_route: TargetConfig,
+    track_node: dict[str, Any] | None,
+) -> None:
+    nodes: list[Any] = [status_field(), effort_field()]
+    if track_node is not None:
+        nodes.append(track_node)
+    transport = AsyncMock(side_effect=[token_response(), project_response(nodes)])
+    client = make_client(github_private_key, transport)
+
+    fields = await client.project_fields(track_route)
+    again = await client.project_fields(track_route)
+
+    assert fields.track_field_id is None
+    assert fields.track_option_ids == {}
+    assert again is fields
+    assert transport.await_count == 2
+
+
+async def test_project_fields_without_track_field_config_ignores_track_node(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), track_project_response()])
+    client = make_client(github_private_key, transport)
+
+    fields = await client.project_fields(project_route)
+
+    assert fields == PROJECT_FIELDS
+    assert fields.track_field_id is None
+    assert fields.track_option_ids == {}
+
+
+async def test_track_options_returns_names_and_reuses_cache(
+    github_private_key: rsa.RSAPrivateKey, track_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), track_project_response()])
+    client = make_client(github_private_key, transport)
+
+    assert await client.track_options(track_route) == ("A · Bugs", "B · Form & feedback")
+    assert await client.track_options(track_route) == ("A · Bugs", "B · Form & feedback")
+    assert transport.await_count == 2
+
+
+async def test_track_options_keeps_project_order(
+    github_private_key: rsa.RSAPrivateKey, track_route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[
+            token_response(),
+            track_project_response(["B · Form & feedback", "A · Bugs"]),
+        ]
+    )
+    client = make_client(github_private_key, transport)
+
+    assert await client.track_options(track_route) == ("B · Form & feedback", "A · Bugs")
+
+
+async def test_track_options_empty_without_track_field(
+    github_private_key: rsa.RSAPrivateKey, track_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), project_response()])
+    client = make_client(github_private_key, transport)
+
+    assert await client.track_options(track_route) == ()
+
+
+async def test_track_options_empty_for_route_without_project(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock()
+    client = make_client(github_private_key, transport)
+    client.project_fields = AsyncMock()  # type: ignore[method-assign]
+
+    assert await client.track_options(route) == ()
+    client.project_fields.assert_not_awaited()
+    assert transport.await_count == 0
+
+
+async def test_set_track_sets_the_option(
+    github_private_key: rsa.RSAPrivateKey, track_route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[token_response(), track_project_response(), set_track_response()]
+    )
+    client = make_client(github_private_key, transport)
+
+    assert await client.set_track(track_route, "PVTI_1", "B · Form & feedback") is None
+
+    assert transport.await_count == 3
+    method, url, headers, payload = transport.call_args_list[2].args
+    assert (method, url) == ("POST", GRAPHQL_URL)
+    assert headers["Authorization"] == "Bearer ghs_secret_token"
+    assert payload == {
+        "query": SET_TRACK_MUTATION,
+        "variables": {
+            "project": "PVT_1",
+            "item": "PVTI_1",
+            "field": "F_track",
+            "option": "O_t1",
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("lookup", "track"),
+    [
+        (track_project_response(), "Z · Unknown"),
+        (project_response(), "A · Bugs"),
+    ],
+    ids=["unknown-option", "no-track-field"],
+)
+async def test_set_track_without_option_raises_before_request(
+    github_private_key: rsa.RSAPrivateKey,
+    track_route: TargetConfig,
+    lookup: tuple[int, dict[str, Any]],
+    track: str,
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), lookup, track_project_response()])
+    client = make_client(github_private_key, transport)
+    await client.track_options(track_route)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.set_track(track_route, "PVTI_1", track)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status) == ("project-track", 200)
+    assert exc.__cause__ is None
+    assert transport.await_count == 2
+    assert all(
+        call.args[3].get("query") != SET_TRACK_MUTATION for call in transport.call_args_list
+    )
+    # The cached ids were dropped: the next lookup requests again.
+    await client.track_options(track_route)
+    assert transport.await_count == 3
+    assert transport.call_args_list[2].args[3]["query"] == PROJECT_FIELDS_QUERY
+
+
+@pytest.mark.parametrize(
+    ("response", "status"),
+    [
+        (ERRORS_RESPONSE, 200),
+        ((200, {"data": {"track": None}}), 200),
+        ((200, {"data": {"track": {"projectV2Item": None}}}), 200),
+        ((200, {"data": {}}), 200),
+        (aiohttp.ClientConnectionError("Secret detail"), None),
+    ],
+    ids=["errors", "null-track", "null-item", "no-alias", "transport"],
+)
+async def test_set_track_failure_raises_and_drops_cached_ids(
+    github_private_key: rsa.RSAPrivateKey,
+    track_route: TargetConfig,
+    response: Any,
+    status: int | None,
+) -> None:
+    transport = AsyncMock(
+        side_effect=[
+            token_response(),
+            track_project_response(),
+            response,
+            track_project_response(),
+            set_track_response(),
+        ]
+    )
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.set_track(track_route, "PVTI_1", "A · Bugs")
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status) == ("project-track", status)
+    assert exc.__cause__ is None
+    # The transport error's frames hold the bearer token, so it is never chained.
+    assert exc.__context__ is None
+    assert "Secret detail" not in str(exc)
+    assert "Secret detail" not in repr(exc)
+
+    await client.set_track(track_route, "PVTI_1", "A · Bugs")
+    calls = transport.call_args_list
+    assert len(calls) == 5
+    assert calls[3].args[3]["query"] == PROJECT_FIELDS_QUERY
+    assert calls[4].args[3]["query"] == SET_TRACK_MUTATION
