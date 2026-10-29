@@ -345,6 +345,36 @@ async def test_filing_hook_roadmap_failure_posts_failed_note(
     assert_no_member_text(caplog)
 
 
+async def test_filing_hook_track_failure_posts_failed_note(
+    project_route: TargetConfig,
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    issue = FiledIssue(7, ISSUE_URL, "I_node7")
+    github = fake_github(issue)
+    github.set_track.side_effect = GitHubError("project-track", 200)
+    message = make_message()
+    candidate = make_candidate(
+        title="Secret title words",
+        answers=(("What happened?", "Secret body words"),),
+        author_name="Alice",
+        complexity=Complexity.M,
+        track="A · Bugs",
+        target=project_route,
+    )
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github)(message, candidate)
+    github.set_track.assert_awaited_once_with(project_route, "PVTI_1", "A · Bugs")
+    message.create_thread.return_value.send.assert_awaited_once_with(
+        filed_reply(issue, "Secret title words", Complexity.M, False),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
+    assert not [record for record in bot_records(caplog) if record.levelno == logging.ERROR]
+    assert_no_member_text(caplog)
+
+
 async def test_filing_hook_plain_route_skips_roadmap(
     make_message: MessageFactory,
     make_candidate: CandidateFactory,

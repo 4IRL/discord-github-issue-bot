@@ -157,11 +157,11 @@ Track write follows F6's failed-Project-write policy.
   `add_to_project`'s docstring as needed.
 - [x] (2026-10-29, test_github 96 passed, full suite 478 passed) Run `.venv/bin/pytest tests/test_github.py` green, then the full `.venv/bin/pytest`.
 
-### 3. Carry the pick to filing
+### 3. Carry the pick to filing - COMPLETE (2026-10-29)
 `IssueCandidate` gains `track`; `place_on_roadmap` sets it on the new item.
 
 **To-do:**
-- [ ] Red: in `tests/test_handler.py` assert `candidate_from_submission(..., target)` (7 positional)
+- [x] Red (2026-10-29): in `tests/test_handler.py` assert `candidate_from_submission(..., target)` (7 positional)
   gives `track is None` and an 8th `track="A · Bugs"` argument sets it, and that `track` shows in
   `repr` (Project option names are not member text). In `tests/conftest.py`, give `make_candidate` a
   `track: str | None = None` keyword and both of `fake_github`'s returned namespaces (the exception
@@ -176,14 +176,14 @@ Track write follows F6's failed-Project-write policy.
   `set_track` fails (build the candidate with `make_candidate(..., complexity=Complexity.M,
   track="A · Bugs", target=project_route)`, since `project_candidate` sets no track) and the thread
   gets `filed_reply(issue, title, Complexity.M, False)`. Confirm they fail.
-- [ ] Green: in `issue_bot/handler.py` add trailing `track: str | None = None` to `IssueCandidate`
+- [x] Green (2026-10-29): in `issue_bot/handler.py` add trailing `track: str | None = None` to `IssueCandidate`
   (docstring: the Project Track option to set, not member text, so it stays in repr) and a trailing
   `track: str | None = None` parameter to `candidate_from_submission`. In `issue_bot/issues.py`,
   `place_on_roadmap` keeps the item id (`item_id = await github.add_to_project(...)`) and, when
   `candidate.track is not None`, awaits `github.set_track(candidate.target, item_id,
   candidate.track)` inside the same `try`, so a failure takes the existing False paths; update its
   docstring and the module docstring.
-- [ ] Run `.venv/bin/pytest tests/test_handler.py tests/test_issues.py tests/test_bot.py` green, then
+- [x] (2026-10-29, handler/issues/bot 99 passed, full suite 484 passed) Run `.venv/bin/pytest tests/test_handler.py tests/test_issues.py tests/test_bot.py` green, then
   the full `.venv/bin/pytest`.
 
 ### 4. Track row in the preview
