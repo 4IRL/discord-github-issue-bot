@@ -215,7 +215,7 @@ async def test_filing_hook_files_issue_posts_link_and_logs_url(
     make_candidate: CandidateFactory,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    github = fake_github(FiledIssue(7, ISSUE_URL))
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
     message = make_message()
     with caplog.at_level(logging.INFO):
         await filing_hook(github)(message, secret_candidate(make_candidate))
@@ -225,7 +225,7 @@ async def test_filing_hook_files_issue_posts_link_and_logs_url(
     assert target == route
     assert labels == ["bug", "complexity:S"]
     message.create_thread.return_value.send.assert_awaited_once_with(
-        filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words", Complexity.S),
+        filed_reply(FiledIssue(7, ISSUE_URL, "I_node7"), "Secret title words", Complexity.S),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )
@@ -247,7 +247,7 @@ async def test_filing_hook_files_without_complexity_label_when_label_fails(
     make_candidate: CandidateFactory,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    github = fake_github(FiledIssue(7, ISSUE_URL))
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
     github.ensure_label.side_effect = GitHubError("label", 403)
     message = make_message()
     with caplog.at_level(logging.INFO):
@@ -256,7 +256,7 @@ async def test_filing_hook_files_without_complexity_label_when_label_fails(
     _target, _title, _body, labels = github.create_issue.await_args.args
     assert labels == ["bug"]
     message.create_thread.return_value.send.assert_awaited_once_with(
-        filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words", Complexity.S),
+        filed_reply(FiledIssue(7, ISSUE_URL, "I_node7"), "Secret title words", Complexity.S),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )
@@ -308,7 +308,7 @@ async def test_filing_hook_without_thread_replies_link_on_summary(
     make_candidate: CandidateFactory,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    github = fake_github(FiledIssue(7, ISSUE_URL))
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
     message = make_message()
     message.create_thread.side_effect = forbidden(50013, "x")
     with caplog.at_level(logging.INFO):
@@ -321,7 +321,7 @@ async def test_filing_hook_without_thread_replies_link_on_summary(
         for record in bot_records(caplog)
     )
     message.reply.assert_awaited_once_with(
-        filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words", Complexity.S),
+        filed_reply(FiledIssue(7, ISSUE_URL, "I_node7"), "Secret title words", Complexity.S),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )
@@ -377,7 +377,7 @@ async def test_link_send_failure_logged_without_text(
     make_candidate: CandidateFactory,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    github = fake_github(FiledIssue(7, ISSUE_URL))
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
     message = make_message()
     message.create_thread.return_value.send.side_effect = forbidden(50001, "Secret error words")
     with caplog.at_level(logging.INFO):
@@ -411,7 +411,7 @@ async def test_summary_reply_failure_logged_without_text(
     make_candidate: CandidateFactory,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    github = fake_github(FiledIssue(7, ISSUE_URL))
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
     message = make_message()
     message.create_thread.side_effect = forbidden(50013, "x")
     message.reply.side_effect = forbidden(50001, "Secret error words")

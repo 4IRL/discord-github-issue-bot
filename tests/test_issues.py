@@ -137,7 +137,7 @@ def test_issue_labels_end_with_candidate_band(make_candidate: CandidateFactory) 
 
 async def test_file_candidate_passes_title_body_labels(make_candidate: CandidateFactory) -> None:
     candidate = make_candidate(title="T", answers=(("What happened?", "Steps here"),))
-    filed = FiledIssue(7, "u")
+    filed = FiledIssue(7, "u", "I_node7")
     github = SimpleNamespace(
         create_issue=AsyncMock(return_value=filed), ensure_label=AsyncMock()
     )
@@ -164,7 +164,7 @@ async def test_file_candidate_files_without_complexity_label_when_label_fails(
         answers=(("What happened?", "Secret body words"),),
         author_name="Alice",
     )
-    filed = FiledIssue(7, "u")
+    filed = FiledIssue(7, "u", "I_node7")
     github = SimpleNamespace(
         create_issue=AsyncMock(return_value=filed),
         ensure_label=AsyncMock(side_effect=GitHubError("label", 500)),

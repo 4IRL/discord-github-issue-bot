@@ -159,7 +159,7 @@ Add a frozen `ProjectConfig` and an optional `[routes.<name>.project]` table to 
 Capture the issue's node id, and give a Project route's token the Projects permission.
 
 **To-do:**
-- [ ] Red, `tests/conftest.py` (shared Project-route fixtures, used by Steps 2-5): add
+- [x] Red, `tests/conftest.py` (shared Project-route fixtures, used by Steps 2-5): add
   `import dataclasses`, `ProjectConfig` to the `issue_bot.config` import, a module constant
   `PROJECT = ProjectConfig(number=2, status_field="Status", status="Todo",
   effort_field="Effort")`, a `project_route(route: TargetConfig) -> TargetConfig` fixture
@@ -167,7 +167,7 @@ Capture the issue's node id, and give a Project route's token the Projects permi
   Project), and a `project_config(config: Config, project_route: TargetConfig) -> Config`
   fixture returning `dataclasses.replace(config, routes={project_route.channel_id:
   project_route})` (`Config.__post_init__` re-wraps the new routes dict read-only).
-- [ ] Red, `tests/test_github.py`: `issue_response()` gains `"node_id": "I_node7"`; `create_issue`
+- [x] Red, `tests/test_github.py`: `issue_response()` gains `"node_id": "I_node7"`; `create_issue`
   returns `FiledIssue(7, HTML_URL, "I_node7")`; add `(201, {"number": 7, "html_url": HTML_URL})`
   (no `node_id`) and `(201, {"number": 7, "html_url": HTML_URL, "node_id": 5})` to
   `test_bad_success_shape_raises`'s `response` parameters (it already asserts stage `issue`,
@@ -182,7 +182,7 @@ Capture the issue's node id, and give a Project route's token the Projects permi
   token_response(), (401, None), issue_response(), token_response(), issue_response()]` and call
   URLs (`call.args[1]`) `[TOKEN_URL, TOKEN_URL, ISSUE_URL, ISSUE_URL, TOKEN_URL, ISSUE_URL]`. Run `.venv/bin/pytest tests/test_github.py`; confirm the
   new tests fail.
-- [ ] Green, `issue_bot/github.py`:
+- [x] Green, `issue_bot/github.py`:
   - `FiledIssue` gains `node_id: str` (third field, docstring: the GraphQL id a Project item is
     added by);
   - `create_issue` also requires `isinstance(data.get("node_id"), str)` and returns
@@ -197,10 +197,10 @@ Capture the issue's node id, and give a Project route's token the Projects permi
     and both 401 pops to `self._tokens.pop(self._token_key(target), None)`;
   - update the class docstring's caching line ("Caches a repo-scoped token per repo and Project
     need").
-- [ ] Update every positional `FiledIssue(7, …)` construction in the tests to pass a node id
+- [x] Update every positional `FiledIssue(7, …)` construction in the tests to pass a node id
   (`tests/test_bot.py`, `tests/test_threads.py`, `tests/test_intake.py`, `tests/test_issues.py`,
   `tests/test_github.py`; find them with `grep -rn 'FiledIssue(' tests`), using `"I_node7"`.
-- [ ] Run `.venv/bin/pytest` and confirm all tests pass.
+- [x] Run `.venv/bin/pytest` and confirm all tests pass. — 397 passed (2026-10-29)
 
 ### 3. GraphQL: look up the Project and add the item
 Add the Project lookup and the add-and-set calls to `GitHubClient`, all through `_request`.

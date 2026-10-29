@@ -49,6 +49,7 @@ class FiledIssue:
 
     number: int
     html_url: str
+    node_id: str  # the GraphQL id a Project item is added by
 
 
 class GitHubError(Exception):
@@ -92,7 +93,7 @@ def _parse_token_response(data: Any) -> tuple[str, float] | None:
 class GitHubClient:
     """Creates issues, and the labels they need, as a GitHub App installation.
 
-    Caches a repo-scoped token per repo.
+    Caches a repo-scoped token per repo and Project need.
     """
 
     def __init__(
@@ -109,7 +110,7 @@ class GitHubClient:
         self._private_key = private_key
         self._transport = transport or aiohttp_transport
         self._clock = clock
-        self._tokens: dict[int, tuple[str, float]] = {}
+        self._tokens: dict[tuple[int, bool], tuple[str, float]] = {}
         self._labels: set[tuple[int, str]] = set()
 
     def __repr__(self) -> str:
@@ -135,32 +136,41 @@ class GitHubClient:
         # traceback frames hold the request headers, including the bearer token.
         raise GitHubError(stage, None) from None
 
-    async def _installation_token(self, repo_id: int) -> str:
-        cached = self._tokens.get(repo_id)
+    @staticmethod
+    def _token_key(target: TargetConfig) -> tuple[int, bool]:
+        return target.github_repo_id, target.project is not None
+
+    async def _installation_token(self, target: TargetConfig) -> str:
+        key = self._token_key(target)
+        cached = self._tokens.get(key)
         if cached is not None and self._clock() < cached[1] - TOKEN_REFRESH_MARGIN:
             return cached[0]
+        permissions = {"issues": "write"}
+        # Least privilege: only a route with a Project asks for the Projects permission.
+        if target.project is not None:
+            permissions["organization_projects"] = "write"
         status, data = await self._request(
             "token",
             f"{API_URL}/app/installations/{self._installation_id}/access_tokens",
             self._headers(app_jwt(self._app_id, self._private_key, self._clock())),
-            {"repository_ids": [repo_id], "permissions": {"issues": "write"}},
+            {"repository_ids": [target.github_repo_id], "permissions": permissions},
         )
         parsed = _parse_token_response(data) if status == 201 else None
         if parsed is None:
             raise GitHubError("token", status) from None
-        self._tokens[repo_id] = parsed
+        self._tokens[key] = parsed
         return parsed[0]
 
     async def check_access(self, target: TargetConfig) -> None:
         """Confirm a repo-scoped installation token can be had for the target; raise GitHubError otherwise."""
-        await self._installation_token(target.github_repo_id)
+        await self._installation_token(target)
 
     async def ensure_label(self, target: TargetConfig, name: str) -> None:
         """Create the label in the target repo unless it exists; raise GitHubError otherwise."""
         key = (target.github_repo_id, name)
         if key in self._labels:
             return
-        token = await self._installation_token(target.github_repo_id)
+        token = await self._installation_token(target)
         status, _data = await self._request(
             "label",
             f"{API_URL}/repos/{target.github_repo}/labels",
@@ -169,7 +179,7 @@ class GitHubClient:
         )
         if status == 401:
             # Never a keyed del: a concurrent filing may already have dropped it.
-            self._tokens.pop(target.github_repo_id, None)
+            self._tokens.pop(self._token_key(target), None)
             raise GitHubError("label", status) from None
         # Every 422 is taken as "already exists": GitHub also uses 422 for other
         # validation errors, unlikely with a fixed name and colour. Labels stay cached
@@ -182,7 +192,7 @@ class GitHubClient:
         self, target: TargetConfig, title: str, body: str, labels: list[str]
     ) -> FiledIssue:
         """Create an issue in the target repo; raise GitHubError on any failure."""
-        token = await self._installation_token(target.github_repo_id)
+        token = await self._installation_token(target)
         status, data = await self._request(
             "issue",
             f"{API_URL}/repos/{target.github_repo}/issues",
@@ -191,13 +201,14 @@ class GitHubClient:
         )
         if status == 401:
             # Never a keyed del: a concurrent filing may already have dropped it.
-            self._tokens.pop(target.github_repo_id, None)
+            self._tokens.pop(self._token_key(target), None)
             raise GitHubError("issue", status) from None
         if (
             status != 201
             or not isinstance(data, dict)
             or type(data.get("number")) is not int
             or not isinstance(data.get("html_url"), str)
+            or not isinstance(data.get("node_id"), str)
         ):
             raise GitHubError("issue", status) from None
-        return FiledIssue(data["number"], data["html_url"])
+        return FiledIssue(data["number"], data["html_url"], data["node_id"])

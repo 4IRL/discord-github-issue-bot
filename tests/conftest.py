@@ -1,3 +1,4 @@
+import dataclasses
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,13 +10,15 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from issue_bot.complexity import Complexity
-from issue_bot.config import Config, TargetConfig
+from issue_bot.config import Config, ProjectConfig, TargetConfig
 from issue_bot.github import FiledIssue
 from issue_bot.handler import IssueCandidate
 from issue_bot.issue_type import IssueType
 
 
 ISSUE_URL = "https://github.com/example-org/example-repo/issues/7"
+
+PROJECT = ProjectConfig(number=2, status_field="Status", status="Todo", effort_field="Effort")
 
 ONE_ROUTE_TOML = """\
 [routes.intake]
@@ -184,6 +187,18 @@ def two_route_config(test_env: dict[str, str], tmp_path: Path) -> Config:
 def route(config: Config) -> TargetConfig:
     """The test config's only route."""
     return next(iter(config.routes.values()))
+
+
+@pytest.fixture
+def project_route(route: TargetConfig) -> TargetConfig:
+    """The test route with a Project."""
+    return dataclasses.replace(route, project=PROJECT)
+
+
+@pytest.fixture
+def project_config(config: Config, project_route: TargetConfig) -> Config:
+    """The test config with its only route replaced by ``project_route``."""
+    return dataclasses.replace(config, routes={project_route.channel_id: project_route})
 
 
 MessageFactory = Callable[..., SimpleNamespace]

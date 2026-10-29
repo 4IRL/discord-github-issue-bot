@@ -39,7 +39,7 @@ def token_response(expires_at: str = EXPIRES_AT) -> tuple[int, dict[str, Any]]:
 
 
 def issue_response() -> tuple[int, dict[str, Any]]:
-    return 201, {"number": 7, "html_url": HTML_URL}
+    return 201, {"number": 7, "html_url": HTML_URL, "node_id": "I_node7"}
 
 
 async def create(client: GitHubClient, route: TargetConfig) -> FiledIssue:
@@ -54,7 +54,7 @@ async def test_create_issue_success(
 
     result = await client.create_issue(route, "Title", "Body", ["bug"])
 
-    assert result == FiledIssue(7, HTML_URL)
+    assert result == FiledIssue(7, HTML_URL, "I_node7")
     assert transport.await_count == 2
     token_call, issue_call = transport.call_args_list
     method, url, token_headers, payload = token_call.args
@@ -209,7 +209,7 @@ async def test_issue_request_401_drops_cached_token(
     with pytest.raises(GitHubError) as exc_info:
         await create(client, route)
     assert (exc_info.value.stage, exc_info.value.status) == ("issue", 401)
-    assert await create(client, route) == FiledIssue(7, HTML_URL)
+    assert await create(client, route) == FiledIssue(7, HTML_URL, "I_node7")
 
     assert [call.args[1] for call in transport.call_args_list] == [
         TOKEN_URL,
@@ -227,7 +227,7 @@ async def test_issue_request_404_keeps_cached_token(
 
     with pytest.raises(GitHubError):
         await create(client, route)
-    assert await create(client, route) == FiledIssue(7, HTML_URL)
+    assert await create(client, route) == FiledIssue(7, HTML_URL, "I_node7")
 
     assert [call.args[1] for call in transport.call_args_list] == [
         TOKEN_URL,
@@ -293,6 +293,8 @@ async def test_transport_error_raises_status_none(
         (201, None),
         (201, {"number": True, "html_url": "u"}),
         (201, {"number": 7}),
+        (201, {"number": 7, "html_url": HTML_URL}),
+        (201, {"number": 7, "html_url": HTML_URL, "node_id": 5}),
     ],
 )
 async def test_bad_success_shape_raises(
@@ -343,6 +345,92 @@ async def test_check_access_mints_a_token(
     method, url, _headers, payload = transport.call_args.args
     assert (method, url) == ("POST", TOKEN_URL)
     assert payload == {"repository_ids": [222], "permissions": {"issues": "write"}}
+
+
+PROJECT_TOKEN_PAYLOAD = {
+    "repository_ids": [222],
+    "permissions": {"issues": "write", "organization_projects": "write"},
+}
+
+
+async def test_check_access_project_route_asks_for_projects(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response()])
+    client = make_client(github_private_key, transport)
+
+    await client.check_access(project_route)
+
+    assert transport.await_count == 1
+    method, url, _headers, payload = transport.call_args.args
+    assert (method, url) == ("POST", TOKEN_URL)
+    assert payload == PROJECT_TOKEN_PAYLOAD
+
+
+async def test_create_issue_project_route_asks_for_projects(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), issue_response()])
+    client = make_client(github_private_key, transport)
+
+    assert await create(client, project_route) == FiledIssue(7, HTML_URL, "I_node7")
+
+    token_call, issue_call = transport.call_args_list
+    assert token_call.args[1] == TOKEN_URL
+    assert token_call.args[3] == PROJECT_TOKEN_PAYLOAD
+    assert issue_call.args[1] == ISSUE_URL
+
+
+async def test_plain_and_project_route_mint_separate_tokens(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), token_response()])
+    client = make_client(github_private_key, transport)
+
+    await client.check_access(route)
+    await client.check_access(project_route)
+    await client.check_access(route)
+    await client.check_access(project_route)
+
+    assert transport.await_count == 2
+    assert [call.args[3] for call in transport.call_args_list] == [
+        {"repository_ids": [222], "permissions": {"issues": "write"}},
+        PROJECT_TOKEN_PAYLOAD,
+    ]
+
+
+async def test_issue_401_on_project_route_drops_only_its_token(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[
+            token_response(),
+            token_response(),
+            (401, None),
+            issue_response(),
+            token_response(),
+            issue_response(),
+        ]
+    )
+    client = make_client(github_private_key, transport)
+
+    await client.check_access(route)
+    await client.check_access(project_route)
+    with pytest.raises(GitHubError) as exc_info:
+        await create(client, project_route)
+    assert (exc_info.value.stage, exc_info.value.status) == ("issue", 401)
+    await create(client, route)
+    await create(client, project_route)
+
+    assert [call.args[1] for call in transport.call_args_list] == [
+        TOKEN_URL,
+        TOKEN_URL,
+        ISSUE_URL,
+        ISSUE_URL,
+        TOKEN_URL,
+        ISSUE_URL,
+    ]
+    assert transport.call_args_list[4].args[3] == PROJECT_TOKEN_PAYLOAD
 
 
 async def test_check_access_reuses_cached_token(
@@ -464,6 +552,40 @@ async def test_ensure_label_401_drops_cached_token(
         TOKEN_URL,
         LABEL_URL,
     ]
+
+
+async def test_ensure_label_401_on_project_route_drops_only_its_token(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[
+            token_response(),
+            token_response(),
+            (401, None),
+            (201, {}),
+            token_response(),
+            (201, {}),
+        ]
+    )
+    client = make_client(github_private_key, transport)
+
+    await client.check_access(route)
+    await client.check_access(project_route)
+    with pytest.raises(GitHubError) as exc_info:
+        await client.ensure_label(project_route, "complexity:M")
+    assert (exc_info.value.stage, exc_info.value.status) == ("label", 401)
+    await client.ensure_label(route, "complexity:M")
+    await client.ensure_label(project_route, "complexity:L")
+
+    assert [call.args[1] for call in transport.call_args_list] == [
+        TOKEN_URL,
+        TOKEN_URL,
+        LABEL_URL,
+        LABEL_URL,
+        TOKEN_URL,
+        LABEL_URL,
+    ]
+    assert transport.call_args_list[4].args[3] == PROJECT_TOKEN_PAYLOAD
 
 
 async def test_ensure_label_500_raises_and_is_not_cached(

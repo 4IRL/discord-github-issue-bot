@@ -125,6 +125,6 @@ def test_filing_error_reply_is_fixed_text() -> None:
 
 
 def test_filed_reply_has_number_title_and_url() -> None:
-    assert filed_reply(FiledIssue(7, ISSUE_URL), "Fix *it*", Complexity.L) == (
+    assert filed_reply(FiledIssue(7, ISSUE_URL, "I_node7"), "Fix *it*", Complexity.L) == (
         f"Filed as GitHub issue #7 (complexity L): Fix \\*it\\*\n{ISSUE_URL}"
     )
