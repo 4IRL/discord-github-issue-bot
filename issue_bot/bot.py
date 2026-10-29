@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import discord
@@ -18,10 +19,12 @@ from issue_bot.intake import (
     intake_command,
 )
 from issue_bot.issue_type import IssueType
-from issue_bot.issues import file_candidate
+from issue_bot.issues import file_candidate, place_on_roadmap
 from issue_bot.threads import FILING_ERROR_REPLY, filed_reply, open_thread, thread_name
 
 logger = logging.getLogger(__name__)
+
+ProjectCheck = Callable[[TargetConfig], Awaitable[object]]
 
 
 def build_intents() -> discord.Intents:
@@ -90,8 +93,10 @@ def filing_hook(github: GitHubClient) -> CandidateHook:
 
     The issue is filed even when the thread could not be opened. On success it posts
     ``filed_reply`` and on a ``GitHubError`` the fixed ``FILING_ERROR_REPLY``, in the thread
-    or, with no thread, as a reply to the summary message. It never logs member text
-    or GitHub response text: only the type, ids, URLs, error type, stage and status.
+    or, with no thread, as a reply to the summary message. A route with a Project also gets
+    the roadmap step after filing (``place_on_roadmap``); its failure is a WARNING and a note
+    in the link message, never a filing error. It never logs member text or GitHub response
+    text: only the type, ids, URLs, error type, stage and status.
     """
 
     async def file_and_report(message: discord.Message, candidate: IssueCandidate) -> None:
@@ -120,10 +125,11 @@ def filing_hook(github: GitHubClient) -> CandidateHook:
             thread_id,
             issue.html_url,
         )
+        roadmap = await place_on_roadmap(github, candidate, issue)
         await _post_outcome(
             message,
             thread,
-            filed_reply(issue, candidate.title, candidate.complexity),
+            filed_reply(issue, candidate.title, candidate.complexity, roadmap),
             "issue link",
         )
 
@@ -160,8 +166,10 @@ class IssueBot(discord.Client):
     reporter presses **File** on the private preview, and that message and its candidate go to
     ``on_candidate`` (default: open its thread).
     ``filing_check``, when set, guards each command before its modal opens and runs once
-    at startup. Production wires ``filing_hook`` as ``on_candidate`` and
-    ``GitHubClient.check_access`` as ``filing_check`` in ``__main__``.
+    at startup. ``project_check``, when set, runs once at startup for each route with a
+    ``project``, after that route's access check. Production wires ``filing_hook`` as
+    ``on_candidate``, ``GitHubClient.check_access`` as ``filing_check`` and
+    ``GitHubClient.project_fields`` as ``project_check`` in ``__main__``.
     """
 
     def __init__(
@@ -169,11 +177,13 @@ class IssueBot(discord.Client):
         config: Config,
         on_candidate: CandidateHook = open_issue_thread,
         filing_check: FilingCheck | None = None,
+        project_check: ProjectCheck | None = None,
     ) -> None:
         super().__init__(intents=build_intents())
         self.config = config
         self.on_candidate = on_candidate
         self.filing_check = filing_check
+        self.project_check = project_check
         self._startup_checked: bool = False
         self.tree = IntakeTree(self)
         self._guild = discord.Object(id=config.guild_id)
@@ -191,9 +201,9 @@ class IssueBot(discord.Client):
             )
 
     async def setup_hook(self) -> None:
-        """Sync the intake commands to the configured guild, then check GitHub access.
+        """Sync the intake commands to the guild, then check GitHub access and each route's Project.
 
-        login() calls this once per process, unlike on_ready. A failed sync or access check
+        login() calls this once per process, unlike on_ready. A failed sync, access or Project check
         is logged and the bot still runs: commands from an earlier sync keep working, and
         the per-command check still guards members.
         """
@@ -245,6 +255,35 @@ class IssueBot(discord.Client):
                 )
                 continue
             logger.info("github access ok for repo_id=%s", repo_id)
+            await self._check_project(route)
+
+    async def _check_project(self, route: TargetConfig) -> None:
+        if self.project_check is None or route.project is None:
+            return
+        repo_id = route.github_repo_id
+        number = route.project.number
+        try:
+            await self.project_check(route)
+        except GitHubError as exc:
+            logger.error(
+                "github project check failed for repo_id=%s project=%s: %s stage=%s status=%s",
+                repo_id,
+                number,
+                type(exc).__name__,
+                exc.stage,
+                exc.status,
+            )
+            return
+        except Exception as exc:
+            # A parsing or JWT failure must not stop the bot or log a traceback.
+            logger.error(
+                "github project check failed for repo_id=%s project=%s: %s",
+                repo_id,
+                number,
+                type(exc).__name__,
+            )
+            return
+        logger.info("github project ok for repo_id=%s project=%s", repo_id, number)
 
     async def on_ready(self) -> None:
         """Check each route's intake channel once: on_ready fires again after each Gateway reconnect.

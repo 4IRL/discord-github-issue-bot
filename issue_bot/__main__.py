@@ -23,7 +23,10 @@ def main() -> None:
         config.github_app_id, config.github_installation_id, config.github_private_key
     )
     IssueBot(
-        config, on_candidate=filing_hook(github), filing_check=github.check_access
+        config,
+        on_candidate=filing_hook(github),
+        filing_check=github.check_access,
+        project_check=github.project_fields,
     ).run(config.discord_token, log_handler=None)
 
 

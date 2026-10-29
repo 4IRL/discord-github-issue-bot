@@ -1,7 +1,9 @@
 """Turns a candidate into the GitHub issue's title, body and labels; the only place an issue body is formatted.
 
-Its one log line, a skipped complexity label, carries the issue type, the message id and the
-``GitHubError``'s type, stage and status only, never member text or response text.
+Also places a filed issue on its route's roadmap Project. Its log lines (a skipped complexity
+label, a roadmap placement and a failed one) carry the issue type, the message id, the issue
+URL and an error's type (with a ``GitHubError``'s stage and status) only, never member text,
+response text or exception text.
 """
 
 import logging
@@ -84,3 +86,47 @@ async def file_candidate(github: GitHubClient, candidate: IssueCandidate) -> Fil
     return await github.create_issue(
         candidate.target, issue_title(candidate), issue_body(candidate), labels
     )
+
+
+async def place_on_roadmap(
+    github: GitHubClient, candidate: IssueCandidate, issue: FiledIssue
+) -> bool | None:
+    """Add the filed issue to its route's Project; return ``None`` for a route with no Project.
+
+    Returns ``True`` once the issue is on the roadmap with its Status and Effort set, and
+    ``False`` (after a WARNING) when any part of that failed. It never raises: the issue is
+    already filed, and its link message must still be posted.
+    """
+    if candidate.target.project is None:
+        return None
+    try:
+        await github.add_to_project(candidate.target, issue, candidate.complexity)
+    except GitHubError as exc:
+        logger.warning(
+            "could not add %s message_id=%s to the roadmap issue=%s: %s stage=%s status=%s",
+            candidate.type,
+            candidate.message_id,
+            issue.html_url,
+            type(exc).__name__,
+            exc.stage,
+            exc.status,
+        )
+        return False
+    except Exception as exc:
+        # The issue is already filed, so a parsing bug must not drop the link message.
+        # Log the type only, never exc_info or its text.
+        logger.warning(
+            "could not add %s message_id=%s to the roadmap issue=%s: %s",
+            candidate.type,
+            candidate.message_id,
+            issue.html_url,
+            type(exc).__name__,
+        )
+        return False
+    logger.info(
+        "added %s message_id=%s to the roadmap issue=%s",
+        candidate.type,
+        candidate.message_id,
+        issue.html_url,
+    )
+    return True

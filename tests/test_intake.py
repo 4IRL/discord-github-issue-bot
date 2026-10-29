@@ -389,7 +389,7 @@ async def test_second_route_file_files_to_its_repo_with_its_labels(
     make_interaction: InteractionFactory,
     make_message: MessageFactory,
 ) -> None:
-    github = fake_github(FiledIssue(7, ISSUE_URL))
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
     other = two_route_config.routes[556]
     view = await submitted_preview(other, filing_hook(github), make_interaction(channel_id=556))
     button_interaction = make_interaction(channel_id=556, summary=make_message(channel_id=556))
@@ -577,7 +577,7 @@ async def test_submit_normalizes_title_and_answers(
 async def test_file_files_issue_through_filing_hook(
     route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
-    github = fake_github(FiledIssue(7, ISSUE_URL))
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
     view = await submitted_preview(route, filing_hook(github), make_interaction())
     button_interaction = make_interaction()
     summary = button_interaction.channel.send.return_value
@@ -592,7 +592,7 @@ async def test_file_files_issue_through_filing_hook(
         "Reported by `Alice` in Discord: https://discord.com/channels/111/555/99"
     )
     summary.create_thread.return_value.send.assert_awaited_once_with(
-        filed_reply(FiledIssue(7, ISSUE_URL), "Fix it", Complexity.S),
+        filed_reply(FiledIssue(7, ISSUE_URL, "I_node7"), "Fix it", Complexity.S, None),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )
@@ -1031,7 +1031,7 @@ async def test_fresh_submit_draft_carries_suggested_band(
 async def test_long_bug_is_filed_with_raised_band(
     route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
-    github = fake_github(FiledIssue(7, ISSUE_URL))
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
     view = await submitted_preview(
         route, filing_hook(github), make_interaction(), answers=("x" * 900,)
     )
@@ -1132,7 +1132,7 @@ async def test_band_press_logs_no_member_text(
 async def test_band_press_then_file_files_chosen_label(
     route: TargetConfig, make_interaction: InteractionFactory
 ) -> None:
-    github = fake_github(FiledIssue(7, ISSUE_URL))
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
     view = await submitted_preview(route, filing_hook(github), make_interaction())
     await view.l_button.callback(make_interaction())
     await view.file_button.callback(make_interaction())

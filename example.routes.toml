@@ -58,3 +58,13 @@ required = true
 label = 'What does "done" look like?'
 style = "paragraph"
 required = false
+
+# Optional: the GitHub Project (roadmap) each filed issue is added to. Delete this table for a
+# route with no roadmap. The names must match the Project's own field and option names, and
+# the Effort field needs one option per complexity band: S, M, L and XL.
+[routes.c4i.project]
+# The number at the end of the Project's URL, github.com/orgs/<org>/projects/<number>.
+number = 2
+status_field = "Status"
+status = "Todo"
+effort_field = "Effort"

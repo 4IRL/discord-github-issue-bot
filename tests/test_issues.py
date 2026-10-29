@@ -16,9 +16,10 @@ from issue_bot.issues import (
     issue_body,
     issue_labels,
     issue_title,
+    place_on_roadmap,
     render_body,
 )
-from tests.conftest import CandidateFactory, assert_no_member_text
+from tests.conftest import ISSUE_URL, CandidateFactory, assert_no_member_text, record_texts
 
 
 def test_issue_title_is_message_title(make_candidate: CandidateFactory) -> None:
@@ -137,7 +138,7 @@ def test_issue_labels_end_with_candidate_band(make_candidate: CandidateFactory) 
 
 async def test_file_candidate_passes_title_body_labels(make_candidate: CandidateFactory) -> None:
     candidate = make_candidate(title="T", answers=(("What happened?", "Steps here"),))
-    filed = FiledIssue(7, "u")
+    filed = FiledIssue(7, "u", "I_node7")
     github = SimpleNamespace(
         create_issue=AsyncMock(return_value=filed), ensure_label=AsyncMock()
     )
@@ -164,7 +165,7 @@ async def test_file_candidate_files_without_complexity_label_when_label_fails(
         answers=(("What happened?", "Secret body words"),),
         author_name="Alice",
     )
-    filed = FiledIssue(7, "u")
+    filed = FiledIssue(7, "u", "I_node7")
     github = SimpleNamespace(
         create_issue=AsyncMock(return_value=filed),
         ensure_label=AsyncMock(side_effect=GitHubError("label", 500)),
@@ -189,3 +190,99 @@ async def test_file_candidate_files_without_complexity_label_when_label_fails(
     assert "stage=label" in warnings[0]
     assert "status=500" in warnings[0]
     assert_no_member_text(caplog)
+
+
+def issues_records(caplog: pytest.LogCaptureFixture, level: int) -> list[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "issue_bot.issues" and record.levelno == level
+    ]
+
+
+async def test_place_on_roadmap_skips_route_without_project(
+    make_candidate: CandidateFactory,
+) -> None:
+    github = SimpleNamespace(add_to_project=AsyncMock())
+    issue = FiledIssue(7, ISSUE_URL, "I_node7")
+
+    result = await place_on_roadmap(github, make_candidate(), issue)  # type: ignore[arg-type]
+
+    assert result is None
+    github.add_to_project.assert_not_awaited()
+
+
+async def test_place_on_roadmap_adds_issue_and_logs(
+    project_route: TargetConfig,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    candidate = make_candidate(
+        title="Secret title words",
+        answers=(("What happened?", "Secret body words"),),
+        complexity=Complexity.M,
+        target=project_route,
+    )
+    github = SimpleNamespace(add_to_project=AsyncMock(return_value="PVTI_1"))
+    issue = FiledIssue(7, ISSUE_URL, "I_node7")
+
+    with caplog.at_level(logging.INFO):
+        result = await place_on_roadmap(github, candidate, issue)  # type: ignore[arg-type]
+
+    assert result is True
+    github.add_to_project.assert_awaited_once_with(project_route, issue, Complexity.M)
+    assert issues_records(caplog, logging.INFO) == [
+        f"added bug message_id=99 to the roadmap issue={ISSUE_URL}"
+    ]
+    assert_no_member_text(caplog)
+
+
+async def test_place_on_roadmap_github_error_returns_false_and_warns(
+    project_route: TargetConfig,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    candidate = make_candidate(
+        title="Secret title words",
+        answers=(("What happened?", "Secret body words"),),
+        target=project_route,
+    )
+    github = SimpleNamespace(
+        add_to_project=AsyncMock(side_effect=GitHubError("project-item", 200))
+    )
+
+    with caplog.at_level(logging.INFO):
+        result = await place_on_roadmap(
+            github, candidate, FiledIssue(7, ISSUE_URL, "I_node7")  # type: ignore[arg-type]
+        )
+
+    assert result is False
+    assert issues_records(caplog, logging.WARNING) == [
+        f"could not add bug message_id=99 to the roadmap issue={ISSUE_URL}: "
+        "GitHubError stage=project-item status=200"
+    ]
+    assert not issues_records(caplog, logging.INFO)
+    assert_no_member_text(caplog)
+
+
+async def test_place_on_roadmap_other_error_returns_false_and_logs_type_only(
+    project_route: TargetConfig,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = SimpleNamespace(
+        add_to_project=AsyncMock(side_effect=RuntimeError("Secret exception words"))
+    )
+
+    with caplog.at_level(logging.INFO):
+        result = await place_on_roadmap(
+            github,  # type: ignore[arg-type]
+            make_candidate(target=project_route),
+            FiledIssue(7, ISSUE_URL, "I_node7"),
+        )
+
+    assert result is False
+    assert issues_records(caplog, logging.WARNING) == [
+        f"could not add bug message_id=99 to the roadmap issue={ISSUE_URL}: RuntimeError"
+    ]
+    assert not [text for text in record_texts(caplog) if "Secret exception words" in text]

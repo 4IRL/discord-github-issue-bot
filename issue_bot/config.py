@@ -2,7 +2,8 @@
 
 Instance-wide settings and secrets come from the environment, and the routes
 come from the TOML file at ``ROUTES_PATH``. Every key is required and nothing
-has a default in code.
+has a default in code, except a route's optional ``project`` table, whose keys
+are then all required.
 """
 
 from __future__ import annotations
@@ -26,8 +27,18 @@ ASCII_INTEGER_PATTERN = re.compile(r"-?[0-9]+")
 DOT_SEGMENTS = frozenset({".", ".."})
 ROUTE_NAME_PATTERN = re.compile(r"[a-z0-9][a-z0-9_-]*")
 OWNER_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
-ROUTE_KEYS = ("channel_id", "channel_name", "category", "repo", "repo_id", "labels", "questions")
+ROUTE_KEYS = (
+    "channel_id",
+    "channel_name",
+    "category",
+    "repo",
+    "repo_id",
+    "labels",
+    "questions",
+    "project",
+)
 QUESTION_KEYS = frozenset({"label", "style", "required"})
+PROJECT_KEYS = frozenset({"number", "status_field", "status", "effort_field"})
 MAX_QUESTIONS = 4  # Title plus four questions fills Discord's five-field modal.
 QUESTION_LABEL_LIMIT = 45  # Discord's maximum label length.
 
@@ -115,8 +126,20 @@ def _unrouted(env: Mapping[str, str], key: str) -> UnroutedCommands:
 
 
 @dataclass(frozen=True)
+class ProjectConfig:
+    """A route's GitHub Project: its number in the route repo's org, and the field and option
+    names the bot sets."""
+
+    number: int
+    status_field: str
+    status: str
+    effort_field: str
+
+
+@dataclass(frozen=True)
 class TargetConfig:
-    """One route: an intake channel and the GitHub repo its issues go to."""
+    """One route: an intake channel and the GitHub repo its issues go to, and, optionally, the
+    Project its issues are added to."""
 
     name: str
     channel_id: int
@@ -126,6 +149,7 @@ class TargetConfig:
     github_repo_id: int
     labels: Mapping[IssueType, str]
     questions: Mapping[IssueType, tuple[Question, ...]]
+    project: ProjectConfig | None
 
     def __post_init__(self) -> None:
         if not isinstance(self.labels, Mapping) or set(self.labels) != set(IssueType):
@@ -144,6 +168,8 @@ class TargetConfig:
         ):
             raise ConfigError("questions must have one entry per IssueType")
         object.__setattr__(self, "questions", MappingProxyType(dict(self.questions)))
+        if not (self.project is None or isinstance(self.project, ProjectConfig)):
+            raise ConfigError("project must be a ProjectConfig or None")
 
 
 def _route_value(route: Mapping[str, object], where: str, key: str) -> object:
@@ -228,6 +254,25 @@ def _route_questions(
     return route_questions
 
 
+def _route_project(route: Mapping[str, object], where: str) -> ProjectConfig | None:
+    # The one optional route key: a route may have no Project.
+    if "project" not in route:
+        return None
+    where_p = f"{where}.project"
+    table = route["project"]
+    if not isinstance(table, dict):
+        raise ConfigError(f"{where_p} must be a table")
+    unknown_keys = sorted(set(table) - PROJECT_KEYS)
+    if unknown_keys:
+        raise ConfigError(f"{where_p} has unknown key {unknown_keys[0]!r}")
+    return ProjectConfig(
+        number=_route_int(table, where_p, "number"),
+        status_field=_route_str(table, where_p, "status_field"),
+        status=_route_str(table, where_p, "status"),
+        effort_field=_route_str(table, where_p, "effort_field"),
+    )
+
+
 def _route(name: str, route: object, org: str) -> TargetConfig:
     where = f"routes.{name}"
     if not isinstance(route, dict):
@@ -259,6 +304,7 @@ def _route(name: str, route: object, org: str) -> TargetConfig:
         github_repo_id=github_repo_id,
         labels=labels,
         questions=questions,
+        project=_route_project(route, where),
     )
 
 
@@ -268,8 +314,10 @@ def load_routes(path: str, org: str) -> Mapping[int, TargetConfig]:
     Each table holds ``channel_id``, ``channel_name``, ``category``, ``repo``
     (``owner/name``, owned by ``org``), ``repo_id``, a ``labels`` table
     keyed ``bug``/``feature`` and ``questions`` arrays ``bug``/``feature``,
-    each of 1-4 ``label``/``style``/``required`` tables. Returns a read-only
-    mapping keyed by channel id, in file order. Errors name the key, never
+    each of 1-4 ``label``/``style``/``required`` tables. Every key is required
+    except the optional ``project`` table (``number``, ``status_field``,
+    ``status``, ``effort_field``), whose keys are then all required. Returns a
+    read-only mapping keyed by channel id, in file order. Errors name the key, never
     the value or file text.
     """
     try:

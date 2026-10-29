@@ -8,6 +8,8 @@ from issue_bot.complexity import Complexity
 from issue_bot.github import FiledIssue
 from issue_bot.threads import (
     FILING_ERROR_REPLY,
+    ROADMAP_ADDED_NOTE,
+    ROADMAP_FAILED_NOTE,
     THREAD_NAME_LIMIT,
     filed_reply,
     open_thread,
@@ -125,6 +127,24 @@ def test_filing_error_reply_is_fixed_text() -> None:
 
 
 def test_filed_reply_has_number_title_and_url() -> None:
-    assert filed_reply(FiledIssue(7, ISSUE_URL), "Fix *it*", Complexity.L) == (
+    issue = FiledIssue(7, ISSUE_URL, "I_node7")
+    assert filed_reply(issue, "Fix *it*", Complexity.L, None) == (
         f"Filed as GitHub issue #7 (complexity L): Fix \\*it\\*\n{ISSUE_URL}"
+    )
+
+
+def test_roadmap_notes_are_fixed_text() -> None:
+    assert ROADMAP_ADDED_NOTE == "Added to the roadmap."
+    assert ROADMAP_FAILED_NOTE == (
+        "Couldn't finish adding it to the roadmap; the owner can fix it by hand."
+    )
+
+
+@pytest.mark.parametrize(
+    ("roadmap", "note"), [(True, ROADMAP_ADDED_NOTE), (False, ROADMAP_FAILED_NOTE)]
+)
+def test_filed_reply_appends_roadmap_note(roadmap: bool, note: str) -> None:
+    issue = FiledIssue(7, ISSUE_URL, "I_node7")
+    assert filed_reply(issue, "Fix it", Complexity.M, roadmap) == (
+        filed_reply(issue, "Fix it", Complexity.M, None) + "\n" + note
     )

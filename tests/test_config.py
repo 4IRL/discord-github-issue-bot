@@ -12,10 +12,12 @@ from issue_bot.config import (
     ROUTE_KEYS,
     Config,
     ConfigError,
+    ProjectConfig,
     Question,
     QuestionStyle,
     TargetConfig,
     UnroutedCommands,
+    _route_project,
     _route_questions,
     load_routes,
 )
@@ -63,6 +65,7 @@ def test_full_env_loads(test_env: dict[str, str]) -> None:
         github_repo_id=222,
         labels={IssueType.BUG: "bug", IssueType.FEATURE: "enhancement"},
         questions=ONE_ROUTE_QUESTIONS,
+        project=None,
     )
 
 
@@ -263,6 +266,7 @@ def make_target(
         github_repo_id=222,
         labels=labels,
         questions=questions,
+        project=None,
     )
 
 
@@ -287,6 +291,15 @@ def test_direct_construction_makes_labels_read_only() -> None:
     assert target.labels[IssueType.BUG] == "bug"
     with pytest.raises(TypeError):
         target.labels[IssueType.BUG] = "x"  # type: ignore[index]
+
+
+def test_direct_construction_rejects_bad_project() -> None:
+    with pytest.raises(ConfigError) as excinfo:
+        dataclasses.replace(
+            make_target({IssueType.BUG: "bug", IssueType.FEATURE: "enhancement"}),
+            project="x",  # type: ignore[arg-type]
+        )
+    assert str(excinfo.value) == "project must be a ProjectConfig or None"
 
 
 ORG = "example-org"
@@ -349,6 +362,7 @@ def test_one_route_loads(tmp_path: Path) -> None:
             github_repo_id=222,
             labels={IssueType.BUG: "bug", IssueType.FEATURE: "enhancement"},
             questions=ONE_ROUTE_QUESTIONS,
+            project=None,
         )
     }
 
@@ -447,6 +461,81 @@ def test_blank_route_string_is_required(tmp_path: Path, key: str) -> None:
 def test_route_string_must_be_string(tmp_path: Path, key: str) -> None:
     error = route_error(tmp_path, with_route_line(key, "5"))
     assert error == f"routes.intake.{key} must be a string"
+
+
+PROJECT_LINES = {
+    "number": "number = 2",
+    "status_field": 'status_field = "Status"',
+    "status": 'status = "Todo"',
+    "effort_field": 'effort_field = "Effort"',
+}
+PROJECT_KEYS_IN_ORDER = list(PROJECT_LINES)
+NUMBER_ERROR = "routes.intake.project.number must be a positive integer"
+
+
+def with_project(**overrides: str | None) -> str:
+    """ONE_ROUTE_TOML plus a ``[routes.intake.project]`` table.
+
+    Each override replaces that key's line with ``key = value``; ``None`` drops the key.
+    """
+    lines = []
+    for key, line in PROJECT_LINES.items():
+        if key in overrides:
+            if overrides[key] is None:
+                continue
+            line = f"{key} = {overrides[key]}"
+        lines.append(line)
+    return ONE_ROUTE_TOML + "\n[routes.intake.project]\n" + "\n".join(lines) + "\n"
+
+
+def test_route_with_project_loads(tmp_path: Path) -> None:
+    routes = load_text(tmp_path, with_project())
+    assert routes[555].project == ProjectConfig(
+        number=2, status_field="Status", status="Todo", effort_field="Effort"
+    )
+
+
+def test_route_without_project_loads(tmp_path: Path) -> None:
+    assert load_text(tmp_path, ONE_ROUTE_TOML)[555].project is None
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        (
+            ONE_ROUTE_TOML.replace("[routes.intake]\n", "[routes.intake]\nproject = 3\n"),
+            "routes.intake.project must be a table",
+        ),
+        (
+            with_project() + 'owner = "x"\n',
+            "routes.intake.project has unknown key 'owner'",
+        ),
+        *[
+            (with_project(**{key: None}), f"routes.intake.project.{key} is required")
+            for key in PROJECT_KEYS_IN_ORDER
+        ],
+        *[
+            (with_project(number=value), NUMBER_ERROR)
+            for value in ["0", '"2"', "true"]
+        ],
+        *[
+            (with_project(**{key: '"  "'}), f"routes.intake.project.{key} is required")
+            for key in ["status_field", "status", "effort_field"]
+        ],
+        *[
+            (with_project(**{key: "5"}), f"routes.intake.project.{key} must be a string")
+            for key in ["status_field", "status", "effort_field"]
+        ],
+    ],
+)
+def test_project_errors(tmp_path: Path, text: str, message: str) -> None:
+    assert route_error(tmp_path, text) == message
+
+
+def test_project_error_does_not_quote_value(tmp_path: Path) -> None:
+    error = route_error(tmp_path, with_project(status='["Secret words"]'))
+    assert error == "routes.intake.project.status must be a string"
+    assert "Secret words" not in error
 
 
 def test_padded_route_strings_are_stripped(tmp_path: Path) -> None:
@@ -746,3 +835,6 @@ def test_example_routes_shape() -> None:
             assert 1 <= len(questions) <= MAX_QUESTIONS
         # The real validator checks every example question's keys, style and label length.
         _route_questions(route, f"routes.{name}")
+        project = _route_project(route, f"routes.{name}")
+        if name == "c4i":
+            assert project is not None

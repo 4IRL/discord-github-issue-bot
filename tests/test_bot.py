@@ -1,7 +1,8 @@
+import dataclasses
 import logging
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import discord
 import pytest
@@ -25,6 +26,7 @@ from issue_bot.issue_type import IssueType
 from issue_bot.threads import FILING_ERROR_REPLY, filed_reply
 from tests.conftest import (
     ISSUE_URL,
+    PROJECT,
     CandidateFactory,
     InteractionFactory,
     MessageFactory,
@@ -215,7 +217,7 @@ async def test_filing_hook_files_issue_posts_link_and_logs_url(
     make_candidate: CandidateFactory,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    github = fake_github(FiledIssue(7, ISSUE_URL))
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
     message = make_message()
     with caplog.at_level(logging.INFO):
         await filing_hook(github)(message, secret_candidate(make_candidate))
@@ -225,7 +227,9 @@ async def test_filing_hook_files_issue_posts_link_and_logs_url(
     assert target == route
     assert labels == ["bug", "complexity:S"]
     message.create_thread.return_value.send.assert_awaited_once_with(
-        filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words", Complexity.S),
+        filed_reply(
+            FiledIssue(7, ISSUE_URL, "I_node7"), "Secret title words", Complexity.S, None
+        ),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )
@@ -247,7 +251,7 @@ async def test_filing_hook_files_without_complexity_label_when_label_fails(
     make_candidate: CandidateFactory,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    github = fake_github(FiledIssue(7, ISSUE_URL))
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
     github.ensure_label.side_effect = GitHubError("label", 403)
     message = make_message()
     with caplog.at_level(logging.INFO):
@@ -256,7 +260,9 @@ async def test_filing_hook_files_without_complexity_label_when_label_fails(
     _target, _title, _body, labels = github.create_issue.await_args.args
     assert labels == ["bug"]
     message.create_thread.return_value.send.assert_awaited_once_with(
-        filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words", Complexity.S),
+        filed_reply(
+            FiledIssue(7, ISSUE_URL, "I_node7"), "Secret title words", Complexity.S, None
+        ),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )
@@ -270,6 +276,89 @@ async def test_filing_hook_files_without_complexity_label_when_label_fails(
     assert "status=403" in warnings[0]
     assert not [record for record in bot_records(caplog) if record.levelno == logging.ERROR]
     assert_no_member_text(caplog)
+
+
+def project_candidate(
+    make_candidate: CandidateFactory, project_route: TargetConfig
+) -> IssueCandidate:
+    return make_candidate(
+        title="Secret title words",
+        answers=(("What happened?", "Secret body words"),),
+        author_name="Alice",
+        complexity=Complexity.M,
+        target=project_route,
+    )
+
+
+async def test_filing_hook_project_route_adds_to_roadmap_after_filed_log(
+    project_route: TargetConfig,
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    issue = FiledIssue(7, ISSUE_URL, "I_node7")
+    github = fake_github(issue)
+    message = make_message()
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github)(message, project_candidate(make_candidate, project_route))
+    github.add_to_project.assert_awaited_once_with(project_route, issue, Complexity.M)
+    message.create_thread.return_value.send.assert_awaited_once_with(
+        filed_reply(issue, "Secret title words", Complexity.M, True),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
+    messages = [record.getMessage() for record in caplog.records]
+    filed_index = next(index for index, text in enumerate(messages) if "filed bug" in text)
+    added_index = next(
+        index for index, text in enumerate(messages) if "to the roadmap" in text
+    )
+    assert filed_index < added_index
+    assert_no_member_text(caplog)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [GitHubError("project-field", 200), RuntimeError("Secret exception words")],
+    ids=["github-error", "other-error"],
+)
+async def test_filing_hook_roadmap_failure_posts_failed_note(
+    error: Exception,
+    project_route: TargetConfig,
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    issue = FiledIssue(7, ISSUE_URL, "I_node7")
+    github = fake_github(issue)
+    github.add_to_project.side_effect = error
+    message = make_message()
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github)(message, project_candidate(make_candidate, project_route))
+    message.create_thread.return_value.send.assert_awaited_once_with(
+        filed_reply(issue, "Secret title words", Complexity.M, False),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
+    assert any("filed bug" in record.getMessage() for record in bot_records(caplog))
+    assert not [record for record in bot_records(caplog) if record.levelno == logging.ERROR]
+    assert not [text for text in record_texts(caplog) if "Secret exception words" in text]
+    assert_no_member_text(caplog)
+
+
+async def test_filing_hook_plain_route_skips_roadmap(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+) -> None:
+    issue = FiledIssue(7, ISSUE_URL, "I_node7")
+    github = fake_github(issue)
+    message = make_message()
+    await filing_hook(github)(message, secret_candidate(make_candidate))
+    github.add_to_project.assert_not_awaited()
+    message.create_thread.return_value.send.assert_awaited_once_with(
+        filed_reply(issue, "Secret title words", Complexity.S, None),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
 
 
 async def test_filing_hook_failure_replies_and_logs_status(
@@ -308,7 +397,7 @@ async def test_filing_hook_without_thread_replies_link_on_summary(
     make_candidate: CandidateFactory,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    github = fake_github(FiledIssue(7, ISSUE_URL))
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
     message = make_message()
     message.create_thread.side_effect = forbidden(50013, "x")
     with caplog.at_level(logging.INFO):
@@ -321,7 +410,9 @@ async def test_filing_hook_without_thread_replies_link_on_summary(
         for record in bot_records(caplog)
     )
     message.reply.assert_awaited_once_with(
-        filed_reply(FiledIssue(7, ISSUE_URL), "Secret title words", Complexity.S),
+        filed_reply(
+            FiledIssue(7, ISSUE_URL, "I_node7"), "Secret title words", Complexity.S, None
+        ),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )
@@ -377,7 +468,7 @@ async def test_link_send_failure_logged_without_text(
     make_candidate: CandidateFactory,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    github = fake_github(FiledIssue(7, ISSUE_URL))
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
     message = make_message()
     message.create_thread.return_value.send.side_effect = forbidden(50001, "Secret error words")
     with caplog.at_level(logging.INFO):
@@ -411,7 +502,7 @@ async def test_summary_reply_failure_logged_without_text(
     make_candidate: CandidateFactory,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    github = fake_github(FiledIssue(7, ISSUE_URL))
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
     message = make_message()
     message.create_thread.side_effect = forbidden(50013, "x")
     message.reply.side_effect = forbidden(50001, "Secret error words")
@@ -722,13 +813,16 @@ def test_main_runs_bot_with_token(
     filing_check = init_kwargs["filing_check"]
     assert isinstance(filing_check.__self__, GitHubClient)
     assert filing_check.__func__ is GitHubClient.check_access
+    project_check = init_kwargs["project_check"]
+    assert isinstance(project_check.__self__, GitHubClient)
+    assert project_check.__func__ is GitHubClient.project_fields
 
 
 def test_main_builds_github_client(
     monkeypatch: pytest.MonkeyPatch, test_env: dict[str, str]
 ) -> None:
     recorded: dict[str, tuple[object, ...]] = {}
-    sentinel = SimpleNamespace(check_access=AsyncMock())
+    sentinel = SimpleNamespace(check_access=AsyncMock(), project_fields=AsyncMock())
 
     class StubBot:
         def __init__(self, config: Config, **kwargs: object) -> None:
@@ -926,6 +1020,138 @@ async def test_setup_hook_first_route_failure_still_checks_second(
     for text in record_texts(caplog):
         assert "Secret exception words" not in text
     assert_no_member_text(caplog)
+
+
+def project_records(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """The bot's startup Project-check log lines, in order."""
+    return [
+        record.getMessage()
+        for record in bot_records(caplog)
+        if record.getMessage().startswith("github project")
+    ]
+
+
+async def test_setup_hook_checks_project_after_access(
+    project_config: Config,
+    project_route: TargetConfig,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    access = AsyncMock()
+    check = AsyncMock()
+    order = Mock()
+    order.attach_mock(access, "access")
+    order.attach_mock(check, "check")
+    bot = IssueBot(project_config, filing_check=access, project_check=check)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    check.assert_awaited_once_with(project_route)
+    assert [name for name, _args, _kwargs in order.mock_calls] == ["access", "check"]
+    assert "github project ok for repo_id=222 project=2" in [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.INFO
+    ]
+
+
+async def test_setup_hook_project_check_github_error_logged(
+    project_config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    check = AsyncMock(side_effect=GitHubError("project", 200))
+    bot = IssueBot(project_config, filing_check=AsyncMock(), project_check=check)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    assert [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ] == ["github project check failed for repo_id=222 project=2: GitHubError stage=project status=200"]
+
+
+async def test_setup_hook_project_check_failure_still_checks_second(
+    two_route_config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    config = dataclasses.replace(
+        two_route_config,
+        routes={
+            channel_id: dataclasses.replace(target, project=PROJECT)
+            for channel_id, target in two_route_config.routes.items()
+        },
+    )
+    check = AsyncMock(side_effect=[GitHubError("project", 200), None])
+    bot = IssueBot(config, filing_check=AsyncMock(), project_check=check)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    assert check.await_count == 2
+    assert check.await_args_list[1].args == (config.routes[556],)
+    assert project_records(caplog) == [
+        "github project check failed for repo_id=222 project=2: GitHubError stage=project status=200",
+        "github project ok for repo_id=223 project=2",
+    ]
+
+
+async def test_setup_hook_unexpected_project_check_failure_logged_type_only(
+    project_config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    check = AsyncMock(side_effect=RuntimeError("Secret exception words"))
+    bot = IssueBot(project_config, filing_check=AsyncMock(), project_check=check)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    assert [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ] == ["github project check failed for repo_id=222 project=2: RuntimeError"]
+    for text in record_texts(caplog):
+        assert "Secret exception words" not in text
+
+
+async def test_setup_hook_skips_project_check_for_route_without_project(
+    config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    check = AsyncMock()
+    bot = IssueBot(config, filing_check=AsyncMock(), project_check=check)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    check.assert_not_awaited()
+    assert project_records(caplog) == []
+
+
+async def test_setup_hook_without_project_check_runs_access_check_only(
+    project_config: Config,
+    project_route: TargetConfig,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    access = AsyncMock()
+    bot = IssueBot(project_config, filing_check=access)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    access.assert_awaited_once_with(project_route)
+    assert project_records(caplog) == []
+
+
+async def test_setup_hook_without_filing_check_skips_project_check(
+    project_config: Config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    check = AsyncMock()
+    bot = IssueBot(project_config, filing_check=None, project_check=check)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    await bot.setup_hook()
+    check.assert_not_awaited()
+
+
+async def test_setup_hook_failed_access_check_skips_project_check(
+    project_config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    check = AsyncMock()
+    access = AsyncMock(side_effect=GitHubError("token", 401))
+    bot = IssueBot(project_config, filing_check=access, project_check=check)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    check.assert_not_awaited()
+    assert project_records(caplog) == []
 
 
 async def test_bot_commands_refuse_when_filing_check_fails(

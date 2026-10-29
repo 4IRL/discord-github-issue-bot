@@ -8,12 +8,15 @@ import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+from issue_bot.complexity import Complexity
 from issue_bot.config import Config, TargetConfig
 from issue_bot.github import (
     LABEL_COLOR,
+    PROJECT_FIELDS_QUERY,
     FiledIssue,
     GitHubClient,
     GitHubError,
+    ProjectFields,
     Transport,
     app_jwt,
 )
@@ -21,6 +24,7 @@ from issue_bot.github import (
 TOKEN_URL = "https://api.github.com/app/installations/444/access_tokens"
 ISSUE_URL = "https://api.github.com/repos/example-org/example-repo/issues"
 LABEL_URL = "https://api.github.com/repos/example-org/example-repo/labels"
+GRAPHQL_URL = "https://api.github.com/graphql"
 HTML_URL = "https://github.com/example-org/example-repo/issues/7"
 EXPIRES_AT = "2026-10-18T13:00:00Z"
 EXPIRES_AT_EPOCH = datetime.fromisoformat(EXPIRES_AT).timestamp()
@@ -39,7 +43,7 @@ def token_response(expires_at: str = EXPIRES_AT) -> tuple[int, dict[str, Any]]:
 
 
 def issue_response() -> tuple[int, dict[str, Any]]:
-    return 201, {"number": 7, "html_url": HTML_URL}
+    return 201, {"number": 7, "html_url": HTML_URL, "node_id": "I_node7"}
 
 
 async def create(client: GitHubClient, route: TargetConfig) -> FiledIssue:
@@ -54,7 +58,7 @@ async def test_create_issue_success(
 
     result = await client.create_issue(route, "Title", "Body", ["bug"])
 
-    assert result == FiledIssue(7, HTML_URL)
+    assert result == FiledIssue(7, HTML_URL, "I_node7")
     assert transport.await_count == 2
     token_call, issue_call = transport.call_args_list
     method, url, token_headers, payload = token_call.args
@@ -209,7 +213,7 @@ async def test_issue_request_401_drops_cached_token(
     with pytest.raises(GitHubError) as exc_info:
         await create(client, route)
     assert (exc_info.value.stage, exc_info.value.status) == ("issue", 401)
-    assert await create(client, route) == FiledIssue(7, HTML_URL)
+    assert await create(client, route) == FiledIssue(7, HTML_URL, "I_node7")
 
     assert [call.args[1] for call in transport.call_args_list] == [
         TOKEN_URL,
@@ -227,7 +231,7 @@ async def test_issue_request_404_keeps_cached_token(
 
     with pytest.raises(GitHubError):
         await create(client, route)
-    assert await create(client, route) == FiledIssue(7, HTML_URL)
+    assert await create(client, route) == FiledIssue(7, HTML_URL, "I_node7")
 
     assert [call.args[1] for call in transport.call_args_list] == [
         TOKEN_URL,
@@ -293,6 +297,8 @@ async def test_transport_error_raises_status_none(
         (201, None),
         (201, {"number": True, "html_url": "u"}),
         (201, {"number": 7}),
+        (201, {"number": 7, "html_url": HTML_URL}),
+        (201, {"number": 7, "html_url": HTML_URL, "node_id": 5}),
     ],
 )
 async def test_bad_success_shape_raises(
@@ -343,6 +349,92 @@ async def test_check_access_mints_a_token(
     method, url, _headers, payload = transport.call_args.args
     assert (method, url) == ("POST", TOKEN_URL)
     assert payload == {"repository_ids": [222], "permissions": {"issues": "write"}}
+
+
+PROJECT_TOKEN_PAYLOAD = {
+    "repository_ids": [222],
+    "permissions": {"issues": "write", "organization_projects": "write"},
+}
+
+
+async def test_check_access_project_route_asks_for_projects(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response()])
+    client = make_client(github_private_key, transport)
+
+    await client.check_access(project_route)
+
+    assert transport.await_count == 1
+    method, url, _headers, payload = transport.call_args.args
+    assert (method, url) == ("POST", TOKEN_URL)
+    assert payload == PROJECT_TOKEN_PAYLOAD
+
+
+async def test_create_issue_project_route_asks_for_projects(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), issue_response()])
+    client = make_client(github_private_key, transport)
+
+    assert await create(client, project_route) == FiledIssue(7, HTML_URL, "I_node7")
+
+    token_call, issue_call = transport.call_args_list
+    assert token_call.args[1] == TOKEN_URL
+    assert token_call.args[3] == PROJECT_TOKEN_PAYLOAD
+    assert issue_call.args[1] == ISSUE_URL
+
+
+async def test_plain_and_project_route_mint_separate_tokens(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), token_response()])
+    client = make_client(github_private_key, transport)
+
+    await client.check_access(route)
+    await client.check_access(project_route)
+    await client.check_access(route)
+    await client.check_access(project_route)
+
+    assert transport.await_count == 2
+    assert [call.args[3] for call in transport.call_args_list] == [
+        {"repository_ids": [222], "permissions": {"issues": "write"}},
+        PROJECT_TOKEN_PAYLOAD,
+    ]
+
+
+async def test_issue_401_on_project_route_drops_only_its_token(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[
+            token_response(),
+            token_response(),
+            (401, None),
+            issue_response(),
+            token_response(),
+            issue_response(),
+        ]
+    )
+    client = make_client(github_private_key, transport)
+
+    await client.check_access(route)
+    await client.check_access(project_route)
+    with pytest.raises(GitHubError) as exc_info:
+        await create(client, project_route)
+    assert (exc_info.value.stage, exc_info.value.status) == ("issue", 401)
+    await create(client, route)
+    await create(client, project_route)
+
+    assert [call.args[1] for call in transport.call_args_list] == [
+        TOKEN_URL,
+        TOKEN_URL,
+        ISSUE_URL,
+        ISSUE_URL,
+        TOKEN_URL,
+        ISSUE_URL,
+    ]
+    assert transport.call_args_list[4].args[3] == PROJECT_TOKEN_PAYLOAD
 
 
 async def test_check_access_reuses_cached_token(
@@ -466,6 +558,40 @@ async def test_ensure_label_401_drops_cached_token(
     ]
 
 
+async def test_ensure_label_401_on_project_route_drops_only_its_token(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[
+            token_response(),
+            token_response(),
+            (401, None),
+            (201, {}),
+            token_response(),
+            (201, {}),
+        ]
+    )
+    client = make_client(github_private_key, transport)
+
+    await client.check_access(route)
+    await client.check_access(project_route)
+    with pytest.raises(GitHubError) as exc_info:
+        await client.ensure_label(project_route, "complexity:M")
+    assert (exc_info.value.stage, exc_info.value.status) == ("label", 401)
+    await client.ensure_label(route, "complexity:M")
+    await client.ensure_label(project_route, "complexity:L")
+
+    assert [call.args[1] for call in transport.call_args_list] == [
+        TOKEN_URL,
+        TOKEN_URL,
+        LABEL_URL,
+        LABEL_URL,
+        TOKEN_URL,
+        LABEL_URL,
+    ]
+    assert transport.call_args_list[4].args[3] == PROJECT_TOKEN_PAYLOAD
+
+
 async def test_ensure_label_500_raises_and_is_not_cached(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
@@ -505,3 +631,390 @@ async def test_ensure_label_transport_error_raises_status_none(
 
     await client.ensure_label(route, "complexity:M")
     assert transport.await_count == 3
+
+
+PROJECT_FIELDS = ProjectFields(
+    project_id="PVT_1",
+    status_field_id="F_status",
+    status_option_id="O_todo",
+    effort_field_id="F_effort",
+    effort_option_ids={"S": "O_s", "M": "O_m", "L": "O_l", "XL": "O_xl"},
+)
+ISSUE = FiledIssue(7, HTML_URL, "I_node7")
+
+
+def status_field(options: list[str] | None = None) -> dict[str, Any]:
+    names = ["Todo", "In Progress", "Done"] if options is None else options
+    ids = {"Todo": "O_todo", "In Progress": "O_prog", "Done": "O_done"}
+    return {
+        "id": "F_status",
+        "name": "Status",
+        "options": [{"id": ids.get(name, f"O_{name}"), "name": name} for name in names],
+    }
+
+
+def effort_field(options: list[str] | None = None) -> dict[str, Any]:
+    names = ["S", "M", "L", "XL", "XXL"] if options is None else options
+    return {
+        "id": "F_effort",
+        "name": "Effort",
+        "options": [{"id": f"O_{name.lower()}", "name": name} for name in names],
+    }
+
+
+def project_response(
+    nodes: list[Any] | None = None,
+) -> tuple[int, dict[str, Any]]:
+    if nodes is None:
+        nodes = [
+            None,
+            {},
+            {"id": "F_title", "name": "Title"},
+            status_field(),
+            {"id": "F_other", "name": "Priority", "options": [{"id": "O_hi", "name": "High"}]},
+            effort_field(),
+        ]
+    return 200, {
+        "data": {"organization": {"projectV2": {"id": "PVT_1", "fields": {"nodes": nodes}}}}
+    }
+
+
+def add_response() -> tuple[int, dict[str, Any]]:
+    return 200, {"data": {"addProjectV2ItemById": {"item": {"id": "PVTI_1"}}}}
+
+
+def set_response() -> tuple[int, dict[str, Any]]:
+    return 200, {
+        "data": {
+            "status": {"projectV2Item": {"id": "PVTI_1"}},
+            "effort": {"projectV2Item": {"id": "PVTI_1"}},
+        }
+    }
+
+
+ERRORS_RESPONSE = (200, {"errors": [{"message": "Secret detail"}]})
+
+
+async def test_project_fields_looks_up_and_caches(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), project_response()])
+    client = make_client(github_private_key, transport)
+
+    fields = await client.project_fields(project_route)
+    again = await client.project_fields(project_route)
+
+    assert fields == PROJECT_FIELDS
+    assert again == PROJECT_FIELDS
+    assert transport.await_count == 2
+    token_call, lookup_call = transport.call_args_list
+    assert token_call.args[3] == PROJECT_TOKEN_PAYLOAD
+    method, url, headers, payload = lookup_call.args
+    assert (method, url) == ("POST", GRAPHQL_URL)
+    assert headers["Authorization"] == "Bearer ghs_secret_token"
+    assert payload == {
+        "query": PROJECT_FIELDS_QUERY,
+        "variables": {"org": "example-org", "number": 2},
+    }
+
+
+async def test_project_fields_effort_options_are_frozen(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), project_response()])
+    client = make_client(github_private_key, transport)
+
+    fields = await client.project_fields(project_route)
+
+    with pytest.raises(TypeError):
+        fields.effort_option_ids["S"] = "O_other"  # type: ignore[index]
+
+
+async def test_project_fields_without_project_raises_value_error(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock()
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(ValueError, match="route has no project"):
+        await client.project_fields(route)
+
+    assert transport.await_count == 0
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        ERRORS_RESPONSE,
+        (200, {"data": {"organization": {"projectV2": None}}}),
+        (200, {"data": {"organization": None}}),
+        (200, {"data": None}),
+        (200, None),
+        (200, {"data": {"organization": {"projectV2": {"id": 5, "fields": {"nodes": []}}}}}),
+        (200, {"data": {"organization": {"projectV2": {"id": "PVT_1", "fields": None}}}}),
+        project_response([effort_field()]),
+        project_response([status_field(["In Progress", "Done"]), effort_field()]),
+        project_response([status_field()]),
+        project_response([status_field(), effort_field(["S", "M", "L"])]),
+        project_response([{"id": "F_status", "name": "Status", "options": None}, effort_field()]),
+    ],
+    ids=[
+        "errors",
+        "null-project",
+        "null-organization",
+        "null-data",
+        "null-body",
+        "bad-project-id",
+        "null-fields",
+        "no-status-field",
+        "no-status-option",
+        "no-effort-field",
+        "effort-missing-band",
+        "null-options",
+    ],
+)
+async def test_project_fields_bad_response_raises(
+    github_private_key: rsa.RSAPrivateKey,
+    project_route: TargetConfig,
+    response: tuple[int, Any],
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), response, project_response()])
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.project_fields(project_route)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status) == ("project", 200)
+    assert exc.__cause__ is None
+    assert exc.__suppress_context__ is True
+    assert "Secret detail" not in str(exc)
+    assert "Secret detail" not in repr(exc)
+    # A failed lookup is never cached: the next call requests again.
+    assert await client.project_fields(project_route) == PROJECT_FIELDS
+    assert transport.await_count == 3
+
+
+async def test_project_fields_non_200_raises(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), (502, {"message": "Secret detail"})])
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.project_fields(project_route)
+
+    assert (exc_info.value.stage, exc_info.value.status) == ("project", 502)
+    assert "Secret detail" not in str(exc_info.value)
+    assert "Secret detail" not in repr(exc_info.value)
+
+
+async def test_project_fields_401_drops_token(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[token_response(), (401, None), token_response(), project_response()]
+    )
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.project_fields(project_route)
+    assert (exc_info.value.stage, exc_info.value.status) == ("project", 401)
+
+    assert await client.project_fields(project_route) == PROJECT_FIELDS
+    assert [call.args[1] for call in transport.call_args_list] == [
+        TOKEN_URL,
+        GRAPHQL_URL,
+        TOKEN_URL,
+        GRAPHQL_URL,
+    ]
+
+
+async def test_add_to_project_adds_and_sets_fields(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[token_response(), project_response(), add_response(), set_response()]
+    )
+    client = make_client(github_private_key, transport)
+
+    assert await client.add_to_project(project_route, ISSUE, Complexity.M) == "PVTI_1"
+
+    assert transport.await_count == 4
+    token_call, lookup_call, add_call, set_call = transport.call_args_list
+    assert token_call.args[3] == PROJECT_TOKEN_PAYLOAD
+    assert lookup_call.args[3]["query"] == PROJECT_FIELDS_QUERY
+    for call in (lookup_call, add_call, set_call):
+        method, url, headers, _payload = call.args
+        assert (method, url) == ("POST", GRAPHQL_URL)
+        assert headers["Authorization"] == "Bearer ghs_secret_token"
+    add_payload = add_call.args[3]
+    assert "addProjectV2ItemById" in add_payload["query"]
+    assert add_payload["variables"] == {"project": "PVT_1", "content": "I_node7"}
+    set_payload = set_call.args[3]
+    assert set_payload["query"].count("updateProjectV2ItemFieldValue") == 2
+    assert set_payload["variables"] == {
+        "project": "PVT_1",
+        "item": "PVTI_1",
+        "statusField": "F_status",
+        "status": "O_todo",
+        "effortField": "F_effort",
+        "effort": "O_m",
+    }
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        ERRORS_RESPONSE,
+        (200, {"data": {"addProjectV2ItemById": {"item": None}}}),
+        (200, {"data": {"addProjectV2ItemById": {"item": {"id": 5}}}}),
+        (200, {"data": {"addProjectV2ItemById": None}}),
+    ],
+    ids=["errors", "null-item", "bad-item-id", "null-add"],
+)
+async def test_add_to_project_bad_add_raises(
+    github_private_key: rsa.RSAPrivateKey,
+    project_route: TargetConfig,
+    response: tuple[int, Any],
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), project_response(), response])
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.add_to_project(project_route, ISSUE, Complexity.M)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status) == ("project-item", 200)
+    assert exc.__cause__ is None
+    assert "Secret detail" not in str(exc)
+    assert "Secret detail" not in repr(exc)
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        ERRORS_RESPONSE,
+        (200, {"data": {"status": None, "effort": {"projectV2Item": {"id": "PVTI_1"}}}}),
+        (200, {"data": {"status": {"projectV2Item": {"id": "PVTI_1"}}, "effort": None}}),
+        (200, {"data": {"status": {"projectV2Item": None}, "effort": {"projectV2Item": {}}}}),
+    ],
+    ids=["errors", "null-status", "null-effort", "null-item"],
+)
+async def test_add_to_project_bad_set_raises(
+    github_private_key: rsa.RSAPrivateKey,
+    project_route: TargetConfig,
+    response: tuple[int, Any],
+) -> None:
+    transport = AsyncMock(
+        side_effect=[token_response(), project_response(), add_response(), response]
+    )
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.add_to_project(project_route, ISSUE, Complexity.M)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status) == ("project-field", 200)
+    assert exc.__cause__ is None
+    assert "Secret detail" not in str(exc)
+    assert "Secret detail" not in repr(exc)
+
+
+@pytest.mark.parametrize(
+    ("failing_call", "stage"),
+    [(1, "project"), (2, "project-item"), (3, "project-field")],
+)
+async def test_add_to_project_transport_error_raises_status_none(
+    github_private_key: rsa.RSAPrivateKey,
+    project_route: TargetConfig,
+    failing_call: int,
+    stage: str,
+) -> None:
+    responses: list[Any] = [token_response(), project_response(), add_response(), set_response()]
+    responses[failing_call] = aiohttp.ClientConnectionError("Secret error words")
+    client = make_client(github_private_key, AsyncMock(side_effect=responses[: failing_call + 1]))
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.add_to_project(project_route, ISSUE, Complexity.M)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status) == (stage, None)
+    assert exc.__context__ is None
+    assert "Secret error words" not in str(exc)
+
+
+async def test_failed_set_drops_cached_project_ids(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[
+            token_response(),
+            project_response(),
+            add_response(),
+            ERRORS_RESPONSE,
+            project_response(),
+            add_response(),
+            set_response(),
+        ]
+    )
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.add_to_project(project_route, ISSUE, Complexity.M)
+    assert (exc_info.value.stage, exc_info.value.status) == ("project-field", 200)
+    await client.add_to_project(project_route, ISSUE, Complexity.M)
+
+    calls = transport.call_args_list
+    assert len(calls) == 7
+    assert calls[4].args[3]["query"] == PROJECT_FIELDS_QUERY
+    assert "addProjectV2ItemById" in calls[5].args[3]["query"]
+    assert "updateProjectV2ItemFieldValue" in calls[6].args[3]["query"]
+
+
+async def test_failed_add_drops_cached_project_ids(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[
+            token_response(),
+            project_response(),
+            ERRORS_RESPONSE,
+            project_response(),
+            add_response(),
+            set_response(),
+        ]
+    )
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.add_to_project(project_route, ISSUE, Complexity.M)
+    assert (exc_info.value.stage, exc_info.value.status) == ("project-item", 200)
+    await client.add_to_project(project_route, ISSUE, Complexity.M)
+
+    calls = transport.call_args_list
+    assert len(calls) == 6
+    assert calls[3].args[3]["query"] == PROJECT_FIELDS_QUERY
+
+
+async def test_successful_add_keeps_cached_project_ids(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[
+            token_response(),
+            project_response(),
+            add_response(),
+            set_response(),
+            add_response(),
+            set_response(),
+        ]
+    )
+    client = make_client(github_private_key, transport)
+
+    assert await client.add_to_project(project_route, ISSUE, Complexity.M) == "PVTI_1"
+    assert await client.add_to_project(project_route, ISSUE, Complexity.XL) == "PVTI_1"
+
+    calls = transport.call_args_list
+    assert len(calls) == 6
+    assert calls[5].args[3]["variables"]["effort"] == "O_xl"
