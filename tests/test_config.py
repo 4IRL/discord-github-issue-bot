@@ -914,3 +914,5 @@ def test_example_routes_shape() -> None:
         project = _route_project(route, f"routes.{name}")
         if name == "c4i":
             assert project is not None
+            assert project.track_field == "Track"
+            assert project.track_defaults == ((IssueType.BUG, "A · Bugs"),)

@@ -308,19 +308,19 @@ Track write follows F6's failed-Project-write policy.
   `track_lookup=github.track_options`.
 - [x] (2026-10-29, test_bot 73 passed, full suite 509 passed) Run `.venv/bin/pytest tests/test_bot.py` green, then the full `.venv/bin/pytest`.
 
-### 6. Docs and example
+### 6. Docs and example - COMPLETE (2026-10-29)
 README, `docs/COMPLEXITY.md`, `docs/SMOKE-TEST.md` and `example.routes.toml` show the Track row
 and keys.
 
 **To-do:**
-- [ ] `example.routes.toml`: after `effort_field = "Effort"` add a comment and `track_field = "Track"`,
+- [x] (2026-10-29, test_config 187 passed) `example.routes.toml`: after `effort_field = "Effort"` add a comment and `track_field = "Track"`,
   then a `[routes.c4i.project.track_default]` table with `bug = "A · Bugs"` (comment: optional, per
   issue type, an option name on the Project; a name that is not an option pre-selects nothing).
   Extend `test_example_routes_shape` (`tests/test_config.py`) so for `c4i` it also asserts
   `project.track_field == "Track"` and `project.track_defaults == ((IssueType.BUG, "A · Bugs"),)`.
   Check Standing invariant 1's grep still prints nothing (the example file is not under
   `issue_bot/`).
-- [ ] `README.md`: the Status paragraph's feature list adds F17 (Track dropdown in the preview) and
+- [x] (2026-10-29; review added the `could not read track options` log line beside the failed-Project-step line) `README.md`: the Status paragraph's feature list adds F17 (Track dropdown in the preview) and
   its sentence on the roadmap note says the bot also sets the item's Track from the preview; Reporting
   step 3 gets a bullet for the optional **Track** dropdown (only on a route
   whose `project` table has `track_field`; pre-selected default per type; the pick survives Edit and
@@ -336,7 +336,7 @@ and keys.
   failed Project step names `stage=project-track` as the Track write and says the bot doesn't
   record the pick, so the owner sets Track by hand only if the reporter says which one they picked
   (review pass 2).
-- [ ] `docs/SMOKE-TEST.md` (owner's choice, review pass 1: no live Track check): add one note that the
+- [x] (2026-10-29; review added what `stage=project-track status=200` means to the same row) `docs/SMOKE-TEST.md` (owner's choice, review pass 1: no live Track check): add one note that the
   smoke run does not exercise the Track dropdown (the test Project has no Track field and the
   scratch route sets no `track_field`), and in the troubleshooting row for `could not add … to the
   roadmap …` add: after `stage=project-track` the item is on the Project with its Status and Effort,
@@ -346,7 +346,7 @@ and keys.
   one)"; and change "After a `stage=project-item` or `stage=project-field` failure" to "After a
   `stage=project-item`, `stage=project-field` or `stage=project-track` failure". No other runbook
   change.
-- [ ] `docs/COMPLEXITY.md` (the preview description paragraph): one sentence that on a route with a
+- [x] (2026-10-29, full suite 509 passed) `docs/COMPLEXITY.md` (the preview description paragraph): one sentence that on a route with a
   Track row the preview also has a Track dropdown under the band buttons, which doesn't affect the
   band. Run `.venv/bin/pytest tests/test_complexity.py tests/test_config.py` (they pin this doc's
   thresholds and the example's shape), then the full `.venv/bin/pytest`.
