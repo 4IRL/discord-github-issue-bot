@@ -134,7 +134,7 @@ holds its supersession note, not edges; readers skip it. -->
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F6 — Add the issue to the chores4irl roadmap Project** ★FOCUS | in-progress | `feature/roadmap-project` | — |
+| **F6 — Add the issue to the chores4irl roadmap Project** ★FOCUS | in-review | `feature/roadmap-project` | [#24](https://github.com/4IRL/discord-github-issue-bot/pull/24) |
 | **F17 — Track dropdown in the private preview** | pending | `feature/preview-track` | — |
 | **F12 — Never file a report twice** | pending | `feature/idempotent-filing` | — |
 | **F13 — Retry and rate limits** | pending | `feature/retry-rate-limits` | — |
