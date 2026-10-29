@@ -42,6 +42,6 @@ The Feature list, Backlog, Status ledger, contracts, dependency graph and effort
 ### To-Do: Required Changes
 
 - [x] **Fix F6's stale phase-position phrase** — `plans/META-PLAN.md` (F6 Rank rationale, ~line 549) — Replace "Phase 3's last feature" with wording saying F17 closes Phase 3 (e.g. "Phase 3's roadmap-placement feature; F17 closes the phase"), keeping the shared-band-contract sentence.
-- [ ] **Repoint README's `--clear-commands` note** — `README.md` (Known limits, line 43) — Reword "a deferred follow-up" to say it is planned in F11 (Phase 4), or leave it for F11, whose end state updates Known limits.
+- [x] **Repoint README's `--clear-commands` note** — `README.md` (Known limits, line 43) — Reword "a deferred follow-up" to say it is planned in F11 (Phase 4), or leave it for F11, whose end state updates Known limits. (assumed: dd-policy, dd-261028-014)
 
 6b: 0 misses (the F6 phrase became stale in this diff; README.md was outside Review 1's diff)

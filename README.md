@@ -40,7 +40,7 @@ Direction: [`plans/ROADMAP.md`](plans/ROADMAP.md). Next work: [`plans/META-PLAN.
 - A bot restart leaves an open preview's buttons dead (Discord shows "This interaction failed"); run the command again.
 - A reporter who presses **File** in one Discord client while an **Edit** form is open in another can submit that Edit, which opens a fresh preview whose **File** files a second issue; close the duplicate.
 - Route file changes need a restart.
-- Rolling back to a build without slash commands leaves `/bug` and `/feature` registered in the guild but unanswered, until an empty command sync for the guild or removal of the app from the server. Neither path is verified yet; a `--clear-commands` flag is a deferred follow-up.
+- Rolling back to a build without slash commands leaves `/bug` and `/feature` registered in the guild but unanswered, until an empty command sync for the guild or removal of the app from the server. Neither path is verified yet; a `--clear-commands` flag is planned in F11 (Phase 4).
 
 ## Getting started
 
