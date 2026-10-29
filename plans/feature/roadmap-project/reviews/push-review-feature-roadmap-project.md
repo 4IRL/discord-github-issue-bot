@@ -53,3 +53,40 @@ Token cache keying, GraphQL error handling, cache invalidation, the never-raisin
 - [ ] **Optional tidy-ups** — `issue_bot/bot.py` (collapse `_check_project` excepts; move `ProjectCheck` beside `FilingCheck`), `issue_bot/github.py` (`effort_option_ids: Mapping[Complexity, str]`; inline `_owner`).
 
 6b: skipped (Review 1)
+
+## Review 2
+Generated: 2026-10-29 09:56
+Comparison: origin/feature/roadmap-project bc741b79d8e2749c8fb2cb9f7e811e303c226d54..06fb3d739c1c5d05792a6316e4caedd2701197a9
+Verdict: **PUSHED WITH MINOR FINDINGS**
+
+Scope: the merge-gate overturn of DD-9 (dd-261029-013), `add_to_project` returns the Project item id.
+
+### Results by Reviewer
+
+#### 1. Safety & Security — PASS
+No new inputs, secrets or logging.
+
+#### 2. Correctness — PASS
+The id is returned only after both mutations succeed; the failure path is unchanged.
+
+#### 3. Simplicity & Conciseness — PASS
+- (minor) `issue_bot/github.py` `add_to_project`: no caller uses the returned id yet (built for F17 by the owner's DD-9 decision).
+
+#### 4. Test Coverage — PASS
+Both success-path tests assert the id; fakes updated.
+
+#### 5. Completeness & Cleanup — PASS
+Docstring, plan and review records match.
+
+#### 6. Consistency & Style — PASS
+
+#### 7. Integration Risk — PASS
+The only production caller (`place_on_roadmap`) ignores the value.
+
+#### 8. Error Handling & Silent Failures — PASS
+
+### To-Do: Required Changes
+
+- [ ] **Use the returned item id in F17** — `issue_bot/issues.py` `place_on_roadmap` — F17's Track write consumes `add_to_project`'s return value; no change in F6.
+
+6b: 0 misses
