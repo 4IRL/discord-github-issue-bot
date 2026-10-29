@@ -2,8 +2,9 @@
 
 Instance-wide settings and secrets come from the environment, and the routes
 come from the TOML file at ``ROUTES_PATH``. Every key is required and nothing
-has a default in code, except a route's optional ``project`` table, whose keys
-are then all required.
+has a default in code, except a route's optional ``project`` table, whose four
+keys are then all required and whose ``track_field`` and ``track_default`` are
+optional.
 """
 
 from __future__ import annotations
@@ -38,7 +39,9 @@ ROUTE_KEYS = (
     "project",
 )
 QUESTION_KEYS = frozenset({"label", "style", "required"})
-PROJECT_KEYS = frozenset({"number", "status_field", "status", "effort_field"})
+PROJECT_KEYS = frozenset(
+    {"number", "status_field", "status", "effort_field", "track_field", "track_default"}
+)
 MAX_QUESTIONS = 4  # Title plus four questions fills Discord's five-field modal.
 QUESTION_LABEL_LIMIT = 45  # Discord's maximum label length.
 
@@ -128,12 +131,20 @@ def _unrouted(env: Mapping[str, str], key: str) -> UnroutedCommands:
 @dataclass(frozen=True)
 class ProjectConfig:
     """A route's GitHub Project: its number in the route repo's org, and the field and option
-    names the bot sets."""
+    names the bot sets.
+
+    ``track_field`` optionally names the Project's Track single-select (None: no Track row in
+    the preview), and ``track_defaults`` pairs an issue type with the Track option name to
+    pre-select, in ``IssueType`` order.
+    """
 
     number: int
     status_field: str
     status: str
     effort_field: str
+    track_field: str | None = None
+    # A tuple of pairs, not a mapping: ProjectConfig is part of a cache key and must stay hashable.
+    track_defaults: tuple[tuple[IssueType, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -254,6 +265,28 @@ def _route_questions(
     return route_questions
 
 
+def _route_track_defaults(
+    table: Mapping[str, object], where_p: str, track_field: str | None
+) -> tuple[tuple[IssueType, str], ...]:
+    if "track_default" not in table:
+        return ()
+    if track_field is None:
+        raise ConfigError(f"{where_p}.track_default needs track_field")
+    defaults = table["track_default"]
+    error_message = f"{where_p}.track_default must map bug or feature to Track option names"
+    type_names = {issue_type.value for issue_type in IssueType}
+    if not isinstance(defaults, dict) or not defaults or not set(defaults) <= type_names:
+        raise ConfigError(error_message)
+    for name in defaults.values():
+        if not isinstance(name, str) or not name.strip():
+            raise ConfigError(error_message)
+    return tuple(
+        (issue_type, defaults[issue_type.value].strip())
+        for issue_type in IssueType
+        if issue_type.value in defaults
+    )
+
+
 def _route_project(route: Mapping[str, object], where: str) -> ProjectConfig | None:
     # The one optional route key: a route may have no Project.
     if "project" not in route:
@@ -265,11 +298,18 @@ def _route_project(route: Mapping[str, object], where: str) -> ProjectConfig | N
     unknown_keys = sorted(set(table) - PROJECT_KEYS)
     if unknown_keys:
         raise ConfigError(f"{where_p} has unknown key {unknown_keys[0]!r}")
+    number = _route_int(table, where_p, "number")
+    status_field = _route_str(table, where_p, "status_field")
+    status = _route_str(table, where_p, "status")
+    effort_field = _route_str(table, where_p, "effort_field")
+    track_field = _route_str(table, where_p, "track_field") if "track_field" in table else None
     return ProjectConfig(
-        number=_route_int(table, where_p, "number"),
-        status_field=_route_str(table, where_p, "status_field"),
-        status=_route_str(table, where_p, "status"),
-        effort_field=_route_str(table, where_p, "effort_field"),
+        number=number,
+        status_field=status_field,
+        status=status,
+        effort_field=effort_field,
+        track_field=track_field,
+        track_defaults=_route_track_defaults(table, where_p, track_field),
     )
 
 
@@ -315,8 +355,11 @@ def load_routes(path: str, org: str) -> Mapping[int, TargetConfig]:
     (``owner/name``, owned by ``org``), ``repo_id``, a ``labels`` table
     keyed ``bug``/``feature`` and ``questions`` arrays ``bug``/``feature``,
     each of 1-4 ``label``/``style``/``required`` tables. Every key is required
-    except the optional ``project`` table (``number``, ``status_field``,
-    ``status``, ``effort_field``), whose keys are then all required. Returns a
+    except the optional ``project`` table, whose four keys ``number``,
+    ``status_field``, ``status`` and ``effort_field`` are then all required;
+    its ``track_field`` (the Track single-select's name) and its
+    ``track_default`` table (``bug``/``feature`` → a Track option name, allowed
+    only with ``track_field``) are optional. Returns a
     read-only mapping keyed by channel id, in file order. Errors name the key, never
     the value or file text.
     """
