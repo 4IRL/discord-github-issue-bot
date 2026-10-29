@@ -149,7 +149,8 @@ target's roadmap (chores4irl's first). **Advances capabilities:** 3, 4.
 - Complexity is computed by documented rules from the tag and the answers (the owner sets
   the scale), shown in the confirmation preview, and members can override it before filing.
 - The issue gets the type and complexity labels (labels created if missing), and is added
-  to the chores4irl GitHub Projects roadmap with its Status and complexity fields set.
+  to the chores4irl GitHub Projects roadmap (org Project #2) with its Status and Effort
+  (complexity band) fields set.
 - The thread's final message shows the issue link together with its rating and roadmap
   placement.
 
