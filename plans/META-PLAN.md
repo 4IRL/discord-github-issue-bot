@@ -305,8 +305,9 @@ field, without a lookup); `set_track(target, item_id, track)` runs `SET_TRACK_MU
 `track` alias) under stage `project-track` (an unknown option or field raises before any request).
 `add_to_project(target, issue, band)` runs `ADD_ITEM_MUTATION` (`addProjectV2ItemById`), then
 `SET_FIELDS_MUTATION` (two aliased `updateProjectV2ItemFieldValue`, option ids as GraphQL
-`String`), returns the item id; a `project-item`, `project-field` or `project-track` failure drops
-that route's cached ids (`_drop_project`) before re-raising.
+`String`) and returns the item id; a `project-item` or `project-field` failure there, like a
+`project-track` failure in `set_track`, drops that route's cached ids (`_drop_project`) before
+re-raising.
 `ensure_label(target, name)` POSTs `repos/<repo>/labels` (`LABEL_COLOR` `c5def5`); a 201 or any
 422 counts as "exists" and is cached per (repo id, name) for the process; a 401 drops the cached
 token. `check_access(target)` mints (or reuses) the target's token and raises `GitHubError` on
@@ -496,13 +497,14 @@ Parallel features: `/worktree <F-ID>...`.
 *Kept because F12 and F13 must cover its Project writes (F17's Track write included), and F16
 adds route keys beside its `project` table.*
 - A route's Project is its optional `[routes.<name>.project]` table → `TargetConfig.project`
-  (`ProjectConfig(number, status_field, status, effort_field)`): names, never ids; the owner is
+  (`ProjectConfig(number, status_field, status, effort_field, track_field=None,
+  track_defaults=())`): names, never ids; the owner is
   the route repo's owner. Ids are looked up by `GitHubClient.project_fields(target)` →
   `ProjectFields` and cached per `(owner, ProjectConfig)`, so **`ProjectConfig` must stay
   hashable** (F17's `track_defaults` is a tuple of `(IssueType, str)` pairs; never a dict).
 - `GitHubClient.add_to_project(target, issue, band)` adds the item and sets Status and Effort,
-  and returns the item id, which F17's `set_track` uses; a `project-item`/`project-field`/
-  `project-track` failure drops the route's cached ids before re-raising.
+  and returns the item id, which F17's `set_track` uses; a `project-item`/`project-field` failure
+  (or `set_track`'s `project-track`) drops the route's cached ids before re-raising.
 - The failed-write policy: `issues.place_on_roadmap` runs after the `filed …` log inside
   `filing_hook`, catches every exception (WARNING with type, stage and status, or type only,
   plus `track='<option>'` when the reporter picked a Track)
