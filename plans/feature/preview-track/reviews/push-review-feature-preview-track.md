@@ -55,3 +55,37 @@ Every new parameter and field has a default; existing route files and callers ke
 - [ ] **Optionally pair the Track members** — `issue_bot/github.py` `ProjectFields.__post_init__` — normalise to `(None, {})` when only one of `track_field_id`/`track_option_ids` is set
 
 6b: skipped (Review 1)
+
+## Review 2
+Generated: 2026-10-29 16:35
+Comparison: origin/feature/preview-track 29ad2e4a029d206cd929b50a92e6beca74ae4eab..72f2cf5
+Verdict: **PUSHED WITH MINOR FINDINGS**
+
+Scope: the merge-gate overturn of dd-261029-034 (`place_on_roadmap`'s failure WARNINGs end with `track='<option>'`; README, SMOKE-TEST and CLAUDE.md updated). All 8 reviewers PASS (Type Design not launched: no type changes).
+
+#### 1. Safety & Security — PASS
+The pick only ever comes from an index into the Project-sourced options, never free member text.
+#### 2. Correctness — PASS
+- minor: `_track_note` uses `!r`, so an option name with an apostrophe renders in double quotes, not the documented `track='<option>'`.
+#### 3. Simplicity & Conciseness — PASS
+- minor: `_track_note`'s comment partly restates the docstring.
+#### 4. Test Coverage — PASS
+- minor (no change needed): "generic-Exception branch with a pick untested": `test_place_on_roadmap_track_failure_returns_false_and_warns` already runs `RuntimeError` with `track="A · Bugs"`.
+#### 5. Completeness & Cleanup — PASS
+- minor: the plan's Step 6 SMOKE-TEST instruction still said "ask them" (fixed in 637ff18).
+- minor: META-PLAN's F6 kept contract describes the WARNING without the optional `track='<option>'` suffix; fold it in at F17's fold-back.
+#### 6. Consistency & Style — PASS
+- minor: one over-long line in the plan's decisions (fixed in 637ff18); the `!r` quoting note as in #2.
+#### 7. Integration Risk — PASS
+Log-only change; tests and docs updated together.
+#### 8. Error Handling & Silent Failures — PASS
+- minor: the deliberate broad `except Exception` in `place_on_roadmap` logs the type only (unchanged policy).
+
+### To-Do: Required Changes
+
+- [x] **Align the plan's Step 6 SMOKE-TEST text with the overturn** — `plans/feature/preview-track/preview-track.md` — done in 637ff18
+- [ ] **Document or fix the `!r` quoting** — `issue_bot/issues.py` `_track_note`, README, docs/SMOKE-TEST.md — either say the value is Python-repr quoted, or format it as `track='<option>'` explicitly
+- [ ] **Fold the WARNING suffix into META-PLAN** — `plans/META-PLAN.md` F6 kept contract / Baseline — at F17's fold-back, describe the optional `track='<option>'` suffix and update Standing invariant 2's allowed log contents
+- [ ] **Trim `_track_note`'s comment** — `issue_bot/issues.py` — keep one line; the docstring carries the rest
+
+6b: 0 misses (every Review 2 finding is on lines added after Review 1's range)
