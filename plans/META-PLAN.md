@@ -131,7 +131,7 @@ holds its supersession note, not edges; readers skip it. -->
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F17 — Track dropdown in the private preview** ★FOCUS | pending | `feature/preview-track` | — |
+| **F17 — Track dropdown in the private preview** ★FOCUS | in-progress | `feature/preview-track` | — |
 | **F12 — Never file a report twice** | pending | `feature/idempotent-filing` | — |
 | **F13 — Retry and rate limits** | pending | `feature/retry-rate-limits` | — |
 | **F11 — Deploy on `c4i`** | pending | `feature/deploy-c4i` | — |
