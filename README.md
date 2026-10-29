@@ -1,12 +1,12 @@
 # discord-github-issue-bot
 
-A Discord bot that turns `/bug` and `/feature` reports, made through a modal in one of its configured intake channels of a Discord server, into GitHub issues in the 4IRL GitHub org. Each intake channel is a route, and each report is filed in that route's repo. The modal asks the route's own questions for the report's type, and the reporter checks a private preview of the issue before filing it. Each filed report becomes a public summary message, a thread on it and a filed issue whose link is posted in the thread. Roadmap placement is planned. Its first target (an example) is `#c4i-github-issues` in the 4irl server → `4IRL/chores4irl`.
+A Discord bot that turns `/bug` and `/feature` reports, made through a modal in one of its configured intake channels of a Discord server, into GitHub issues in the 4IRL GitHub org. Each intake channel is a route, and each report is filed in that route's repo. The modal asks the route's own questions for the report's type, and the reporter checks a private preview of the issue before filing it. Each filed report becomes a public summary message, a thread on it and a filed issue whose link is posted in the thread. A route with a `project` table also places each filed issue on its roadmap Project. Its first target (an example) is `#c4i-github-issues` in the 4irl server → `4IRL/chores4irl`.
 
 The code itself is target-agnostic: it holds no 4irl values (never as a code default), and their config home is the committed [`example.env`](example.env) and [`example.routes.toml`](example.routes.toml).
 
 ## Status
 
-F2 (thread per report), F3 (per-type questions with a private preview before filing), F4 (S/M/L/XL complexity triage), F5 (issue filing), F7 (issue link in the thread), F8 (routes: several intake channels, each filing to its own repo, from the route file) and F10 (slash-command intake) exist: the bot registers `/bug` and `/feature` and files each report as described under [Reporting](#reporting). The thread is named from the title, and the issue gets its type's label plus one `complexity:<band>` label. A filed issue is logged by issue type, message id, message URL, thread id and issue URL. On success the bot posts the issue number, complexity band, title and link in the thread (`Filed as GitHub issue #<number> (complexity <band>): <title>` with the link on the next line, no preview card); if filing fails it posts a fixed error reply there. With no thread, either goes as a reply to the summary message.
+F2 (thread per report), F3 (per-type questions with a private preview before filing), F4 (S/M/L/XL complexity triage), F5 (issue filing), F6 (roadmap placement), F7 (issue link in the thread), F8 (routes: several intake channels, each filing to its own repo, from the route file) and F10 (slash-command intake) exist: the bot registers `/bug` and `/feature` and files each report as described under [Reporting](#reporting). The thread is named from the title, and the issue gets its type's label plus one `complexity:<band>` label. A filed issue is logged by issue type, message id, message URL, thread id and issue URL. On success the bot posts the issue number, complexity band, title and link in the thread (`Filed as GitHub issue #<number> (complexity <band>): <title>` with the link on the next line, no preview card); if filing fails it posts a fixed error reply there. With no thread, either goes as a reply to the summary message. On a route with a `project` table the link message's third line carries the roadmap note: "Added to the roadmap." or "Couldn't finish adding it to the roadmap; the owner can fix it by hand."
 
 - The commands are synced to the `DISCORD_GUILD_ID` guild only, once per start. Outside a routed intake channel they are refused, or ignored with no reply when `UNROUTED_COMMANDS=ignore`.
 - Each route's intake channel is matched by its `channel_id`; its name, category and guild are only checked at startup, per route (a mismatch logs a warning; a channel the bot cannot see logs an error).
@@ -20,7 +20,7 @@ F2 (thread per report), F3 (per-type questions with a private preview before fil
    - **Edit** reopens the form with your text filled in; submitting it updates the same preview in place, with a fresh 10 minutes.
    - **File** changes the preview to "Filing your report…" and files the report, once.
    - A preview left 10 minutes changes to "This preview expired, so nothing was filed. Run the command again to report it." and keeps your text, so you can copy it. Pressing a button never extends the 10 minutes.
-4. After **File**, the bot posts a public summary in the channel: the type, the title and you as a mention that pings nobody. It opens a thread on the summary, files the issue, then posts the issue's number, complexity band, title and link in the thread. The issue body has one section per answered question; a blank optional question is left out.
+4. After **File**, the bot posts a public summary in the channel: the type, the title and you as a mention that pings nobody. It opens a thread on the summary, files the issue, then posts the issue's number, complexity band, title and link in the thread. On a route with a `project` table the bot then adds the issue to the route's Project with its Status and Effort, and the link message gets a third line: "Added to the roadmap." on success, or "Couldn't finish adding it to the roadmap; the owner can fix it by hand." on failure (the issue stays filed either way). The issue body has one section per answered question; a blank optional question is left out.
 5. You get a private confirmation linking the summary. Only you see it.
 
 - A title with no letter or digit shows no preview; you get a private reply asking you to run the command again (after **Edit**, to press Edit and fix it).
@@ -56,7 +56,7 @@ Direction: [`plans/ROADMAP.md`](plans/ROADMAP.md). Next work: [`plans/META-PLAN.
 
 ### GitHub App setup
 
-1. Create a GitHub App under the 4IRL org. Turn the webhook off. Grant the repository permissions **Issues: Read and write** and **Metadata: Read**.
+1. Create a GitHub App under the 4IRL org. Turn the webhook off. Grant the repository permissions **Issues: Read and write** and **Metadata: Read**. A route with a [`project` table](#configuration) also needs the Organization permission **Projects: Read and write**; after adding it, accept the new permission on the installation. The bot asks for it only on those routes' tokens. The permission covers every Project in the org, not only the route's, so a Project route's token can write any 4IRL Project: keeping the bot off other Projects is procedure, not a GitHub limit. To revert: remove every route's `project` table and restart the bot, then remove the Projects permission from the App and accept the change on the installation.
 2. Install it on every route's repo, and only those (**Only select repositories**). A route to a new repo means adding that repo to the installation.
 3. Note the App ID (the App's settings page) and the installation ID (the number at the end of the installation's URL).
 4. Generate a private key and keep the downloaded `.pem` outside the repo.
@@ -65,7 +65,7 @@ Issues filed to a public target repo are public, including the author's Discord 
 
 ### Configuration
 
-Instance settings and secrets come from the environment, and the routes from the TOML file at `ROUTES_PATH`. Every key is required: there are no defaults in code. Copy the template and fill it in:
+Instance settings and secrets come from the environment, and the routes from the TOML file at `ROUTES_PATH`. Every key is required, except the optional route `project` table (whose keys are then all required): there are no defaults in code. Copy the template and fill it in:
 
 ```sh
 cp example.env .env
@@ -102,8 +102,13 @@ Add one table per intake channel. For `channel_id`, enable Developer Mode in Dis
 | `repo_id` | positive integer | Output repo id |
 | `labels.bug` / `labels.feature` | string | Label for `/bug` / `/feature` (a `[routes.<name>.labels]` table) |
 | `questions.bug` / `questions.feature` | array of tables | The form's questions for `/bug` / `/feature`, asked below the Title, 1 to 4 per type (`[[routes.<name>.questions.bug]]` tables). Each has exactly `label` (string, 1 to 45 characters, unique within the type), `style` (`"short"` for one line or `"paragraph"` for several) and `required` (`true` or `false`) |
+| `project.number` | positive integer | Optional `[routes.<name>.project]` table: the roadmap Project's number in `GITHUB_ORG`, from its URL (`github.com/orgs/<org>/projects/<number>`) |
+| `project.status_field` / `project.status` | string | The Project's Status single-select field name, and the option new items get |
+| `project.effort_field` | string | The single-select field set to the issue's complexity band; it needs options named `S`, `M`, `L` and `XL` |
 
 Each route's `labels.*` type labels must already exist in its repo: a label an App requests that doesn't exist may be dropped or auto-created depending on its permissions _(unverified)_. The scratch-repo [smoke test](docs/SMOKE-TEST.md) confirms the label was applied. The bot creates the `complexity:<band>` labels itself ([`docs/COMPLEXITY.md`](docs/COMPLEXITY.md)).
+
+The bot looks each `project` table's Project, fields and options up at startup and logs `github project ok for repo_id=… project=…` (or `github project check failed for repo_id=… project=…`). A failed Project step after filing leaves the issue filed, logs `could not add … to the roadmap …` and puts a note in the thread.
 
 Pointing the bot at another channel or repo (for example a test channel) means changing only the route file. The bot reads the file once at startup, so restart it after editing the file.
 
@@ -116,6 +121,10 @@ Configs from before the route file kept the target in `.env`; the bot no longer 
 #### Upgrading to per-type questions
 
 Route files from before per-type questions have no `questions` tables, and the bot now exits at startup with code 2 (`configuration error: routes.<name>.questions is required`). Add `[[routes.<name>.questions.bug]]` and `[[routes.<name>.questions.feature]]` tables to every route, copying the sets in [`example.routes.toml`](example.routes.toml) as a start, then restart. Rolling back to an older build needs the `questions` tables removed again: older builds reject unknown route keys and also exit with code 2.
+
+#### Adding a roadmap Project
+
+Existing route files load unchanged. To turn roadmap placement on for a route, first add the Organization permission **Projects: Read and write** to the App and accept it on the installation (see [GitHub App setup](#github-app-setup)), then add the route's `[routes.<name>.project]` table and restart, and confirm the startup line `github project ok for repo_id=… project=…`. A `project` table added before the grant is accepted fails that route's token mint, so its `/bug` and `/feature` reply that reports can't be filed until the grant is accepted or the table removed. A route file copied from [`example.routes.toml`](example.routes.toml) already has a `project` table on its `c4i` route: delete it if the route has no roadmap. Rolling back to an older build needs the `project` tables removed: older builds reject the unknown key and exit with code 2. To stop using Projects entirely: remove every route's `project` table and restart the bot, then remove the Projects permission from the App and accept the change on the installation.
 
 ### Run locally
 

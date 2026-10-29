@@ -411,14 +411,14 @@ Look each Project route's fields up once at startup and log the result, as the a
 Document the Project table, the App permission and the smoke check.
 
 **To-do:**
-- [ ] `README.md` § GitHub App setup step 1: add that a route with a `project` table also needs
+- [x] `README.md` § GitHub App setup step 1: add that a route with a `project` table also needs
   the Organization permission **Projects: Read and write** (accept the new permission on the
   installation after adding it); the bot asks for it only on those routes' tokens. Also say its
   reach: the permission covers every Project in the org, not only the route's, so a Project
   route's token can write any 4IRL Project (keeping the bot off other Projects is procedure,
   not a GitHub limit). To revert: remove every route's `project` table, then remove the
   Projects permission from the App and accept the change on the installation.
-- [ ] `README.md` § Status: add F6 (roadmap placement) to the shipped-features list, in that
+- [x] `README.md` § Status: add F6 (roadmap placement) to the shipped-features list, in that
   paragraph's own `F<n> (<what>)` style, and replace the intro's "Roadmap placement is
   planned." sentence with one saying a route with a `project` table also places each filed
   issue on its roadmap Project; in that paragraph's description of the success post ("with the
@@ -429,14 +429,14 @@ Document the Project table, the App permission and the smoke check.
   Effort, and the link message gets a third line, `ROADMAP_ADDED_NOTE` on success or
   `ROADMAP_FAILED_NOTE` on failure (write each note's text as it stands in
   `issue_bot/threads.py` when this step runs).
-- [ ] `README.md` § Configuration: change "Every key is required: there are no defaults in code"
+- [x] `README.md` § Configuration: change "Every key is required: there are no defaults in code"
   to say the one optional route key is the `project` table; add rows for `project.number`
   (positive integer: the Project's number in `GITHUB_ORG`, from its URL), `project.status_field`
   / `project.status` (the Status single-select's name and the option new items get) and
   `project.effort_field` (the single-select set to the complexity band; it needs options named
   `S`, `M`, `L` and `XL`); say the bot checks them at startup (`github project ok for repo_id=… project=…`)
   and that a failed Project step leaves the issue filed with a note in the thread.
-- [ ] `README.md`: add `#### Adding a roadmap Project` after the Upgrading sections: existing
+- [x] `README.md`: add `#### Adding a roadmap Project` after the Upgrading sections: existing
   route files load unchanged; to turn it on, first add the Organization permission **Projects:
   Read and write** and accept it on the installation, then add the route's `project` table and
   restart, and confirm the startup line `github project ok for repo_id=… project=…`. A
@@ -447,7 +447,7 @@ Document the Project table, the App permission and the smoke check.
   (older builds reject the unknown key and exit with code 2). To stop using Projects entirely:
   remove every route's `project` table, then remove the Projects permission from the App and
   accept the change on the installation.
-- [ ] `docs/SMOKE-TEST.md`:
+- [x] `docs/SMOKE-TEST.md`:
   - § What it writes: in **Probe**, add that with a Project route the token also carries
     `organization_projects: write`; add that each report filed on a Project route writes one
     item in the test Project with Status `Todo` and Effort set to the filed band; in
@@ -482,7 +482,7 @@ Document the Project table, the App permission and the smoke check.
     `project` table a missing or not-yet-accepted **Projects: Read and write** grant also fails
     the token mint. In the existing `The probe returns 422` row, add: or, with the Project-route
     payload, the App lacks **Projects: Read and write** or the installation hasn't accepted it.
-- [ ] `plans/META-PLAN.md` (re-read it first; dd-261029-010): in the `## F6 — Add the issue to
+- [x] `plans/META-PLAN.md` (re-read it first; dd-261029-010): in the `## F6 — Add the issue to
   the chores4irl roadmap Project` section's **Expected end state**, replace the first bullet
   ```
   - The Project number and field IDs are config, never hardcoded.
@@ -507,7 +507,7 @@ Document the Project table, the App permission and the smoke check.
   `grep -c 'except the optional' plans/META-PLAN.md` each print `1`, and
   `grep -c 'field IDs are config, never hardcoded' plans/META-PLAN.md || true` and `grep -c
   'field IDs are per-route config' plans/META-PLAN.md || true` each print `0`.
-- [ ] Confirm Standing invariant 1: `grep -rnE
+- [x] Confirm Standing invariant 1: `grep -rnE
   '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot`
   prints nothing, and `grep -rn 'PVT_\|number = 2' issue_bot` prints nothing (each exits 1
   when it finds nothing; that is the pass). The Project number lives only in
@@ -530,8 +530,8 @@ Run the full test suites to confirm nothing is broken:
   `4irl-issue-bot` App and accept the updated permissions on its 4IRL installation. The
   permission covers every Project in the org, not only the route's, so a Project route's token
   can write any 4IRL Project (the smoke test's "never Project #2" is procedure, not a GitHub
-  limit). To revert: remove every route's `project` table, then remove the Projects permission
-  from the App and accept the change on the installation.
+  limit). To revert: remove every route's `project` table and restart the bot, then remove the
+  Projects permission from the App and accept the change on the installation.
 - Before the PR is merged, run `docs/SMOKE-TEST.md` against a scratch repo and a test Project
   (never Project #2 or the live channel): the item lands with Status `Todo` and the right
   Effort, and the thread says "Added to the roadmap." This is the live acceptance gate for the

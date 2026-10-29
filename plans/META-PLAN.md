@@ -336,8 +336,7 @@ Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
    interaction's repr (F10, PR #13; preview view F3, PR #19; CLAUDE.md rule). A GitHub API error is logged by exception type, request stage and
    HTTP status, never its response text; tokens, JWTs and the App private key are never logged
    (F5, PR #9). The filed issue's URL may be logged.
-3. Every config key, in the environment and the route file, is required and validated at
-   startup; a bad config exits with code 2 before connecting (F1; route file F8, PR #17).
+3. Every config key, in the environment and the route file, is required and validated at startup, except the optional `[routes.<name>.project]` table, whose keys are then all required (F6); a bad config exits with code 2 before connecting (F1; route file F8, PR #17).
 
 ### Assumptions to revisit at planning time
 
@@ -551,7 +550,7 @@ Its `Effort` field shares the band contract with F4.
 
 **Dependencies.** F5; soft: F8; couples: F4. The Project's number and fields are read with
 `gh api graphql` `organization(login:"4IRL"){projectV2(number:2){fields}}` and recorded in
-config. Per F8's kept contract, the Project number and field IDs are per-route config under
+config. Per F8's kept contract, the Project number and field/option names are per-route config under
 `[routes.<name>]` (a route may have no Project).
 
 **Sizing.** unscored (intake estimate M); split check pending.
@@ -561,7 +560,7 @@ config. Per F8's kept contract, the Project number and field IDs are per-route c
   Assumption 2 lists.
 
 **Expected end state** (repo-checkable):
-- The Project number and field IDs are config, never hardcoded.
+- The Project number and field/option names are per-route config; their ids are looked up through GraphQL and cached, never hardcoded (dd-261029-002).
 - Filing adds the issue to the Project and sets Status and the `Effort` field from
   `IssueCandidate.complexity` (F4's kept contract), with all GraphQL calls mocked in tests.
 - All suites green; Standing invariants untouched.
