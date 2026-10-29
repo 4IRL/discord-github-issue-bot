@@ -54,7 +54,10 @@ Track write follows F6's failed-Project-write policy.
 - **DD-5 (asked, dd-261029-028).** The preview embed gets a **Track** field (the pick, or `None`)
   whenever the row is shown, like Complexity.
 - **Review pass 2:** the lookup callable is `track_lookup: TrackLookup` in the wiring (assumed,
-  dd-261029-035); a lost Track pick was first recovered by asking the reporter (assumed, dd-261029-034), overturned at the merge gate: every failed-roadmap WARNING ends with `track='<option>'` when the reporter picked one, and CLAUDE.md's logging rule allows that option name;
+  dd-261029-035); a lost Track pick was first recovered by asking the reporter (assumed,
+  dd-261029-034), overturned at the merge gate: every failed-roadmap WARNING ends with
+  `track='<option>'` when the reporter picked one, and CLAUDE.md's logging rule allows that
+  option name;
   guard tests for a no-project lookup and a Track route without a lookup (assumed, dd-261029-036).
 - **Review pass 1** (`reviews/preview-track-review.md`): no live Track smoke check (owner,
   dd-261029-029); a failed Track write uses its own stage `project-track` (dd-261029-030); a failed
@@ -340,10 +343,9 @@ and keys.
   smoke run does not exercise the Track dropdown (the test Project has no Track field and the
   scratch route sets no `track_field`), and in the troubleshooting row for `could not add … to the
   roadmap …` add: after `stage=project-track` the item is on the Project with its Status and Effort,
-  so set its Track there if the reporter picked one (the bot doesn't record the pick: ask them);
+  so set its Track there (merge gate: to the option the log line's `track='<option>'` names);
   after each "set its Status and Effort" for `stage=project`, `stage=project-item`/`stage=token` and
-  the stage-less form add "(and its Track, on a route with `track_field`, if the reporter picked
-  one)"; and change "After a `stage=project-item` or `stage=project-field` failure" to "After a
+  the stage-less form add "(and its Track, when the log line ends with `track='<option>'`)"; and change "After a `stage=project-item` or `stage=project-field` failure" to "After a
   `stage=project-item`, `stage=project-field` or `stage=project-track` failure". No other runbook
   change.
 - [x] (2026-10-29, full suite 509 passed) `docs/COMPLEXITY.md` (the preview description paragraph): one sentence that on a route with a
