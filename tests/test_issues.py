@@ -372,7 +372,34 @@ async def test_place_on_roadmap_track_failure_returns_false_and_warns(
     assert result is False
     assert issues_records(caplog, logging.WARNING) == [
         f"could not add bug message_id=99 to the roadmap issue={ISSUE_URL}: {suffix}"
+        " track='A · Bugs'"
     ]
     assert not issues_records(caplog, logging.INFO)
     assert not [text for text in record_texts(caplog) if "Secret exception words" in text]
     assert_no_member_text(caplog)
+
+
+async def test_place_on_roadmap_add_failure_names_the_track_pick(
+    project_route: TargetConfig,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # Any failed step leaves the pick unset, so the WARNING names it for the owner's hand fix.
+    github = SimpleNamespace(
+        add_to_project=AsyncMock(side_effect=GitHubError("project-item", 200)),
+        set_track=AsyncMock(),
+    )
+
+    with caplog.at_level(logging.INFO):
+        result = await place_on_roadmap(
+            github,  # type: ignore[arg-type]
+            make_candidate(target=project_route, track="A · Bugs"),
+            FiledIssue(7, ISSUE_URL, "I_node7"),
+        )
+
+    assert result is False
+    github.set_track.assert_not_awaited()
+    assert issues_records(caplog, logging.WARNING) == [
+        f"could not add bug message_id=99 to the roadmap issue={ISSUE_URL}: "
+        "GitHubError stage=project-item status=200 track='A · Bugs'"
+    ]
