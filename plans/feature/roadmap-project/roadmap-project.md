@@ -360,7 +360,7 @@ message.
 Look each Project route's fields up once at startup and log the result, as the access check does.
 
 **To-do:**
-- [ ] Red, `tests/test_bot.py`. `_check_github_access` returns at once when `filing_check` is
+- [x] Red, `tests/test_bot.py`. `_check_github_access` returns at once when `filing_check` is
   None, so every case passes both checks: `access = AsyncMock()`, `check = AsyncMock()`, and
   `IssueBot(project_config, filing_check=access, project_check=check)` with the Step 2
   `conftest` fixtures `project_config` and `project_route`. Drive it as the existing
@@ -387,7 +387,7 @@ Look each Project route's fields up once at startup and log the result, as the a
   `tests.conftest` import. In `test_main_runs_bot_with_token`, also assert
   `init_kwargs["project_check"].__func__ is GitHubClient.project_fields` (and its `__self__` is
   a `GitHubClient`). Run them; confirm every other new case fails.
-- [ ] Green: in `issue_bot/bot.py`, add `from collections.abc import Awaitable, Callable` to the
+- [x] Green: in `issue_bot/bot.py`, add `from collections.abc import Awaitable, Callable` to the
   stdlib import group (after `import sys`, before `from typing import Any`, as the repo puts
   plain imports first), and at module level, after
   `logger`, `ProjectCheck = Callable[[TargetConfig], Awaitable[object]]` (mirroring
@@ -405,7 +405,7 @@ Look each Project route's fields up once at startup and log the result, as the a
   `project_check=github.project_fields`. In `test_main_builds_github_client`, the GitHubClient
   sentinel becomes `SimpleNamespace(check_access=AsyncMock(), project_fields=AsyncMock())`, since
   `main()` now reads `github.project_fields`.
-- [ ] Run `.venv/bin/pytest` and confirm all tests pass.
+- [x] Run `.venv/bin/pytest` and confirm all tests pass. — 448 passed (2026-10-29)
 
 ### 6. Docs
 Document the Project table, the App permission and the smoke check.
