@@ -582,7 +582,8 @@ Project writes, and F16 adds route keys beside its `project` table.*
   - rename `_route_project`'s `where_p`;
   - optional: a fixed reason token (`status-field`, `effort-band`, …) on a lookup mismatch in the
     startup log; non-`GitHubError` roadmap failures at ERROR; collapse `_check_project`'s two
-    excepts; move `ProjectCheck` beside `FilingCheck`; `effort_option_ids` keyed by `Complexity`.
+    excepts; move `ProjectCheck` beside `FilingCheck`; `effort_option_ids` keyed by `Complexity`;
+    log the item id on a `project-field` failure.
 
   The ProjectConfig-hashability item is in F6's kept contract; Review 2's "use the returned item
   id" is F17's. None blocks a remaining feature.
@@ -618,7 +619,7 @@ contract puts the per-route, per-type default under `[routes.<name>]`.
 
 **Sizing.** unscored (intake estimate M); split check pending.
 
-**Assumed starting state** = **Baseline** plus F6 merged. Verify:
+**Assumed starting state** = **Baseline**. Verify:
 - Project #2 has a `Track` single-select (Assumption 3), and F6's config shape for a route's
   Project (`ProjectConfig` names; ids looked up and cached, F6's kept contract).
 - `PreviewView` has room for a select row: S/M/L/XL are row 0 and File/Edit row 1 (Discord
@@ -668,7 +669,7 @@ the Track write as well.
 
 **Sizing.** unscored (intake estimate M); split check pending.
 
-**Assumed starting state** = **Baseline** plus F6 and F17 if merged. Verify:
+**Assumed starting state** = **Baseline** plus F17 if merged. Verify:
 - The issue body's author line already carries the summary message URL (`issue_body`), a
   candidate dedup key.
 
@@ -847,7 +848,7 @@ F8's commands must stay route-agnostic.
 
 **Sizing.** unscored (intake estimate L); split check pending.
 
-**Assumed starting state** = **Baseline** plus F6 and F17. Verify:
+**Assumed starting state** = **Baseline** plus F17. Verify:
 - Every use of `IssueType` (commands, labels, questions, `STARTING_BAND`, F17's per-type Track
   default).
 
@@ -877,22 +878,20 @@ drift test pins them today).
 Phase 1:    done       (F1 #2; F9 rename #5; F2 threads #7; F5 filing #9; F10 intake #13; F7 link #15)
 Phase 1.5:  done       (F8 routes #17)
 Phase 2:    done       (F3 questions + preview #19)
-Phase 3:    F4 rating #21 (done)
-            F5 ──► ★ F6 ──► F17   (F6 couples F4; F17 couples F4, F8)
+Phase 3:    F4 rating #21, F6 roadmap #24 (done)
+            F6 ──► ★ F17   (F17 couples F4, F8)
 Phase 4:    filing track:   (soft: F6, F17) ┄► F12 ──► F13 ┄► F15
             deploy track:   homelab#P3 (c4i Docker stage) ──► F11
             QoL track:      F14 ⇄ F16   (couples; F16 soft after F6, F17)
 ```
 
-- **Hard chains:** F5 → F6 → F17; F12 → F13; homelab#P3 → F11 (external). F1, F2, F3, F4, F5,
-  F7, F8, F9 and F10 have shipped; refs to them stay valid, so F6 is unblocked, and F12, F14,
-  F15 and F16 have no unmet hard prerequisite.
-- **Soft preferences:** F8 (shipped) before F6, so Project config is per-route from the start.
-  F6 and F17 before F12, F13 and F16, so dedup, retry and the type schema cover the Project
+- **Hard chains:** F6 → F17; F12 → F13; homelab#P3 → F11 (external). F1–F10 have shipped;
+  refs to them stay valid, so F17 is unblocked, and F12, F14, F15 and F16 have no unmet hard
+  prerequisite.
+- **Soft preferences:** F6 (shipped) and F17 before F12, F13 and F16, so dedup, retry and the type schema cover the Project
   writes and route keys once. F13 before F15, so the search call is rate-limited.
-- **Couplings to honor:** F6, F17 and F16 put per-route settings under `[routes.<name>]` (F8's
-  kept contract). F4 ↔ F6: both use the same S/M/L/XL band names, one as a label and one as a
-  Project field (F4's kept contract). F4 ↔ F17: the Track row sits in F4's `PreviewView` and
+- **Couplings to honor:** F17 and F16 put per-route settings under `[routes.<name>]` beside F6's
+  `project` table (F8's and F6's kept contracts). F4 ↔ F17: the Track row sits in F4's `PreviewView` and
   its pick follows the band override's `Draft` pattern. F17 ↔ F15: both add to the private
   preview. F14 ↔ F16: help lists the types F16 makes configurable. F11, F14 and F16 keep the
   synced command set route-agnostic.
