@@ -351,19 +351,19 @@ and keys.
   band. Run `.venv/bin/pytest tests/test_complexity.py tests/test_config.py` (they pin this doc's
   thresholds and the example's shape), then the full `.venv/bin/pytest`.
 
-### 7. Verify All Tests Pass
+### 7. Verify All Tests Pass - COMPLETE (2026-10-29)
 Run the full test suite to confirm nothing is broken.
 
 **To-do:**
-- [ ] Run `.venv/bin/pytest` and confirm every test passes.
-- [ ] Run `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py'
+- [x] (2026-10-29, 509 passed) Run `.venv/bin/pytest` and confirm every test passes.
+- [x] (2026-10-29, both greps empty) Run `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py'
   issue_bot` and confirm it prints nothing (Standing invariant 1), and
   `grep -rn 'A · Bugs\|Form & feedback' issue_bot` prints nothing (no hardcoded Track list).
-- [ ] Grep the new log lines in `issue_bot/` (`could not read track options`, `track field has`) and
+- [x] (2026-10-29, intake.py logs issue type, interaction id, exception type, stage, status; bot.py logs counts, repo id, project number) Grep the new log lines in `issue_bot/` (`could not read track options`, `track field has`) and
   confirm each logs only the issue type, ids, counts, stage, status and exception type (Standing
   invariant 2).
-- [ ] Investigate and fix any failures before marking the plan finished.
-- [ ] Copy the Manual checks below verbatim into the final report.
+- [x] (2026-10-29, no failures) Investigate and fix any failures before marking the plan finished.
+- [x] (2026-10-29) Copy the Manual checks below verbatim into the final report.
 
 ## Manual checks (owner; not executor boxes)
 - No live Track smoke check (owner's choice, review pass 1): the dropdown, the Edit carry-over and
@@ -374,4 +374,4 @@ Run the full test suite to confirm nothing is broken.
   options were checked at the cold survey (Research Findings).
 
 ## Status
-finished: false
+finished: true
