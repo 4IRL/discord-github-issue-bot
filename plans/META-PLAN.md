@@ -43,24 +43,22 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 
 ## Where the work stands
 
-**★FOCUS: `F17` — Track dropdown in the private preview** (runnable; branch `feature/preview-track`).
+**★FOCUS: `F12` — Never file a report twice** (runnable; branch `feature/idempotent-filing`).
 
-Phases 1, 1.5 and 2 are complete on `main`, and Phase 3's rating and roadmap placement have
-shipped: each report is rated S/M/L/XL (F4) and, on a route with a `project` table, added to its
-org Project with Status and Effort set (F6). F17 (the preview's Track pick), Phase 3's last
-feature, is runnable. Phase 4 is pre-loaded as F11–F16; F11's live deploy waits on homelab's
-`c4i` Docker stage (homelab Phase 3).
+Phases 1 through 3 are complete on `main`: each report is rated S/M/L/XL (F4) and, on a route
+with a `project` table, added to its org Project with Status, Effort and the reporter's Track
+(F6, F17). Phase 4 is runnable from F12; F11's live deploy waits on homelab's `c4i` Docker stage
+(homelab Phase 3).
 
 <!-- Two or three sentences at most: what is runnable today, what is gated and on what.
 Shipped work is git's record (`gh pr list --state merged`), not this file's. -->
 
 ### Shortest path to the focus feature
 
-F17's prerequisites have shipped (F6's Project client and per-route Project config, F4's
-preview), and Project #2 already has the `Track` field it sets (Assumption 3).
+F12 has no unmet prerequisite (its soft dependencies F6 and F17 have shipped).
 
-1. **Run F17** (`/run-feature F17`, effort M): the reporter picks the item's Track in the
-   private preview, and on File the bot sets it after F6 adds the item.
+1. **Run F12** (`/run-feature F12`, effort M): each report is filed at most once, including the
+   Project add and Track write, so F13's retries can follow.
 
 A live run needs the bot invited with the `bot` and `applications.commands` scopes and View
 Channel, Read Message History, Send Messages, Create Public Threads and Send Messages in Threads
@@ -81,7 +79,6 @@ on each route's intake channel, plus F5's GitHub App (README § Discord setup an
 - [ ] **F14** (added 2026-10-28): Phase 4 quality of life: a help command.
 - [ ] **F15** (added 2026-10-28): Phase 4 quality of life: duplicate-issue hints.
 - [ ] **F16** (added 2026-10-28): Phase 4 quality of life: more issue types, declared in the route file rather than in code.
-- [ ] **F17** (added 2026-10-28): Track dropdown in the private preview. After F6 files each report onto the route's GitHub Project, let the reporter pick the item's Track in the private preview, alongside F4's S/M/L/XL band buttons, as an optional single-select row in PreviewView (not in the modal); options are the Project's own Track options read through GitHub's API, never a hardcoded list; each route and issue type can configure a pre-selected default by option name in the route file; the pick survives Edit; on File, after F6 adds the item, the bot sets Track (blank with no pick); a failed Track write is handled like F6's failed Project write; no dropdown for a route with no Project or a Project with no Track field; the bot still never sets ID, Order, Lane, Start date, Target date or Days.
 
 ---
 
@@ -89,13 +86,12 @@ on each route's intake channel, plus F5's GitHub App (README § Discord setup an
 
 | Order | Feature | Effort | Depends on | Phase |
 |---|---|---|---|---|
-| ★ 1 | **F17** — Track dropdown in the private preview **[FOCUS]** | M | F6; couples: F4, F8 | 3 |
-| 2 | **F12** — Never file a report twice | M | soft: F6, F17 | 4 |
-| 3 | **F13** — Retry and rate limits (auto, then a Retry button) | L | F12; soft: F6 | 4 |
-| 4 | **F11** — Deploy on `c4i` | M | homelab#P3 (c4i Docker stage) | 4 |
-| 5 | **F14** — Help command | S | couples: F16 | 4 |
-| 6 | **F15** — Duplicate-issue hints in the preview | M | soft: F13; couples: F17 | 4 |
-| 7 | **F16** — Issue types from the route file | L | soft: F6, F17; couples: F4, F8 | 4 |
+| ★ 1 | **F12** — Never file a report twice **[FOCUS]** | M | soft: F6, F17 | 4 |
+| 2 | **F13** — Retry and rate limits (auto, then a Retry button) | L | F12; soft: F6 | 4 |
+| 3 | **F11** — Deploy on `c4i` | M | homelab#P3 (c4i Docker stage) | 4 |
+| 4 | **F14** — Help command | S | couples: F16 | 4 |
+| 5 | **F15** — Duplicate-issue hints in the preview | M | soft: F13; couples: F17 | 4 |
+| 6 | **F16** — Issue types from the route file | L | soft: F6, F17; couples: F4, F8 | 4 |
 
 <!-- *Depends on* holds dependency edges in the grammar of
 /home/rmila/Code/_STRONGHOLD/plans/roadmap.md §3.1 *Dependency edges and `NEXT.md`*, which is
@@ -119,8 +115,7 @@ gate), unsplit like `cond:`; any other text not in the grammar is reported, neve
 superseded row (Feature cell struck through with `~~`, *Depends on* starting `**superseded`)
 holds its supersession note, not edges; readers skip it. -->
 
-**Effort tally (remaining).** 15 pts (S=1 / M=2 / L=3 / XL=5): Phase 3 2 (F17), Phase 4
-13 (F11–F16).
+**Effort tally (remaining).** 13 pts (S=1 / M=2 / L=3 / XL=5): Phase 4 13 (F11–F16).
 
 ---
 
@@ -131,8 +126,7 @@ holds its supersession note, not edges; readers skip it. -->
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F17 — Track dropdown in the private preview** ★FOCUS | in-review | `feature/preview-track` | [#26](https://github.com/4IRL/discord-github-issue-bot/pull/26) |
-| **F12 — Never file a report twice** | pending | `feature/idempotent-filing` | — |
+| **F12 — Never file a report twice** ★FOCUS | pending | `feature/idempotent-filing` | — |
 | **F13 — Retry and rate limits** | pending | `feature/retry-rate-limits` | — |
 | **F11 — Deploy on `c4i`** | pending | `feature/deploy-c4i` | — |
 | **F14 — Help command** | pending | `feature/help-command` | — |
@@ -141,7 +135,7 @@ holds its supersession note, not edges; readers skip it. -->
 
 ---
 
-## Baseline: the codebase as it exists today (`main` at PR #24, `c579ab4`)
+## Baseline: the codebase as it exists today (`main` at PR #26, `efb3935`)
 
 > The Assumed starting state for every remaining feature unless its section says
 > otherwise. Describe what *is*, never what changed.
@@ -161,9 +155,10 @@ only `issue_type`): `Complexity` StrEnum `S`, `M`, `L`, `XL` in that order;
 `rate(issue_type, answers)` starts at `STARTING_BAND` (bug S, feature M) and raises one step at
 `RAISE_ONE_AT` (800) and two at `RAISE_TWO_AT` (2000) total stripped answer characters, capped at
 XL; `complexity_label(band)` is `complexity:<band>`. `issue_bot/handler.py`: frozen
-`IssueCandidate` (type, title, `answers`, `complexity`, author id/name, message id/url, target),
+`IssueCandidate` (type, title, `answers`, `complexity`, author id/name, message id/url, target, track),
 built only by `candidate_from_submission(issue_type, title, answers, complexity, reporter,
-message, target)` with the bot's summary message as `message`. `answers` is a tuple of
+message, target, track=None)` with the bot's summary message as `message`; `IssueCandidate.track` (the Track
+option to set, not member text) stays in repr. `answers` is a tuple of
 `(question label, answer)` pairs in question order, blanks included. Member text and names are `repr=False`. Adding or changing a
 type's questions is route-file data; a new issue type still needs an `IssueType` member (it is a
 slash command and a required label).
@@ -182,24 +177,31 @@ exactly `label` (1–45 characters, unique within the type), `style` (`short`/`p
 `required` (a TOML boolean), and the one optional key `project`: a `[routes.<name>.project]` table
 of exactly the `PROJECT_KEYS` `number` (positive int, the Project's number in the repo owner's
 org), `status_field`, `status` (the Status option new items get) and `effort_field` (names, not
-ids; read by `_route_project`, which returns `None` when the table is absent). It rejects an
+ids; read by `_route_project`, which returns `None` when the table is absent), plus the optional
+`track_field` (the Track single-select's name) and `[routes.<name>.project.track_default]` (`bug`
+and/or `feature` → an option name; only with `track_field`, else `… needs track_field`; parsed by
+`_route_track_defaults`, names stripped). It rejects an
 empty file, unknown keys, non-positive or non-int ids, blank strings and a `channel_id` two routes
 share. `TargetConfig` is `name`, `channel_id`, `channel_name`, `category`, `github_repo`,
 `github_repo_id`, `labels` (one per `IssueType`, checked in `__post_init__` and read-only),
 `questions` (`Mapping[IssueType, tuple[Question, ...]]`, frozen `Question(label, style: QuestionStyle,
 required)`, one entry per type, read-only) and `project` (frozen `ProjectConfig(number,
-status_field, status, effort_field)` or `None`; no code default, checked in `__post_init__`).
+status_field, status, effort_field, track_field=None, track_defaults=())` or `None`, where
+`track_defaults` is a tuple of `(IssueType, str)` pairs in `IssueType` order; no code default,
+checked in `__post_init__`).
 Every `ConfigError` names the key (env key or `routes.<name>.<key>`), never the value; an
 unreadable file or a TOML syntax error is `ROUTES_PATH must name a readable TOML route file`
 (no parser text). The 4irl/chores4irl values appear outside tests only in `example.env`
 (`GITHUB_ORG=4IRL`) and `example.routes.toml` (one `[routes.c4i]` route, placeholder ids 0, with
-a `[routes.c4i.project]` table for Project #2); both are pinned by drift tests in
-`tests/test_config.py` (`test_example_routes_shape` also runs `_route_project`). chores4irl's `bug` and `enhancement` labels
+a `[routes.c4i.project]` table for Project #2 with `track_field = "Track"` and a `bug = "A · Bugs"`
+default); both are pinned by drift tests in
+`tests/test_config.py` (`test_example_routes_shape` also runs `_route_project` and checks the Track
+values). chores4irl's `bug` and `enhancement` labels
 exist (checked by F5, 2026-10-18). `DISCORD_GUILD_ID` is also the one guild the slash commands are
 synced to.
 
 **Key modules / UI.** Slash-command intake lives in `issue_bot/intake.py`.
-`intake_command(issue_type, routes, unrouted, on_candidate, filing_check=None)` builds one guild
+`intake_command(issue_type, routes, unrouted, on_candidate, filing_check=None, track_lookup=None)` builds one guild
 command per `IssueType` (`/bug`, `/feature`) and looks the route up with
 `routes.get(interaction.channel_id)` at call time (a thread's own id is unrouted). With no route it
 sends the private `INTAKE_REFUSAL` (logged `refused …`), or with `UnroutedCommands.IGNORE` returns
@@ -207,22 +209,33 @@ without responding (logged `ignored <type> outside this instance's routes intera
 channel_id=…`). Otherwise it runs `filing_check(target)` within
 `FILING_CHECK_TIMEOUT` (2 s): on a `GitHubError`, a timeout or any other error it sends the
 private `FILING_UNAVAILABLE_REPLY` and opens no modal. Then it opens `IntakeModal(issue_type,
-target, on_candidate, draft=None, preview=None)`: a required Title (`ui.Label`-wrapped
+target, on_candidate, draft=None, preview=None, track_lookup=None)`: a required Title (`ui.Label`-wrapped
 `TextInput`, max 100 = `THREAD_NAME_LIMIT`), then one `TextInput` per
 `target.questions[issue_type]` (`answer_inputs`, max `ANSWER_MAX_LENGTH` 4000), prefilled from a
-`Draft(title, answers, suggested, complexity, overridden)` when one is given, and a 30-minute
+`Draft(title, answers, suggested, complexity, overridden, track=None)` when one is given, and a 30-minute
 timeout. `on_submit` rates the answers (`suggested`); the band is the previous draft's when that
 draft was `overridden` (an override sticks across Edit), else `suggested`. A fresh `on_submit`
 defers privately (`thinking=True`), normalizes the title (no letter or digit gets
 `BLANK_TITLE_REPLY`) and sends a private preview (`PREVIEW_REPLY`, an embed from
 `preview_embed(draft, author_name)`, its description cut past 4096 characters with
 `PREVIEW_SHORTENED_NOTE`, plus a `COMPLEXITY_FIELD` field reading `COMPLEXITY_CHOSEN` when
-overridden, else `COMPLEXITY_SUGGESTED`) with a `PreviewView`; nothing is posted or filed (logged
-`previewed <type> interaction_id=…`). `PreviewView` (fixed `PREVIEW_TIMEOUT` 600 s deadline from
+overridden, else `COMPLEXITY_SUGGESTED`, and with `track_row=True` a `TRACK_FIELD` field reading the
+pick or `TRACK_NONE`) with a `PreviewView`; nothing is posted or filed (logged
+`previewed <type> interaction_id=…`). On a fresh submit for a route whose project has a
+`track_field`, `_track_choices` awaits `track_lookup(target)` (`TrackLookup`, wired to
+`GitHubClient.track_options`) within `FILING_CHECK_TIMEOUT`; a failure logs WARNING `could not read
+track options for <type> interaction_id=…: <type> stage=… status=…` (`: timeout`, or type only)
+and shows no row. The type's `track_defaults` name is pre-selected only when it is among the
+first `TRACK_OPTION_LIMIT` (25) options (else silently none). An Edit reuses the old preview's
+options and pick (a cleared pick stays cleared) and never re-queries. `PreviewView` (fixed `PREVIEW_TIMEOUT` 600 s deadline from
 the submit; each button press trims the view's timeout back to it) has S/M/L/XL buttons on row 0
-(the current band `primary`, set by `_paint`) and File and Edit on row 1:
+(the current band `primary`, set by `_paint`), File and Edit on row 1 and, when it has
+`track_options`, a `discord.ui.Select` on row 2 (`TRACK_PLACEHOLDER`, `min_values=0`,
+`max_values=1`, `required=False`, values are indexes, labels cut to `TRACK_LABEL_LIMIT` 100, the
+pick `default`):
 - **S/M/L/XL** (`_choose`) sets the band and `overridden=True` before any `await`, then edits the
   preview in place (embed and view only); it logs nothing, and a closed view ignores it;
+- the **Track** select (`_pick_track`) works the same way, setting `Draft.track` (or `None`);
 - **File** sets its close guard before any `await`, acks with `FILING_REPLY` (buttons removed,
   embed kept), then runs `_post_and_file`: post the public summary `**New <type>** from <@id>:
   <escaped title>` with `AllowedMentions.none()` and `suppress_embeds=True` (a missing channel or
@@ -241,7 +254,7 @@ and a private `INTAKE_ERROR_REPLY`. Every reply failure is caught and logged.
 
 `issue_bot/bot.py`: `IssueBot(discord.Client)` with the guilds intent only (no message
 intents, no `on_message`). `IssueBot(config, on_candidate=open_issue_thread,
-filing_check=None, project_check=None)` registers the two commands (with `config.routes` and `config.unrouted`) on `IntakeTree` (a `CommandTree` whose `on_error`
+filing_check=None, project_check=None, track_lookup=None)` registers the two commands (with `config.routes` and `config.unrouted`) on `IntakeTree` (a `CommandTree` whose `on_error`
 logs type, command, interaction id, status and code) with `guild=` always set. `setup_hook`
 runs once per process. It syncs the commands to the configured guild (`synced N commands to
 guild …`; a failure is logged and the bot keeps running), then runs the startup GitHub check for
@@ -250,7 +263,9 @@ each route in file order, one after another (`github access ok for repo_id=…` 
 check passes and when it has a `project`, `project_check(route)` (`ProjectCheck`, wired to
 `GitHubClient.project_fields`) logs `github project ok for repo_id=… project=…` or ERROR
 `github project check failed for repo_id=… project=…: <type> stage=… status=…` (type only for a
-non-`GitHubError`); it never stops the bot. `on_ready` sanity-checks
+non-`GitHubError`), and a WARNING `github project track field has N options; only the first 25
+can be picked repo_id=… project=…` past `TRACK_OPTION_LIMIT`; `ProjectCheck` returns
+`ProjectFields`. It never stops the bot. `on_ready` sanity-checks
 every route's channel once per process (Gateway reconnects refire it) with
 `channel_problems(channel, route, guild_id)`: a missing channel logs at ERROR, a guild, name or
 category mismatch at WARNING (`channel <id> name is …, expected …`); neither stops the bot.
@@ -277,16 +292,22 @@ mints an App JWT, then an installation token scoped to the target's repo id with
 per `(repo id, has project)` until 5 minutes before expiry (dropped on a 401).
 `create_issue(target, title, body, labels)` POSTs to `repos/<target.github_repo>/issues` and
 returns `FiledIssue(number, html_url, node_id)`, or raises `GitHubError(stage, status)` (`stage` is
-`token`, `label`, `issue`, `project`, `project-item` or `project-field`; `status` is None on a
+`token`, `label`, `issue`, `project`, `project-item`, `project-field` or `project-track`; `status` is None on a
 transport failure, 200 for a GraphQL `errors` body or a lookup mismatch).
 `project_fields(target)` (GraphQL `PROJECT_FIELDS_QUERY` on `GRAPHQL_URL`) resolves the
 route's Project node id, Status field and option and Effort field and one option per
-`Complexity` band by name into a frozen `ProjectFields`, cached per `(owner, ProjectConfig)` for
-the process (never cached on failure; `ValueError` for a route with no project).
+`Complexity` band by name into a frozen `ProjectFields`, plus, when the route names a
+`track_field`, `track_field_id` and the read-only `track_option_ids` (name → id, Project order;
+a missing or malformed Track field leaves them `None`/empty, never a mismatch), cached per
+`(owner, ProjectConfig)` for the process (never cached on failure; `ValueError` for a route with
+no project). `track_options(target)` returns the option names (`()` with no project or Track
+field, without a lookup); `set_track(target, item_id, track)` runs `SET_TRACK_MUTATION` (one
+`track` alias) under stage `project-track` (an unknown option or field raises before any request).
 `add_to_project(target, issue, band)` runs `ADD_ITEM_MUTATION` (`addProjectV2ItemById`), then
 `SET_FIELDS_MUTATION` (two aliased `updateProjectV2ItemFieldValue`, option ids as GraphQL
-`String`), returns the item id, and on a `project-item`/`project-field` failure drops that
-route's cached ids before re-raising.
+`String`) and returns the item id; a `project-item` or `project-field` failure there, like a
+`project-track` failure in `set_track`, drops that route's cached ids (`_drop_project`) before
+re-raising.
 `ensure_label(target, name)` POSTs `repos/<repo>/labels` (`LABEL_COLOR` `c5def5`); a 201 or any
 422 counts as "exists" and is cached per (repo id, name) for the process; a 401 drops the cached
 token. `check_access(target)` mints (or reuses) the target's token and raises `GitHubError` on
@@ -301,10 +322,11 @@ label for the type, then `complexity:<band>`) and `file_candidate(github, candid
 calls `ensure_label` first and, on a `GitHubError` there, logs a WARNING (`could not create
 complexity label for <type> message_id=…: <exc type> stage=… status=…`) and files with the type
 label only. `place_on_roadmap(github, candidate, issue)` returns `None` for a route with no
-project, else awaits `add_to_project` and returns `True` (INFO `added <type> message_id=… to the
-roadmap issue=…`) or, on any exception, `False` with a WARNING (`could not add <type>
-message_id=… to the roadmap issue=…: <exc type> stage=… status=…`, type only for a
-non-`GitHubError`). issues.py's log lines carry no member or response text. `bot.filing_hook(github)` is the
+project, else awaits `add_to_project` and, when `candidate.track` is set, `set_track` with the
+returned item id, and returns `True` (INFO `added <type> message_id=… to the roadmap issue=…`)
+or, on any exception, `False` with a WARNING (`could not add <type> message_id=… to the roadmap
+issue=…: <exc type> stage=… status=…`, type only for a non-`GitHubError`, ending with
+`track='<option>'` when the candidate carries a pick). issues.py's log lines carry no member or response text. `bot.filing_hook(github)` is the
 production `on_candidate`: it opens the issue's thread, files the issue even if no thread
 opened, and on success logs `filed … issue=<html_url>`, runs `place_on_roadmap` and then posts
 `filed_reply(…, roadmap)`; a roadmap failure never undoes or blocks filing. On a
@@ -314,17 +336,19 @@ thread, text, what)`: in the thread, or as a reply to the summary message when n
 opened, always with `AllowedMentions.none()` and `suppress_embeds=True`. A
 `discord.HTTPException` on that post is logged as `could not send <issue link|filing error> …`
 by type, status, code and ids. Any other exception reaches `PreviewView.on_error`. `issue_bot/__main__.py` builds the client, wires `filing_hook` and
-`filing_check=github.check_access` and `project_check=github.project_fields`, and runs at INFO with `log_handler=None` (discord loggers never at DEBUG).
+`filing_check=github.check_access`, `project_check=github.project_fields` and
+`track_lookup=github.track_options`, and runs at INFO with `log_handler=None` (discord loggers never at DEBUG).
 
-**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 448 tests across
+**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 510 tests across
 `tests/test_{handler,config,bot,intake,threads,github,issues,complexity,smoke}.py`
 (`test_complexity.py` also pins `docs/COMPLEXITY.md`'s thresholds and starting bands), with Discord
 interactions and the GitHub transport fully mocked (`make_interaction`, `make_candidate`,
 `make_message` fixtures, plus `routes_file`, `route`, `two_route_config` and `write_routes` with
 `ONE_ROUTE_TOML`/`TWO_ROUTE_TOML`, both with question sets and no project, and the `PROJECT`
 constant with `project_route`/`project_config` fixtures, in `tests/conftest.py`; `fake_github`
-has `create_issue`, `ensure_label` and `add_to_project`). Button tests
-call a view's button `.callback(...)` directly; `make_interaction` carries `data={}`,
+has `create_issue`, `ensure_label`, `add_to_project` and `set_track`). Button tests
+call a view's button `.callback(...)` directly; select tests set `Select._values` (discord.py
+2.7.1) before awaiting its callback; `make_interaction` carries `data={}`,
 `response.edit_message` and `edit_original_response`. No CI workflow.
 
 **Deployment.** `Dockerfile` (`python:3.12.11-slim`, non-root uid 10001, `STOPSIGNAL SIGINT`,
@@ -341,8 +365,9 @@ table) and the revert. The `4irl-issue-bot` App has that permission (F6, 2026-10
 `docs/SMOKE-TEST.md` (it uses a separate test server, never the live one). The owner's smoke
 run of F10 passed before PR #13 merged (2026-10-21). The owner confirmed F7 works on its branch
 before PR #15 merged (2026-10-21), F8 before PR #17 merged (2026-10-25), F3 before PR #19
-merged (2026-10-26), F4 before PR #21 merged (2026-10-28), and F6 before PR #24 merged
-(2026-10-29). Before PR #9 merged, the owner's
+merged (2026-10-26), F4 before PR #21 merged (2026-10-28), F6 before PR #24 merged
+(2026-10-29), and F17 before PR #26 merged (2026-10-29; mocked tests only, no live Track check,
+by the owner's choice). Before PR #9 merged, the owner's
 run filed issues #1 and #2 in a private scratch repo, torn down on 2026-10-18 (recorded in PR
 #9's description).
 Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
@@ -362,8 +387,10 @@ Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
    command, modal or view name, interaction id, status and code, never `exc_info` or an
    interaction's repr (F10, PR #13; preview view F3, PR #19; CLAUDE.md rule). A GitHub API error is logged by exception type, request stage and
    HTTP status, never its response text; tokens, JWTs and the App private key are never logged
-   (F5, PR #9). The filed issue's URL may be logged.
-3. Every config key, in the environment and the route file, is required and validated at startup, except the optional `[routes.<name>.project]` table, whose keys are then all required (F6); a bad config exits with code 2 before connecting (F1; route file F8, PR #17).
+   (F5, PR #9). The filed issue's URL may be logged, and a failed roadmap step's WARNING may
+   name the reporter's Track pick as `track='<option>'` (a Project option name, not member text;
+   F17, PR #26; CLAUDE.md rule).
+3. Every config key, in the environment and the route file, is required and validated at startup, except the optional `[routes.<name>.project]` table, whose `number`, `status_field`, `status` and `effort_field` are then required (F6) and whose `track_field` and `track_default` stay optional (F17, PR #26); a bad config exits with code 2 before connecting (F1; route file F8, PR #17).
 
 ### Assumptions to revisit at planning time
 
@@ -372,8 +399,9 @@ Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
    linked to `4IRL/chores4irl`, `Status` has `Todo`, `In Progress`, `Done`, `Effort` has `S`,
    `M`, `L`, `XL`; now in Baseline (`example.routes.toml`'s `[routes.c4i.project]`). The bot
    still leaves `ID`, `Order`, `Lane`, `Start date`, `Target date` and `Days` blank.
-3. Project #2 has a `Track` single-select (e.g. an `A · Bugs` option) that the reporter picks in
-   the preview (F17, owner's request 2026-10-28). F17 verifies it at planning.
+3. ~~Project #2 has a `Track` single-select~~ verified by F17 (PR #26): six options `A · Bugs`,
+   `B · Form & feedback`, `S · Status & sort`, `C · List UX`, `D · Sync & recovery`, `E · Ops`;
+   now in Baseline (`example.routes.toml`'s `track_field` and `bug` default).
 
 ---
 
@@ -403,7 +431,7 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F5 — File the issue in 4IRL/chores4irl · merged (#9)
 
-*Kept because F12, F13, F15 and F17 build on it.*
+*Kept because F12, F13 and F15 build on it.*
 - `issue_bot/issues.py` is the only place an issue body and its labels are formatted
   (`render_body`, which `issue_body` and the preview share; `issue_labels`); later features
   extend it rather than formatting a second body.
@@ -422,8 +450,7 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F4 — Complexity triage (S/M/L/XL) · merged (#21)
 
-*Kept because F17 extends its preview (a Track row beside the band buttons, kept across Edit
-like the band override) and F16 must move its per-type `STARTING_BAND` into the route file.*
+*Kept because F16 must move its per-type `STARTING_BAND` into the route file.*
 - `issue_bot.complexity.Complexity` (`S`, `M`, `L`, `XL`) is the one home of the band names.
   F6 sets the Project's `Effort` single-select to the option named `str(band)`, never a second list.
 - The band to file is `IssueCandidate.complexity` (the reporter's override if they pressed one,
@@ -435,7 +462,7 @@ like the band override) and F16 must move its per-type `STARTING_BAND` into the 
 
 ## F7 — Post the issue link in the thread · merged (#15)
 
-*Kept because F13 and F17 build on it.*
+*Kept because F13 builds on it.*
 - `bot._post_outcome(message, thread, text, what)` is the one path that posts a filing
   outcome: in the thread, else as a reply to the summary message, always with
   `AllowedMentions.none()` and `suppress_embeds=True`, logging a Discord failure by type,
@@ -448,12 +475,12 @@ like the band override) and F16 must move its per-type `STARTING_BAND` into the 
 
 ## F8 — Multi-target routes and multi-instance deployment · merged (#17)
 
-*Kept because F17 and F16 add route keys, and F11 and F14 must keep commands route-agnostic.*
+*Kept because F16 adds route keys, and F11 and F14 must keep commands route-agnostic.*
 - A route is a `TargetConfig` whose first field is `name`, its `[routes.<name>]` table name.
   Per-route settings are keys under `[routes.<name>]`, added by extending `ROUTE_KEYS` and
   `load_routes` (as F3's `questions` and F6's `project` did), never a second config file or
   per-route env keys. Every `ROUTE_KEYS` key is required except F6's optional `project` table
-  (`_route_project` returns `None` when absent); `test_example_routes_shape` checks each example
+  (`_route_project` returns `None` when absent; F17's `track_field`/`track_default` sit inside it); `test_example_routes_shape` checks each example
   route for exactly `ROUTE_KEYS` (the example's one route has a `project` table), so another
   optional key changes both.
 - `Config.routes` (channel id → route, read-only, file order) is the only route lookup, and
@@ -467,24 +494,41 @@ like the band override) and F16 must move its per-type `STARTING_BAND` into the 
 
 ## F6 — Add the issue to the roadmap Project · merged (#24)
 
-*Kept because F17 writes through its Project client and config, F12 and F13 must cover its
-Project writes, and F16 adds route keys beside its `project` table.*
+*Kept because F12 and F13 must cover its Project writes (F17's Track write included), and F16
+adds route keys beside its `project` table.*
 - A route's Project is its optional `[routes.<name>.project]` table → `TargetConfig.project`
-  (`ProjectConfig(number, status_field, status, effort_field)`): names, never ids; the owner is
+  (`ProjectConfig(number, status_field, status, effort_field, track_field=None,
+  track_defaults=())`): names, never ids; the owner is
   the route repo's owner. Ids are looked up by `GitHubClient.project_fields(target)` →
   `ProjectFields` and cached per `(owner, ProjectConfig)`, so **`ProjectConfig` must stay
-  hashable** (F17's per-type Track defaults: a tuple of pairs, or `field(hash=False,
-  compare=False)`, never a dict).
+  hashable** (F17's `track_defaults` is a tuple of `(IssueType, str)` pairs; never a dict).
 - `GitHubClient.add_to_project(target, issue, band)` adds the item and sets Status and Effort,
-  and returns the item id (for F17's Track write); a `project-item`/`project-field` failure
-  drops the route's cached ids before re-raising.
+  and returns the item id, which F17's `set_track` uses; a `project-item`/`project-field` failure
+  (or `set_track`'s `project-track`) drops the route's cached ids before re-raising.
 - The failed-write policy: `issues.place_on_roadmap` runs after the `filed …` log inside
-  `filing_hook`, catches every exception (WARNING with type, stage and status, or type only)
+  `filing_hook`, catches every exception (WARNING with type, stage and status, or type only,
+  plus `track='<option>'` when the reporter picked a Track)
   and returns `False`, so a Project failure never undoes or blocks filing; the link message then
   ends with `ROADMAP_FAILED_NOTE`. A route without a Project gets no roadmap line and its token
   never asks for `organization_projects`.
 - Startup: `IssueBot(project_check=…)` checks each Project route once after its access check
   and never stops the bot.
+
+## F17 — Track dropdown in the private preview · merged (#26)
+
+*Kept because F12 must cover its Track write, F15 shares the preview with its Track row, and F16
+reshapes the `IssueType` its per-type defaults key on.*
+- The Track row is a `discord.ui.Select` on `PreviewView` row 2, present only when the route's
+  project names a `track_field` and the lookup returned options; its pick is `Draft.track`,
+  carried across Edit like the band override and into `IssueCandidate.track`. A new preview
+  element takes rows 3–4, never row 2.
+- Options come only from the Project (`GitHubClient.track_options`, from the cached
+  `project_fields`), never a hardcoded list; an Edit reuses them without re-querying.
+- The write is `GitHubClient.set_track` after `add_to_project`, inside `place_on_roadmap`'s
+  never-raise policy (stage `project-track`); a retry or dedup path (F12, F13) must not set
+  Track twice on two items.
+- Per-type defaults are `ProjectConfig.track_defaults`, `(IssueType, str)` pairs; F16 must keep
+  them keyed by whatever replaces `IssueType`.
 
 ## Deferred follow-ups (confirmed, unscheduled, no F-ID yet)
 
@@ -586,15 +630,29 @@ Project writes, and F16 adds route keys beside its `project` table.*
     log the item id on a `project-field` failure.
 
   The ProjectConfig-hashability item is in F6's kept contract; Review 2's "use the returned item
-  id" is F17's. None blocks a remaining feature.
+  id" was done by F17 (PR #26). None blocks a remaining feature.
 - **F6 accepted limits.** Project field and option ids are cached per process: a field or
   option deleted and re-created on GitHub is picked up after the next failed write (the cache is
   dropped) or a restart. Two first filings at once each run the lookup once (harmless). The
   Projects permission covers every Project in the org; staying off other Projects is procedure
   (README § GitHub App setup).
-- **ROADMAP Current-state row 3** (Complexity rating) still reads "not started": its Maintaining
-  rule refreshes Current-state rows only at a phase's close-out, which is now F17's fold-back
-  (F17 joined Phase 3 on 2026-10-28). That close-out also adds Track to Phase 3's scope bullet.
+- **F17 push-review polish.** The unticked minor to-dos in
+  `plans/feature/preview-track/reviews/push-review-feature-preview-track.md`, Reviews 1–2:
+  - tests: `set_track` when the Project lookup itself fails, a `track_field`-only load, an Edit of
+    a row-less (failed-lookup) preview;
+  - one `PreviewView` helper for the three `preview_embed(..., track_row=…)` calls;
+  - decide `_track_choices`' timeout branch and broad-except log level; ignore an out-of-range
+    pick in `_pick_track`; document `stage=project-track status=200`; optionally pair
+    `ProjectFields`' Track members in `__post_init__`;
+  - `_track_note` quotes with `!r` (an apostrophe in an option name renders `track="…"`):
+    document or format explicitly; trim its comment.
+
+  None blocks a remaining feature.
+- **F17 accepted limits.** No live Track smoke check (owner's choice): the dropdown, its Discord
+  payload and the Track write are covered by mocked tests only, and the first live use is the
+  deployed `c4i` route after its route file gains `track_field`. Track options are cached per
+  process (a renamed option shows after a restart or a failed roadmap write). A configured
+  default that isn't an option pre-selects nothing, with no log (dd-261029-026).
 - **Drop the pre-rename `allowWrite` path.** `.claude/settings.json` still lists
   `/home/rmila/Code/c4i-issue-bot`; removing it is an optional owner edit in its own small
   PR (agents can't write that file).
@@ -602,59 +660,6 @@ Project writes, and F16 adds route keys beside its `project` table.*
 ---
 
 # REMAINING FEATURES
-
-## F17 — Track dropdown in the private preview · Phase 3 · Effort M · (added 2026-10-28)
-
-**Goal.** The reporter picks the Project item's Track in the private preview, and on File the
-bot sets that Track after F6 adds the item. Feature-list line F17.
-
-**Rank rationale.** Phase 3's last feature (owner's choice, 2026-10-28): it completes roadmap
-placement, so Phase 3 closes at its fold-back, not F6's. It runs right after F6 because it
-writes through F6's Project client and per-route Project config.
-
-**Dependencies.** F6; couples: F4, F8. F6 supplies the Project add, the per-route Project
-config and the failed-write policy (its Open risk (c)). F4's kept contract supplies
-`PreviewView`, its band buttons and the `Draft` override that survives Edit. F8's kept
-contract puts the per-route, per-type default under `[routes.<name>]`.
-
-**Sizing.** unscored (intake estimate M); split check pending.
-
-**Assumed starting state** = **Baseline**. Verify:
-- Project #2 has a `Track` single-select (Assumption 3), and F6's config shape for a route's
-  Project (`ProjectConfig` names; ids looked up and cached, F6's kept contract).
-- `PreviewView` has room for a select row: S/M/L/XL are row 0 and File/Edit row 1 (Discord
-  allows 5 rows).
-
-**Expected end state** (repo-checkable):
-- `PreviewView` has an optional single-select Track row. Its options are the Project's `Track`
-  options read through GitHub's GraphQL API, never a hardcoded list. No row when the route has
-  no Project or the Project has no `Track` field.
-- The route file can name a default Track option per issue type (e.g. `A · Bugs` for `bug` on
-  chores4irl), validated at startup per Standing invariant 3. With no default, nothing is
-  pre-selected.
-- The pick is carried in `Draft` and survives Edit, as F4's band override does.
-- On File, after F6 adds the item, the bot sets `Track` to the pick, or leaves it blank with no
-  pick. A failed Track write is handled like F6's failed Project write. The bot never sets
-  `ID`, `Order`, `Lane`, `Start date`, `Target date` or `Days`.
-- README and `docs/COMPLEXITY.md`'s preview description show the Track row; `example.routes.toml`
-  shows a default.
-- All suites green; Standing invariants untouched.
-
-**Test-suite deltas.** Mocked GraphQL for reading the field's options and for setting the field;
-`PreviewView` tests for the row's presence or absence, the default, the pick and the pick kept
-across Edit; config tests for the default key.
-
-**Open risks / decisions.** (a) When options are read: at startup (stale until restart, like
-the route file) or per preview (one API call per command, inside the 3-second interaction
-window). (b) A configured default whose name isn't an option on the Project: a startup error,
-a warning or a silent blank. (c) Discord's select is capped at 25 options. (d) Whether the
-default lives with the route's `questions` or beside F6's Project keys; a key a route may omit
-changes `test_example_routes_shape` (F8's kept contract).
-
-**Session.** `/run-feature F17` on branch `feature/preview-track`; plan at
-`plans/feature/preview-track/preview-track.md`.
-
----
 
 ## F12 — Never file a report twice · Phase 4 · Effort M · (added 2026-10-28)
 
@@ -669,7 +674,7 @@ the Track write as well.
 
 **Sizing.** unscored (intake estimate M); split check pending.
 
-**Assumed starting state** = **Baseline** plus F17 if merged. Verify:
+**Assumed starting state** = **Baseline**. Verify:
 - The issue body's author line already carries the summary message URL (`issue_body`), a
   candidate dedup key.
 
@@ -815,7 +820,7 @@ rate-limit handling, and the hints share the preview with F17's Track row.
 
 **Sizing.** unscored (intake estimate M); split check pending.
 
-**Assumed starting state** = **Baseline** plus F13 and F17 if merged.
+**Assumed starting state** = **Baseline** plus F13 if merged.
 
 **Expected end state** (repo-checkable):
 - The preview shows up to N likely duplicates (number, title, link) from a GitHub search
@@ -848,7 +853,7 @@ F8's commands must stay route-agnostic.
 
 **Sizing.** unscored (intake estimate L); split check pending.
 
-**Assumed starting state** = **Baseline** plus F17. Verify:
+**Assumed starting state** = **Baseline**. Verify:
 - Every use of `IssueType` (commands, labels, questions, `STARTING_BAND`, F17's per-type Track
   default).
 
@@ -878,22 +883,19 @@ drift test pins them today).
 Phase 1:    done       (F1 #2; F9 rename #5; F2 threads #7; F5 filing #9; F10 intake #13; F7 link #15)
 Phase 1.5:  done       (F8 routes #17)
 Phase 2:    done       (F3 questions + preview #19)
-Phase 3:    F4 rating #21, F6 roadmap #24 (done)
-            F6 ──► ★ F17   (F17 couples F4, F8)
-Phase 4:    filing track:   (soft: F6, F17) ┄► F12 ──► F13 ┄► F15
+Phase 3:    done       (F4 rating #21; F6 roadmap #24; F17 Track #26)
+Phase 4:    filing track:   (soft: F6, F17) ┄► ★ F12 ──► F13 ┄► F15
             deploy track:   homelab#P3 (c4i Docker stage) ──► F11
             QoL track:      F14 ⇄ F16   (couples; F16 soft after F6, F17)
 ```
 
-- **Hard chains:** F6 → F17; F12 → F13; homelab#P3 → F11 (external). F1–F10 have shipped;
-  refs to them stay valid, so F17 is unblocked, and F12, F14, F15 and F16 have no unmet hard
-  prerequisite.
-- **Soft preferences:** F6 (shipped) and F17 before F12, F13 and F16, so dedup, retry and the type schema cover the Project
+- **Hard chains:** F12 → F13; homelab#P3 → F11 (external). F1–F10 and F17 have shipped;
+  refs to them stay valid, so F12, F14, F15 and F16 have no unmet hard prerequisite.
+- **Soft preferences:** F6 and F17 (both shipped) before F12, F13 and F16, so dedup, retry and the type schema cover the Project
   writes and route keys once. F13 before F15, so the search call is rate-limited.
-- **Couplings to honor:** F17 and F16 put per-route settings under `[routes.<name>]` beside F6's
-  `project` table (F8's and F6's kept contracts). F4 ↔ F17: the Track row sits in F4's `PreviewView` and
-  its pick follows the band override's `Draft` pattern. F17 ↔ F15: both add to the private
-  preview. F14 ↔ F16: help lists the types F16 makes configurable. F11, F14 and F16 keep the
+- **Couplings to honor:** F16 puts per-route settings under `[routes.<name>]` beside F6's
+  `project` table (F8's and F6's kept contracts). F17 ↔ F15: F15 adds to the private preview
+  beside F17's Track row (F17's kept contract). F14 ↔ F16: help lists the types F16 makes configurable. F11, F14 and F16 keep the
   synced command set route-agnostic.
 
 ---

@@ -78,14 +78,14 @@ component.
 exist, what the schema is) is META-PLAN's Baseline; do not restate it here. Update the
 "as of" date whenever a row changes, which is normally at a phase-status change. -->
 
-*As of 2026-10-26.*
+*As of 2026-10-29.*
 
 | # | Capability | State | Delivered by |
 |---|---|---|---|
 | 1 | Slash-command capture | done — `/bug` and `/feature` modals in each routed channel | Phases 1, 1.5 |
 | 2 | Per-type questions | done — per-route, per-type question sets fill the modal; private preview with File and Edit | Phase 2 |
-| 3 | Complexity rating | none — not started | Phase 3 |
-| 4 | Issue filed and on the roadmap | partial — filed with its type label and a body of one section per answer; roadmap placement pending | Phases 1 (filed), 2 (structured body), 3 (roadmap) |
+| 3 | Complexity rating | done — rule-based S/M/L/XL rating with a `complexity:<band>` label, overridable in the private preview | Phase 3 |
+| 4 | Issue filed and on the roadmap | done — filed with its type and complexity labels and a body of one section per answer; on a route with a Project, added with Status, Effort and the reporter's Track | Phases 1 (filed), 2 (structured body), 3 (roadmap) |
 | 5 | Link posted back | done — issue number, title and link in the thread (or a reply on the summary) | Phase 1 |
 | 6 | Multiple targets | done — a route file maps channels to repos, from one process or several containers | Phases 1 (portable config), 1.5 (routes, instances) |
 
@@ -141,25 +141,7 @@ at a time unless the sequencing rationale says otherwise.
 
 ### Phase 2: Per-type questions · done (2026-10-26) — each route's `/bug` and `/feature` modals ask that route's question sets from the route file, and the reporter files from a private preview with File and Edit; the issue body has one section per answered question (F3).
 
-### Phase 3: Triage and roadmap placement · planned
-
-**Goal.** Every filed issue carries a rule-based complexity rating and lands on its
-target's roadmap (chores4irl's first). **Advances capabilities:** 3, 4.
-
-- Complexity is computed by documented rules from the tag and the answers (the owner sets
-  the scale), shown in the confirmation preview, and members can override it before filing.
-- The issue gets the type and complexity labels (labels created if missing), and is added
-  to the chores4irl GitHub Projects roadmap (org Project #2) with its Status and Effort
-  (complexity band) fields set.
-- The thread's final message shows the issue link together with its rating and roadmap
-  placement.
-
-**Exit criteria.** A filed test issue appears on a test Project board with the correct
-fields, and its labels match the rating shown in Discord. The rating rules are written
-down where members can read them.
-
-**Why here.** Rating needs the Phase 2 answers as input, and roadmap placement needs
-Projects (GraphQL) access, a separate permission best added once filing is proven.
+### Phase 3: Triage and roadmap placement · done (2026-10-29) — every filed issue carries a rule-based S/M/L/XL rating the reporter can override in the preview, its type and complexity labels, and, on a route with a `project` table, a place on that Project with Status, Effort and the reporter's Track set (F4, F6, F17).
 
 ### Phase 4: Production and hardening · planned
 
