@@ -186,11 +186,11 @@ Track write follows F6's failed-Project-write policy.
 - [x] (2026-10-29, handler/issues/bot 99 passed, full suite 484 passed) Run `.venv/bin/pytest tests/test_handler.py tests/test_issues.py tests/test_bot.py` green, then
   the full `.venv/bin/pytest`.
 
-### 4. Track row in the preview
+### 4. Track row in the preview - COMPLETE (2026-10-29)
 `PreviewView` shows the Track select, `Draft` carries the pick across Edit, and the embed shows it.
 
 **To-do:**
-- [ ] Red in `tests/test_intake.py` (import `replace` from `dataclasses`, `PROJECT` from
+- [x] Red (2026-10-29) in `tests/test_intake.py` (import `replace` from `dataclasses`, `PROJECT` from
   `tests.conftest`, and the new `TRACK_*` constants and `TrackLookup` from `issue_bot.intake`, in the
   existing import order), with
   a module helper `track_route(project_route)` returning
@@ -235,7 +235,7 @@ Track write follows F6's failed-Project-write policy.
   `set_track` awaited with the pick).
   Add `intake_command(..., track_lookup=lookup)` tests that the modal it opens carries the lookup.
   Confirm the new tests fail.
-- [ ] Green in `issue_bot/intake.py`: add `TrackLookup = Callable[[TargetConfig],
+- [x] Green (2026-10-29; the submit's Track logic lives in an `IntakeModal._track_choices` helper) in `issue_bot/intake.py`: add `TrackLookup = Callable[[TargetConfig],
   Awaitable[tuple[str, ...]]]` beside `FilingCheck` (the lookup callable is named for its role, like
   `filing_check`; `track_options` names the tuple of option names and the client method); constants `TRACK_OPTION_LIMIT = 25  # Discord's
   maximum select options.`, `TRACK_LABEL_LIMIT = 100  # Discord's maximum option label.` and, under
@@ -275,7 +275,7 @@ Track write follows F6's failed-Project-write policy.
   `preview_embed`. `intake_command` gains trailing `track_lookup: TrackLookup | None = None` and
   passes it as `IntakeModal(issue_type, target, on_candidate, track_lookup=track_lookup)`. Keep
   `PREVIEW_REPLY` (the select's placeholder explains itself); update the module docstring.
-- [ ] Run `.venv/bin/pytest tests/test_intake.py` green, then the full `.venv/bin/pytest`.
+- [x] (2026-10-29, test_intake 96 passed, full suite 505 passed) Run `.venv/bin/pytest tests/test_intake.py` green, then the full `.venv/bin/pytest`.
 
 ### 5. Wire it in the bot and the startup check
 `IssueBot` passes the lookup to the commands; the startup Project check warns past 25 options.

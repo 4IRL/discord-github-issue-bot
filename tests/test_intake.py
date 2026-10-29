@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from collections.abc import Sequence
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -31,11 +32,17 @@ from issue_bot.intake import (
     PREVIEW_TIMEOUT,
     SUBMITTED_REPLY,
     SUMMARY_FAILED_REPLY,
+    TRACK_FIELD,
+    TRACK_LABEL_LIMIT,
+    TRACK_NONE,
+    TRACK_OPTION_LIMIT,
+    TRACK_PLACEHOLDER,
     CandidateHook,
     Draft,
     FilingCheck,
     IntakeModal,
     PreviewView,
+    TrackLookup,
     intake_command,
     preview_embed,
     summary_text,
@@ -45,6 +52,7 @@ from issue_bot.issues import PREVIEW_LINK, render_body
 from issue_bot.threads import FILING_ERROR_REPLY, filed_reply
 from tests.conftest import (
     ISSUE_URL,
+    PROJECT,
     InteractionFactory,
     MessageFactory,
     assert_no_member_text,
@@ -69,8 +77,9 @@ def filled_modal(
     issue_type: IssueType = IssueType.BUG,
     title: str = "Fix it",
     answers: Sequence[str] = ("Steps",),
+    track_lookup: TrackLookup | None = None,
 ) -> IntakeModal:
-    modal = IntakeModal(issue_type, route, hook)
+    modal = IntakeModal(issue_type, route, hook, track_lookup=track_lookup)
     # discord.py's own seed for a submitted value: a real submit needs the Gateway.
     modal.title_input._value = title
     for index, answer in enumerate(answers):
@@ -1216,3 +1225,383 @@ async def test_band_press_keeps_the_deadline(
     view._deadline -= 120
     await view.l_button.callback(make_interaction())
     assert PREVIEW_TIMEOUT - 121 < view.timeout <= PREVIEW_TIMEOUT - 120
+
+
+TRACK_OPTIONS = ("A · Bugs", "B · Form & feedback")
+
+
+def track_route(project_route: TargetConfig) -> TargetConfig:
+    """The project route with a Track field and a bug default of ``A · Bugs``."""
+    return replace(
+        project_route,
+        project=replace(
+            PROJECT, track_field="Track", track_defaults=((IssueType.BUG, "A · Bugs"),)
+        ),
+    )
+
+
+def fake_track_lookup(options: Sequence[str] = TRACK_OPTIONS) -> AsyncMock:
+    return AsyncMock(return_value=tuple(options))
+
+
+def submitted_embed(interaction: SimpleNamespace) -> discord.Embed:
+    return interaction.followup.send.await_args.kwargs["embed"]
+
+
+def option_defaults(view: PreviewView) -> list[bool]:
+    assert view.track_select is not None
+    return [option.default for option in view.track_select.options]
+
+
+def assert_no_track_row(view: PreviewView, embed: discord.Embed) -> None:
+    assert view.track_select is None
+    assert view.track_options == ()
+    assert not any(isinstance(child, discord.ui.Select) for child in view.children)
+    assert [embed_field.name for embed_field in embed.fields] == [COMPLEXITY_FIELD]
+
+
+async def pick(view: PreviewView, values: list[str], interaction: SimpleNamespace) -> None:
+    """Pick ``values`` on the view's Track select (discord.py 2.7.1 reads ``.values`` from it)."""
+    assert view.track_select is not None
+    view.track_select._values = values
+    await view.track_select.callback(interaction)
+
+
+async def test_track_row_shown_with_bug_default(
+    project_route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    route = track_route(project_route)
+    lookup = fake_track_lookup()
+    interaction = make_interaction()
+    view = await submitted_preview(route, AsyncMock(), interaction, track_lookup=lookup)
+    lookup.assert_awaited_once_with(route)
+    select = view.track_select
+    assert isinstance(select, discord.ui.Select)
+    assert select in view.children
+    assert select.row == 2
+    assert select.min_values == 0
+    assert select.max_values == 1
+    assert select.required is False
+    assert select.placeholder == TRACK_PLACEHOLDER
+    assert [option.label for option in select.options] == list(TRACK_OPTIONS)
+    assert [option.value for option in select.options] == ["0", "1"]
+    assert option_defaults(view) == [True, False]
+    assert view.draft.track == "A · Bugs"
+    fields = submitted_embed(interaction).fields
+    assert len(fields) == 2
+    assert fields[0].name == COMPLEXITY_FIELD
+    assert (fields[1].name, fields[1].value) == (TRACK_FIELD, "A · Bugs")
+    for name in BAND_BUTTONS:
+        assert getattr(view, name).row == 0
+    assert view.file_button.row == 1
+    assert view.edit_button.row == 1
+
+
+async def test_track_row_feature_has_no_default(
+    project_route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    interaction = make_interaction()
+    view = await submitted_preview(
+        track_route(project_route),
+        AsyncMock(),
+        interaction,
+        issue_type=IssueType.FEATURE,
+        track_lookup=fake_track_lookup(),
+    )
+    assert option_defaults(view) == [False, False]
+    assert view.draft.track is None
+    fields = submitted_embed(interaction).fields
+    assert (fields[1].name, fields[1].value) == (TRACK_FIELD, TRACK_NONE)
+
+
+async def test_track_default_not_an_option_preselects_nothing(
+    project_route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    interaction = make_interaction()
+    with caplog.at_level(logging.INFO):
+        view = await submitted_preview(
+            track_route(project_route),
+            AsyncMock(),
+            interaction,
+            track_lookup=fake_track_lookup(("C · List UX", "E · Ops")),
+        )
+    assert option_defaults(view) == [False, False]
+    assert view.draft.track is None
+    assert submitted_embed(interaction).fields[1].value == TRACK_NONE
+    assert intake_messages(caplog, logging.INFO) == ["previewed bug interaction_id=4242"]
+    assert intake_messages(caplog, logging.WARNING) == []
+
+
+async def test_no_track_row_on_plain_route(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    lookup = fake_track_lookup()
+    interaction = make_interaction()
+    view = await submitted_preview(route, AsyncMock(), interaction, track_lookup=lookup)
+    lookup.assert_not_awaited()
+    assert_no_track_row(view, submitted_embed(interaction))
+
+
+async def test_no_track_row_on_project_route_without_track_field(
+    project_route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    lookup = fake_track_lookup()
+    interaction = make_interaction()
+    view = await submitted_preview(project_route, AsyncMock(), interaction, track_lookup=lookup)
+    lookup.assert_not_awaited()
+    assert_no_track_row(view, submitted_embed(interaction))
+
+
+async def test_no_track_row_without_lookup(
+    project_route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    interaction = make_interaction()
+    with caplog.at_level(logging.INFO):
+        view = await submitted_preview(track_route(project_route), AsyncMock(), interaction)
+    assert_no_track_row(view, submitted_embed(interaction))
+    assert intake_messages(caplog, logging.WARNING) == []
+
+
+async def test_no_track_row_when_lookup_returns_nothing(
+    project_route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    interaction = make_interaction()
+    with caplog.at_level(logging.INFO):
+        view = await submitted_preview(
+            track_route(project_route), AsyncMock(), interaction, track_lookup=fake_track_lookup(())
+        )
+    assert_no_track_row(view, submitted_embed(interaction))
+    assert view.draft.track is None
+    assert intake_messages(caplog, logging.WARNING) == []
+
+
+@pytest.mark.parametrize(
+    ("error", "suffix"),
+    [
+        (GitHubError("project", 200), "GitHubError stage=project status=200"),
+        (RuntimeError("Secret body words"), "RuntimeError"),
+    ],
+)
+async def test_failed_track_lookup_shows_no_row_and_files(
+    project_route: TargetConfig,
+    make_interaction: InteractionFactory,
+    caplog: pytest.LogCaptureFixture,
+    error: Exception,
+    suffix: str,
+) -> None:
+    hook = AsyncMock()
+    interaction = make_interaction()
+    with caplog.at_level(logging.INFO):
+        view = await submitted_preview(
+            track_route(project_route),
+            hook,
+            interaction,
+            title="Secret title words",
+            answers=("Secret body words",),
+            track_lookup=AsyncMock(side_effect=error),
+        )
+    assert_no_track_row(view, submitted_embed(interaction))
+    assert view.draft.track is None
+    assert intake_messages(caplog, logging.WARNING) == [
+        f"could not read track options for bug interaction_id=4242: {suffix}"
+    ]
+    assert_no_member_text(caplog)
+    await view.file_button.callback(make_interaction())
+    hook.assert_awaited_once()
+    assert hook.await_args.args[1].track is None
+
+
+async def test_slow_track_lookup_times_out(
+    project_route: TargetConfig,
+    make_interaction: InteractionFactory,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("issue_bot.intake.FILING_CHECK_TIMEOUT", 0.01)
+
+    async def slow(target: TargetConfig) -> tuple[str, ...]:
+        await asyncio.sleep(1)
+        return TRACK_OPTIONS
+
+    hook = AsyncMock()
+    interaction = make_interaction()
+    with caplog.at_level(logging.INFO):
+        view = await submitted_preview(
+            track_route(project_route), hook, interaction, track_lookup=slow
+        )
+    assert_no_track_row(view, submitted_embed(interaction))
+    assert intake_messages(caplog, logging.WARNING) == [
+        "could not read track options for bug interaction_id=4242: timeout"
+    ]
+    assert_no_member_text(caplog)
+    await view.file_button.callback(make_interaction())
+    hook.assert_awaited_once()
+
+
+async def test_track_row_caps_options_and_label_length(
+    project_route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    long_name = "L" * 120
+    options = [long_name] + [f"Option {index}" for index in range(29)]
+    view = await submitted_preview(
+        track_route(project_route), AsyncMock(), make_interaction(), track_lookup=fake_track_lookup(options)
+    )
+    assert TRACK_OPTION_LIMIT == 25
+    assert view.track_select is not None
+    assert len(view.track_select.options) == TRACK_OPTION_LIMIT
+    assert view.track_options == tuple(options[:TRACK_OPTION_LIMIT])
+    assert view.track_select.options[0].label == "L" * TRACK_LABEL_LIMIT
+    await pick(view, ["0"], make_interaction())
+    assert view.draft.track == long_name
+
+
+async def test_track_default_past_the_option_limit_preselects_nothing(
+    project_route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    options = [f"Option {index}" for index in range(25)] + ["A · Bugs"]
+    view = await submitted_preview(
+        track_route(project_route), AsyncMock(), make_interaction(), track_lookup=fake_track_lookup(options)
+    )
+    assert view.draft.track is None
+    assert not any(option_defaults(view))
+
+
+async def test_track_pick_updates_preview_in_place(
+    project_route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    view = await submitted_preview(
+        track_route(project_route),
+        AsyncMock(),
+        make_interaction(),
+        title="Secret title words",
+        answers=("Secret body words",),
+        track_lookup=fake_track_lookup(),
+    )
+    click = make_interaction()
+    with caplog.at_level(logging.INFO):
+        await pick(view, ["1"], click)
+    assert view.draft.track == "B · Form & feedback"
+    click.response.edit_message.assert_awaited_once()
+    edit_call = click.response.edit_message.await_args
+    assert set(edit_call.kwargs) == {"embed", "view"}
+    assert edit_call.kwargs["view"] is view
+    fields = edit_call.kwargs["embed"].fields
+    assert (fields[1].name, fields[1].value) == (TRACK_FIELD, "B · Form & feedback")
+    assert option_defaults(view) == [False, True]
+    assert intake_records(caplog) == []
+    assert_no_member_text(caplog)
+
+
+async def test_track_pick_nothing_clears_track(
+    project_route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(
+        track_route(project_route), AsyncMock(), make_interaction(), track_lookup=fake_track_lookup()
+    )
+    click = make_interaction()
+    await pick(view, [], click)
+    assert view.draft.track is None
+    assert option_defaults(view) == [False, False]
+    fields = click.response.edit_message.await_args.kwargs["embed"].fields
+    assert fields[1].value == TRACK_NONE
+
+
+async def test_track_pick_after_close_does_nothing(
+    project_route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(
+        track_route(project_route), AsyncMock(), make_interaction(), track_lookup=fake_track_lookup()
+    )
+    view._closed = True
+    before = view.draft
+    click = make_interaction()
+    await pick(view, ["1"], click)
+    click.response.edit_message.assert_not_awaited()
+    assert view.draft is before
+
+
+async def test_track_pick_keeps_the_deadline(
+    project_route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(
+        track_route(project_route), AsyncMock(), make_interaction(), track_lookup=fake_track_lookup()
+    )
+    # Moving the deadline, not patching time.monotonic, which also drives the event loop.
+    view._deadline -= 120
+    await pick(view, ["1"], make_interaction())
+    assert PREVIEW_TIMEOUT - 121 < view.timeout <= PREVIEW_TIMEOUT - 120
+
+
+@pytest.mark.parametrize(
+    ("values", "expected", "defaults"),
+    [(["1"], "B · Form & feedback", [False, True]), ([], None, [False, False])],
+)
+async def test_track_pick_survives_edit(
+    project_route: TargetConfig,
+    make_interaction: InteractionFactory,
+    values: list[str],
+    expected: str | None,
+    defaults: list[bool],
+) -> None:
+    lookup = fake_track_lookup()
+    view = await submitted_preview(
+        track_route(project_route), AsyncMock(), make_interaction(), track_lookup=lookup
+    )
+    await pick(view, values, make_interaction())
+    new_view, edit_interaction = await edit_submit_with(view, make_interaction, "Steps v2")
+    assert new_view.draft.track == expected
+    assert new_view.track_options == TRACK_OPTIONS
+    assert new_view.track_select is not None
+    assert [option.label for option in new_view.track_select.options] == list(TRACK_OPTIONS)
+    assert option_defaults(new_view) == defaults
+    fields = edit_interaction.response.edit_message.await_args.kwargs["embed"].fields
+    assert (fields[1].name, fields[1].value) == (TRACK_FIELD, expected or TRACK_NONE)
+    lookup.assert_awaited_once()
+
+
+async def test_band_press_keeps_track_field(
+    project_route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(
+        track_route(project_route), AsyncMock(), make_interaction(), track_lookup=fake_track_lookup()
+    )
+    await pick(view, ["1"], make_interaction())
+    click = make_interaction()
+    await view.l_button.callback(click)
+    fields = click.response.edit_message.await_args.kwargs["embed"].fields
+    assert [embed_field.name for embed_field in fields] == [COMPLEXITY_FIELD, TRACK_FIELD]
+    assert fields[1].value == "B · Form & feedback"
+    assert option_defaults(view) == [False, True]
+
+
+async def test_file_after_track_pick_sets_track(
+    project_route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    route = track_route(project_route)
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
+    view = await submitted_preview(
+        route, filing_hook(github), make_interaction(), track_lookup=fake_track_lookup()
+    )
+    await pick(view, ["1"], make_interaction())
+    await view.file_button.callback(make_interaction())
+    github.create_issue.assert_awaited_once()
+    github.add_to_project.assert_awaited_once()
+    github.set_track.assert_awaited_once_with(route, "PVTI_1", "B · Form & feedback")
+
+
+async def test_command_modal_carries_track_lookup(
+    config: Config, make_interaction: InteractionFactory
+) -> None:
+    lookup = fake_track_lookup()
+    command = intake_command(
+        IssueType.BUG, config.routes, config.unrouted, AsyncMock(), track_lookup=lookup
+    )
+    interaction = make_interaction()
+    await command.callback(interaction)
+    modal = interaction.response.send_modal.await_args.args[0]
+    assert modal.track_lookup is lookup
+    lookup.assert_not_awaited()
+    plain = intake_command(IssueType.BUG, config.routes, config.unrouted, AsyncMock())
+    plain_interaction = make_interaction()
+    await plain.callback(plain_interaction)
+    assert plain_interaction.response.send_modal.await_args.args[0].track_lookup is None

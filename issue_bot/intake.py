@@ -1,9 +1,12 @@
 """Slash-command intake: ``/bug`` and ``/feature`` open a modal; a submit shows a private preview.
 
 The preview shows the rated band in a **Complexity** field, and its S/M/L/XL buttons override
-it in place (the field and buttons carry no member text, and a band press logs nothing). Its
-**File** button posts the public summary and hands it to ``on_candidate``; **Edit** reopens the
-modal prefilled; an expired preview files nothing.
+it in place (the field and buttons carry no member text, and a band press logs nothing). On a
+route whose Project has a ``track_field``, a fresh submit reads the Track options through
+``track_lookup`` and the preview gets an optional Track dropdown (row 2) and a **Track** field;
+the pick survives Edit, which reuses the old preview's options. A failed lookup shows no row.
+Its **File** button posts the public summary and hands it to ``on_candidate``; **Edit** reopens
+the modal prefilled; an expired preview files nothing.
 
 Modal text and interaction payloads are member text: logs carry the issue type, the
 interaction, message and channel ids and the summary URL only, and a Discord API error by its
@@ -31,11 +34,16 @@ logger = logging.getLogger(__name__)
 
 CandidateHook = Callable[[discord.Message, IssueCandidate], Awaitable[None]]
 FilingCheck = Callable[[TargetConfig], Awaitable[None]]
+TrackLookup = Callable[[TargetConfig], Awaitable[tuple[str, ...]]]
 
 TITLE_MAX_LENGTH = THREAD_NAME_LIMIT  # Owner's choice: a title is never cut in the thread name.
 ANSWER_MAX_LENGTH = 4000  # Discord's maximum text-input length.
 MODAL_TIMEOUT = 1800  # Seconds an open modal is kept; a later submit fails in Discord, unfiled (DD-10).
-FILING_CHECK_TIMEOUT = 2.0  # Seconds; Discord needs the modal within 3 s of the command.
+# Seconds; Discord needs the modal within 3 s of the command. It also bounds the Track lookup
+# after a fresh submit's defer, so the preview never waits long (DD-1).
+FILING_CHECK_TIMEOUT = 2.0
+TRACK_OPTION_LIMIT = 25  # Discord's maximum select options.
+TRACK_LABEL_LIMIT = 100  # Discord's maximum option label.
 NO_MENTIONS = discord.AllowedMentions.none()
 # Fixed text: none of these carries member text.
 INTAKE_REFUSAL = "Reports go in the intake channel: run this command there."
@@ -54,6 +62,9 @@ BLANK_TITLE_EDIT_REPLY = "The title needs a letter or digit. Press Edit to fix i
 COMPLEXITY_FIELD = "Complexity"
 COMPLEXITY_SUGGESTED = "{band}, suggested by the rules"
 COMPLEXITY_CHOSEN = "{band}, your choice (the rules suggested {suggested})"
+TRACK_PLACEHOLDER = "Track (optional)"
+TRACK_FIELD = "Track"
+TRACK_NONE = "None"
 
 
 def discord_error_fields(error: BaseException) -> tuple[int | None, int | None]:
@@ -129,7 +140,8 @@ class Draft:
     """A report's title and ``(label, answer)`` pairs (member text, hidden from repr) and its band.
 
     ``suggested`` is the rules' band, ``complexity`` the band to file, and ``overridden`` whether
-    the reporter pressed a band button; none is member text, so they stay in repr.
+    the reporter pressed a band button; ``track`` is the Project Track option to set (None: no
+    pick). None is member text, so they stay in repr.
     """
 
     title: str = field(repr=False)
@@ -137,14 +149,16 @@ class Draft:
     suggested: Complexity
     complexity: Complexity
     overridden: bool
+    track: str | None = None
 
 
-def preview_embed(draft: Draft, author_name: str) -> discord.Embed:
+def preview_embed(draft: Draft, author_name: str, track_row: bool = False) -> discord.Embed:
     """Return the preview embed: the issue body as filed, with ``PREVIEW_LINK`` for the summary link.
 
     A body past ``PREVIEW_EMBED_LIMIT`` is cut and ends with ``PREVIEW_SHORTENED_NOTE``; the
     filed issue is never cut (DD-3). A **Complexity** field shows the band to file:
     ``COMPLEXITY_CHOSEN`` once the reporter has pressed a band, else ``COMPLEXITY_SUGGESTED``.
+    With ``track_row``, a **Track** field follows it: the pick, or ``TRACK_NONE``.
     """
     text = render_body(author_name, PREVIEW_LINK, draft.answers)
     if len(text) > PREVIEW_EMBED_LIMIT:
@@ -155,6 +169,8 @@ def preview_embed(draft: Draft, author_name: str) -> discord.Embed:
     else:
         value = COMPLEXITY_SUGGESTED.format(band=draft.complexity)
     embed.add_field(name=COMPLEXITY_FIELD, value=value)
+    if track_row:
+        embed.add_field(name=TRACK_FIELD, value=draft.track or TRACK_NONE)
     return embed
 
 
@@ -209,16 +225,19 @@ async def _post_and_file(
             interaction.user,
             summary,
             target,
+            draft.track,
         ),
     )
     await _reply(interaction, SUBMITTED_REPLY.format(url=summary.jump_url), issue_type)
 
 
 class PreviewView(discord.ui.View):
-    """The private preview's buttons.
+    """The private preview's buttons and optional Track dropdown.
 
     The S/M/L/XL buttons override the rated band, **File** files the draft once, and **Edit**
-    reopens the modal.
+    reopens the modal. With ``track_options``, a Track select on row 2 shows the first
+    ``TRACK_OPTION_LIMIT`` of them (values are indexes; labels cut to ``TRACK_LABEL_LIMIT``) and
+    sets the draft's Track; a pick logs nothing.
 
     The preview expires ``PREVIEW_TIMEOUT`` seconds after the submit that showed it; a button
     press never extends that deadline (DD-5).
@@ -231,6 +250,7 @@ class PreviewView(discord.ui.View):
         on_candidate: CandidateHook,
         draft: Draft,
         interaction: discord.Interaction,
+        track_options: tuple[str, ...] = (),
     ) -> None:
         super().__init__(timeout=PREVIEW_TIMEOUT)
         self.issue_type = issue_type
@@ -247,16 +267,37 @@ class PreviewView(discord.ui.View):
             Complexity.L: self.l_button,
             Complexity.XL: self.xl_button,
         }
+        self.track_options = track_options[:TRACK_OPTION_LIMIT]
+        self.track_select: discord.ui.Select | None = None
+        if self.track_options:
+            self.track_select = discord.ui.Select(
+                placeholder=TRACK_PLACEHOLDER,
+                min_values=0,
+                max_values=1,
+                required=False,
+                row=2,
+            )
+            self.track_select.callback = self._pick_track
+            self.add_item(self.track_select)
         self._paint()
 
     def _paint(self) -> None:
-        """Style the band to file ``primary`` and the other band buttons ``secondary``."""
+        """Style the band to file ``primary`` and the others ``secondary``; mark the Track pick."""
         for band, button in self._band_buttons.items():
             button.style = (
                 discord.ButtonStyle.primary
                 if band is self.draft.complexity
                 else discord.ButtonStyle.secondary
             )
+        if self.track_select is not None:
+            self.track_select.options = [
+                discord.SelectOption(
+                    label=name[:TRACK_LABEL_LIMIT],
+                    value=str(index),
+                    default=name == self.draft.track,
+                )
+                for index, name in enumerate(self.track_options)
+            ]
 
     def _keep_deadline(self) -> None:
         # discord.py 2.7.1 resets the expiry to now + timeout before every callback; the
@@ -279,7 +320,25 @@ class PreviewView(discord.ui.View):
         self.draft = replace(self.draft, complexity=band, overridden=True)
         self._paint()
         await interaction.response.edit_message(
-            embed=preview_embed(self.draft, interaction.user.display_name), view=self
+            embed=preview_embed(
+                self.draft, interaction.user.display_name, track_row=bool(self.track_options)
+            ),
+            view=self,
+        )
+
+    async def _pick_track(self, interaction: discord.Interaction) -> None:
+        """Set the draft's Track to the picked option (or None) and redraw; logs nothing."""
+        self._keep_deadline()
+        if self._closed or self.track_select is None:
+            return
+        # Set before the edit so a concurrent File sees it, as in _choose.
+        values = self.track_select.values
+        track = self.track_options[int(values[0])] if values else None
+        self.draft = replace(self.draft, track=track)
+        self._paint()
+        await interaction.response.edit_message(
+            embed=preview_embed(self.draft, interaction.user.display_name, track_row=True),
+            view=self,
         )
 
     @discord.ui.button(label="S", style=discord.ButtonStyle.secondary, row=0)
@@ -382,11 +441,14 @@ class IntakeModal(discord.ui.Modal):
         on_candidate: CandidateHook,
         draft: Draft | None = None,
         preview: PreviewView | None = None,
+        track_lookup: TrackLookup | None = None,
     ) -> None:
         super().__init__(title=f"New {issue_type}", timeout=MODAL_TIMEOUT)
         self.issue_type = issue_type
         self.target = target
         self.on_candidate = on_candidate
+        # Reads the route's Track options on a fresh submit; an Edit reuses the preview's.
+        self.track_lookup = track_lookup
         # The preview an Edit reopened this modal from; None for a fresh report.
         self.preview = preview
         self.questions = target.questions[issue_type]
@@ -429,17 +491,27 @@ class IntakeModal(discord.ui.Modal):
             else:
                 await interaction.response.send_message(BLANK_TITLE_EDIT_REPLY, ephemeral=True)
             return
+        options, track = await self._track_choices(interaction)
         suggested = rate(self.issue_type, answers)
         if self.preview is not None and self.preview.draft.overridden:
             # An override sticks across Edit; an unpressed draft is re-rated.
             complexity, overridden = self.preview.draft.complexity, True
         else:
             complexity, overridden = suggested, False
-        draft = Draft(title, answers, suggested, complexity, overridden)
+        draft = Draft(title, answers, suggested, complexity, overridden, track)
         # Always a fresh preview with its own deadline, even if the old one expired (DD-6).
-        view = PreviewView(self.issue_type, self.target, self.on_candidate, draft, interaction)
+        view = PreviewView(
+            self.issue_type,
+            self.target,
+            self.on_candidate,
+            draft,
+            interaction,
+            track_options=options,
+        )
         logger.info("previewed %s interaction_id=%s", self.issue_type, interaction.id)
-        embed = preview_embed(draft, interaction.user.display_name)
+        embed = preview_embed(
+            draft, interaction.user.display_name, track_row=bool(view.track_options)
+        )
         if self.preview is None:
             try:
                 await interaction.followup.send(
@@ -464,6 +536,55 @@ class IntakeModal(discord.ui.Modal):
         self.preview._closed = True
         self.preview.stop()
 
+    async def _track_choices(
+        self, interaction: discord.Interaction
+    ) -> tuple[tuple[str, ...], str | None]:
+        """Return the Track options to show and the Track to pre-select.
+
+        An Edit keeps the old preview's options and pick. A fresh submit on a route with a
+        ``track_field`` reads the options through ``track_lookup`` within
+        ``FILING_CHECK_TIMEOUT`` (a failure is a WARNING and no row) and pre-selects the route's
+        default for the issue type when it is one of the shown options (DD-3).
+        """
+        if self.preview is not None:
+            return self.preview.track_options, self.preview.draft.track
+        project = self.target.project
+        if self.track_lookup is None or project is None or not project.track_field:
+            return (), None
+        try:
+            options = await asyncio.wait_for(self.track_lookup(self.target), FILING_CHECK_TIMEOUT)
+        except GitHubError as exc:
+            logger.warning(
+                "could not read track options for %s interaction_id=%s: %s stage=%s status=%s",
+                self.issue_type,
+                interaction.id,
+                type(exc).__name__,
+                exc.stage,
+                exc.status,
+            )
+            return (), None
+        except TimeoutError:
+            logger.warning(
+                "could not read track options for %s interaction_id=%s: timeout",
+                self.issue_type,
+                interaction.id,
+            )
+            return (), None
+        except Exception as exc:
+            # The preview must still show; log the type only, never its text.
+            logger.warning(
+                "could not read track options for %s interaction_id=%s: %s",
+                self.issue_type,
+                interaction.id,
+                type(exc).__name__,
+            )
+            return (), None
+        if not options:
+            return (), None
+        default = dict(project.track_defaults).get(self.issue_type)
+        track = default if default in options[:TRACK_OPTION_LIMIT] else None
+        return options, track
+
     async def on_error(
         self, interaction: discord.Interaction, error: Exception, /
     ) -> None:
@@ -481,6 +602,7 @@ def intake_command(
     unrouted: UnroutedCommands,
     on_candidate: CandidateHook,
     filing_check: FilingCheck | None = None,
+    track_lookup: TrackLookup | None = None,
 ) -> app_commands.Command:
     """Return the slash command that opens the report modal in a routed intake channel.
 
@@ -488,6 +610,7 @@ def intake_command(
 
     When ``filing_check`` is set, it must pass within ``FILING_CHECK_TIMEOUT`` before the
     modal opens; otherwise the member gets ``FILING_UNAVAILABLE_REPLY`` privately.
+    ``track_lookup`` is handed to the modal, which reads the Track options after a submit.
     """
 
     # A closure: Command needs a real function, and functools.partial has no __globals__.
@@ -543,7 +666,9 @@ def intake_command(
                 )
                 await interaction.response.send_message(FILING_UNAVAILABLE_REPLY, ephemeral=True)
                 return
-        await interaction.response.send_modal(IntakeModal(issue_type, target, on_candidate))
+        await interaction.response.send_modal(
+            IntakeModal(issue_type, target, on_candidate, track_lookup=track_lookup)
+        )
 
     return app_commands.Command(
         name=str(issue_type),
