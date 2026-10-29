@@ -495,6 +495,54 @@ def test_route_with_project_loads(tmp_path: Path) -> None:
     )
 
 
+TRACK_FIELD_LINE = 'track_field = "Track"\n'
+TRACK_DEFAULT_HEADER = "[routes.intake.project.track_default]\n"
+TRACK_DEFAULT_ERROR = (
+    "routes.intake.project.track_default must map bug or feature to Track option names"
+)
+
+
+def test_route_with_track_keys_loads(tmp_path: Path) -> None:
+    text = with_project() + TRACK_FIELD_LINE + TRACK_DEFAULT_HEADER + 'bug = "A · Bugs"\n'
+    assert load_text(tmp_path, text)[555].project == ProjectConfig(
+        number=2,
+        status_field="Status",
+        status="Todo",
+        effort_field="Effort",
+        track_field="Track",
+        track_defaults=((IssueType.BUG, "A · Bugs"),),
+    )
+
+
+def test_route_without_track_keys_has_no_track(tmp_path: Path) -> None:
+    project = load_text(tmp_path, with_project())[555].project
+    assert project is not None
+    assert project.track_field is None
+    assert project.track_defaults == ()
+
+
+def test_track_defaults_load_in_issue_type_order_and_stripped(tmp_path: Path) -> None:
+    text = (
+        with_project()
+        + TRACK_FIELD_LINE
+        + TRACK_DEFAULT_HEADER
+        + 'feature = "B · Form & feedback"\nbug = " A · Bugs "\n'
+    )
+    project = load_text(tmp_path, text)[555].project
+    assert project is not None
+    assert project.track_defaults == (
+        (IssueType.BUG, "A · Bugs"),
+        (IssueType.FEATURE, "B · Form & feedback"),
+    )
+
+
+def test_project_with_track_defaults_is_hashable(tmp_path: Path) -> None:
+    text = with_project() + TRACK_FIELD_LINE + TRACK_DEFAULT_HEADER + 'bug = "A · Bugs"\n'
+    project = load_text(tmp_path, text)[555].project
+    assert project is not None
+    assert hash(project) == hash(dataclasses.replace(project))
+
+
 def test_route_without_project_loads(tmp_path: Path) -> None:
     assert load_text(tmp_path, ONE_ROUTE_TOML)[555].project is None
 
@@ -526,6 +574,29 @@ def test_route_without_project_loads(tmp_path: Path) -> None:
             (with_project(**{key: "5"}), f"routes.intake.project.{key} must be a string")
             for key in ["status_field", "status", "effort_field"]
         ],
+        (
+            with_project() + 'track_field = ""\n',
+            "routes.intake.project.track_field is required",
+        ),
+        (
+            with_project() + "track_field = 3\n",
+            "routes.intake.project.track_field must be a string",
+        ),
+        (
+            with_project() + TRACK_DEFAULT_HEADER + 'bug = "A · Bugs"\n',
+            "routes.intake.project.track_default needs track_field",
+        ),
+        *[
+            (with_project() + TRACK_FIELD_LINE + f"track_default = {value}\n", TRACK_DEFAULT_ERROR)
+            for value in [
+                '"x"',
+                '{chore = "x"}',
+                '{bug = ""}',
+                '{bug = "  "}',
+                "{bug = 3}",
+                "{}",
+            ]
+        ],
     ],
 )
 def test_project_errors(tmp_path: Path, text: str, message: str) -> None:
@@ -535,6 +606,11 @@ def test_project_errors(tmp_path: Path, text: str, message: str) -> None:
 def test_project_error_does_not_quote_value(tmp_path: Path) -> None:
     error = route_error(tmp_path, with_project(status='["Secret words"]'))
     assert error == "routes.intake.project.status must be a string"
+    assert "Secret words" not in error
+    error = route_error(
+        tmp_path, with_project() + TRACK_FIELD_LINE + 'track_default = {bug = ["Secret words"]}\n'
+    )
+    assert error == TRACK_DEFAULT_ERROR
     assert "Secret words" not in error
 
 
@@ -838,3 +914,5 @@ def test_example_routes_shape() -> None:
         project = _route_project(route, f"routes.{name}")
         if name == "c4i":
             assert project is not None
+            assert project.track_field == "Track"
+            assert project.track_defaults == ((IssueType.BUG, "A · Bugs"),)

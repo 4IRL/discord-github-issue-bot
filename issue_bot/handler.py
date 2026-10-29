@@ -16,7 +16,9 @@ class IssueCandidate:
 
     ``answers`` holds one ``(question label, answer)`` pair per question the modal asked.
     ``complexity`` is the band the reporter filed with; it is not member text, so it stays in
-    ``repr``. Member text and names are hidden from ``repr`` so logs and tracebacks never carry them.
+    ``repr``. ``track`` is the route Project's Track option to set on the filed item (``None``
+    leaves Track blank); it is a Project option name, not member text, so it stays in ``repr`` too.
+    Member text and names are hidden from ``repr`` so logs and tracebacks never carry them.
     """
 
     type: IssueType
@@ -28,6 +30,7 @@ class IssueCandidate:
     message_id: int
     message_url: str
     target: TargetConfig
+    track: str | None = None
 
 
 def candidate_from_submission(
@@ -38,8 +41,12 @@ def candidate_from_submission(
     reporter: discord.abc.User,
     message: discord.Message,
     target: TargetConfig,
+    track: str | None = None,
 ) -> IssueCandidate:
-    """Return the candidate for a submitted report, tied to the bot's summary ``message``."""
+    """Return the candidate for a submitted report, tied to the bot's summary ``message``.
+
+    ``track`` is the Track option the reporter picked in the preview, if any.
+    """
     return IssueCandidate(
         type=issue_type,
         title=title,
@@ -50,4 +57,5 @@ def candidate_from_submission(
         message_id=message.id,
         message_url=message.jump_url,
         target=target,
+        track=track,
     )

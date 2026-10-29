@@ -27,6 +27,7 @@ def main() -> None:
         on_candidate=filing_hook(github),
         filing_check=github.check_access,
         project_check=github.project_fields,
+        track_lookup=github.track_options,
     ).run(config.discord_token, log_handler=None)
 
 

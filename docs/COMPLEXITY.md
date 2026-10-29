@@ -31,7 +31,7 @@ Two examples:
 
 ## Changing the band before filing
 
-The private preview shows a **Complexity** field with the suggested band, and four buttons, S, M, L and XL, with the current band highlighted. Press one to choose a different band; the field then says it is your choice and which band the rules suggested. Your choice sticks when you press **Edit** and change the text. Until you press a band, **Edit** re-rates the report from the new answers.
+The private preview shows a **Complexity** field with the suggested band, and four buttons, S, M, L and XL, with the current band highlighted. Press one to choose a different band; the field then says it is your choice and which band the rules suggested. Your choice sticks when you press **Edit** and change the text. Until you press a band, **Edit** re-rates the report from the new answers. On a route whose `project` table sets `track_field` ([README](../README.md#reporting)), the preview also has a Track dropdown under the band buttons; it doesn't affect the band.
 
 ## On GitHub
 

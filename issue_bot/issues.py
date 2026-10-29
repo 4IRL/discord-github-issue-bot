@@ -1,9 +1,9 @@
 """Turns a candidate into the GitHub issue's title, body and labels; the only place an issue body is formatted.
 
-Also places a filed issue on its route's roadmap Project. Its log lines (a skipped complexity
-label, a roadmap placement and a failed one) carry the issue type, the message id, the issue
-URL and an error's type (with a ``GitHubError``'s stage and status) only, never member text,
-response text or exception text.
+Also places a filed issue on its route's roadmap Project, setting its Track when the reporter
+picked one. Its log lines (a skipped complexity label, a roadmap placement and a failed one)
+carry the issue type, the message id, the issue URL and an error's type (with a
+``GitHubError``'s stage and status) only, never member text, response text or exception text.
 """
 
 import logging
@@ -88,39 +88,51 @@ async def file_candidate(github: GitHubClient, candidate: IssueCandidate) -> Fil
     )
 
 
+def _track_note(candidate: IssueCandidate) -> str:
+    # The pick is a Project option name, not member text; a failed roadmap step leaves it unset,
+    # so the WARNING names it for the owner's hand fix.
+    return "" if candidate.track is None else f" track={candidate.track!r}"
+
+
 async def place_on_roadmap(
     github: GitHubClient, candidate: IssueCandidate, issue: FiledIssue
 ) -> bool | None:
     """Add the filed issue to its route's Project; return ``None`` for a route with no Project.
 
-    Returns ``True`` once the issue is on the roadmap with its Status and Effort set, and
-    ``False`` (after a WARNING) when any part of that failed. It never raises: the issue is
-    already filed, and its link message must still be posted.
+    Returns ``True`` once the issue is on the roadmap with its Status and Effort set (and its
+    Track, when the candidate carries one), and ``False`` (after a WARNING) when any part of that
+    failed, a failed Track write included; the WARNING ends with ``track='<option>'`` when the
+    candidate carries a pick. It never raises: the issue is already filed, and its
+    link message must still be posted.
     """
     if candidate.target.project is None:
         return None
     try:
-        await github.add_to_project(candidate.target, issue, candidate.complexity)
+        item_id = await github.add_to_project(candidate.target, issue, candidate.complexity)
+        if candidate.track is not None:
+            await github.set_track(candidate.target, item_id, candidate.track)
     except GitHubError as exc:
         logger.warning(
-            "could not add %s message_id=%s to the roadmap issue=%s: %s stage=%s status=%s",
+            "could not add %s message_id=%s to the roadmap issue=%s: %s stage=%s status=%s%s",
             candidate.type,
             candidate.message_id,
             issue.html_url,
             type(exc).__name__,
             exc.stage,
             exc.status,
+            _track_note(candidate),
         )
         return False
     except Exception as exc:
         # The issue is already filed, so a parsing bug must not drop the link message.
         # Log the type only, never exc_info or its text.
         logger.warning(
-            "could not add %s message_id=%s to the roadmap issue=%s: %s",
+            "could not add %s message_id=%s to the roadmap issue=%s: %s%s",
             candidate.type,
             candidate.message_id,
             issue.html_url,
             type(exc).__name__,
+            _track_note(candidate),
         )
         return False
     logger.info(

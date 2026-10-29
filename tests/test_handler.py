@@ -39,3 +39,20 @@ def test_submission_candidate_repr_hides_text(route: TargetConfig) -> None:
     assert "Secret title words" not in text
     assert "Secret body words" not in text
     assert "Alice" not in text
+
+
+def test_candidate_from_submission_track_defaults_none_and_shows_in_repr(
+    route: TargetConfig,
+) -> None:
+    user = SimpleNamespace(id=7, display_name="Alice")
+    message = SimpleNamespace(id=99, jump_url="https://discord.com/channels/111/555/99")
+    plain = candidate_from_submission(
+        IssueType.BUG, "Fix it", (("Q", "A"),), Complexity.M, user, message, route
+    )
+    assert plain.track is None
+    picked = candidate_from_submission(
+        IssueType.BUG, "Fix it", (("Q", "A"),), Complexity.M, user, message, route, "A · Bugs"
+    )
+    assert picked.track == "A · Bugs"
+    # A Project option name is not member text, so it stays in repr.
+    assert "track='A · Bugs'" in repr(picked)

@@ -68,3 +68,13 @@ number = 2
 status_field = "Status"
 status = "Todo"
 effort_field = "Effort"
+# Optional: the Project's Track single-select. With it, the private preview gets a Track
+# dropdown (its options are the Project's own) and the bot sets
+# the filed item's Track to the reporter's pick (blank with no pick). Delete it for no dropdown.
+track_field = "Track"
+
+# Optional, needs track_field: the Track option to pre-select, per issue type (bug and/or
+# feature). Each value is an option name on the Project; a name that is not one of its options
+# pre-selects nothing.
+[routes.c4i.project.track_default]
+bug = "A · Bugs"

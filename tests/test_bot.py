@@ -19,7 +19,7 @@ from issue_bot.bot import (
 )
 from issue_bot.complexity import Complexity
 from issue_bot.config import Config, TargetConfig
-from issue_bot.github import FiledIssue, GitHubClient, GitHubError
+from issue_bot.github import FiledIssue, GitHubClient, GitHubError, ProjectFields
 from issue_bot.handler import IssueCandidate
 from issue_bot.intake import FILING_UNAVAILABLE_REPLY, INTAKE_ERROR_REPLY, NO_MENTIONS, IntakeModal
 from issue_bot.issue_type import IssueType
@@ -46,6 +46,24 @@ CONFIG_KEYS = (
     "GITHUB_APP_PRIVATE_KEY_PATH",
     "ROUTES_PATH",
 )
+
+# A startup Project check's result with no Track field.
+PLAIN_FIELDS = ProjectFields(
+    project_id="PVT_1",
+    status_field_id="F_status",
+    status_option_id="O_s",
+    effort_field_id="F_effort",
+    effort_option_ids={},
+)
+
+
+def track_fields(count: int) -> ProjectFields:
+    """A startup Project check's result whose Track field has ``count`` options."""
+    return dataclasses.replace(
+        PLAIN_FIELDS,
+        track_field_id="F_track",
+        track_option_ids={f"Track {index}": f"O_t{index}" for index in range(count)},
+    )
 
 
 def make_channel(
@@ -342,6 +360,36 @@ async def test_filing_hook_roadmap_failure_posts_failed_note(
     assert any("filed bug" in record.getMessage() for record in bot_records(caplog))
     assert not [record for record in bot_records(caplog) if record.levelno == logging.ERROR]
     assert not [text for text in record_texts(caplog) if "Secret exception words" in text]
+    assert_no_member_text(caplog)
+
+
+async def test_filing_hook_track_failure_posts_failed_note(
+    project_route: TargetConfig,
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    issue = FiledIssue(7, ISSUE_URL, "I_node7")
+    github = fake_github(issue)
+    github.set_track.side_effect = GitHubError("project-track", 200)
+    message = make_message()
+    candidate = make_candidate(
+        title="Secret title words",
+        answers=(("What happened?", "Secret body words"),),
+        author_name="Alice",
+        complexity=Complexity.M,
+        track="A · Bugs",
+        target=project_route,
+    )
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github)(message, candidate)
+    github.set_track.assert_awaited_once_with(project_route, "PVTI_1", "A · Bugs")
+    message.create_thread.return_value.send.assert_awaited_once_with(
+        filed_reply(issue, "Secret title words", Complexity.M, False),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
+    assert not [record for record in bot_records(caplog) if record.levelno == logging.ERROR]
     assert_no_member_text(caplog)
 
 
@@ -816,13 +864,18 @@ def test_main_runs_bot_with_token(
     project_check = init_kwargs["project_check"]
     assert isinstance(project_check.__self__, GitHubClient)
     assert project_check.__func__ is GitHubClient.project_fields
+    track_lookup = init_kwargs["track_lookup"]
+    assert isinstance(track_lookup.__self__, GitHubClient)
+    assert track_lookup.__func__ is GitHubClient.track_options
 
 
 def test_main_builds_github_client(
     monkeypatch: pytest.MonkeyPatch, test_env: dict[str, str]
 ) -> None:
     recorded: dict[str, tuple[object, ...]] = {}
-    sentinel = SimpleNamespace(check_access=AsyncMock(), project_fields=AsyncMock())
+    sentinel = SimpleNamespace(
+        check_access=AsyncMock(), project_fields=AsyncMock(), track_options=AsyncMock()
+    )
 
     class StubBot:
         def __init__(self, config: Config, **kwargs: object) -> None:
@@ -1038,7 +1091,7 @@ async def test_setup_hook_checks_project_after_access(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     access = AsyncMock()
-    check = AsyncMock()
+    check = AsyncMock(return_value=PLAIN_FIELDS)
     order = Mock()
     order.attach_mock(access, "access")
     order.attach_mock(check, "check")
@@ -1076,7 +1129,7 @@ async def test_setup_hook_project_check_failure_still_checks_second(
             for channel_id, target in two_route_config.routes.items()
         },
     )
-    check = AsyncMock(side_effect=[GitHubError("project", 200), None])
+    check = AsyncMock(side_effect=[GitHubError("project", 200), PLAIN_FIELDS])
     bot = IssueBot(config, filing_check=AsyncMock(), project_check=check)
     monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
     with caplog.at_level(logging.INFO):
@@ -1087,6 +1140,36 @@ async def test_setup_hook_project_check_failure_still_checks_second(
         "github project check failed for repo_id=222 project=2: GitHubError stage=project status=200",
         "github project ok for repo_id=223 project=2",
     ]
+
+
+async def test_setup_hook_warns_when_track_has_more_than_25_options(
+    project_config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    check = AsyncMock(return_value=track_fields(26))
+    bot = IssueBot(project_config, filing_check=AsyncMock(), project_check=check)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    warning = (
+        "github project track field has 26 options; only the first 25 can be picked"
+        " repo_id=222 project=2"
+    )
+    assert project_records(caplog) == ["github project ok for repo_id=222 project=2", warning]
+    assert [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.WARNING
+    ] == [warning]
+
+
+async def test_setup_hook_25_track_options_log_no_warning(
+    project_config: Config, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    check = AsyncMock(return_value=track_fields(25))
+    bot = IssueBot(project_config, filing_check=AsyncMock(), project_check=check)
+    monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
+    with caplog.at_level(logging.INFO):
+        await bot.setup_hook()
+    assert project_records(caplog) == ["github project ok for repo_id=222 project=2"]
+    assert not [record for record in bot_records(caplog) if record.levelno >= logging.WARNING]
 
 
 async def test_setup_hook_unexpected_project_check_failure_logged_type_only(
@@ -1239,6 +1322,33 @@ async def test_command_callback_reaches_hook_end_to_end(
     assert candidate.type is IssueType.BUG
     assert candidate.title == "Fix it"
     assert candidate.message_id == summary.id
+
+
+async def test_bot_commands_carry_track_lookup_to_modal(
+    config: Config, make_interaction: InteractionFactory
+) -> None:
+    lookup = AsyncMock(return_value=())
+    bot = IssueBot(config, track_lookup=lookup)
+    for issue_type in IssueType:
+        command = bot.tree.get_command(issue_type.value, guild=discord.Object(111))
+        interaction = make_interaction()
+        await command.callback(interaction)
+        modal = interaction.response.send_modal.await_args.args[0]
+        assert isinstance(modal, IntakeModal)
+        assert modal.track_lookup is lookup
+
+
+async def test_bot_without_track_lookup_opens_modal_without_one(
+    config: Config, make_interaction: InteractionFactory
+) -> None:
+    bot = IssueBot(config)
+    for issue_type in IssueType:
+        command = bot.tree.get_command(issue_type.value, guild=discord.Object(111))
+        interaction = make_interaction()
+        await command.callback(interaction)
+        modal = interaction.response.send_modal.await_args.args[0]
+        assert isinstance(modal, IntakeModal)
+        assert modal.track_lookup is None
 
 
 async def test_silent_mode_through_real_tree(
