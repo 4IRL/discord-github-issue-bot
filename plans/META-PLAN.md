@@ -546,7 +546,8 @@ per-type `STARTING_BAND` into the route file.*
 v2, Assumption 2), with its Status set to `Todo` and its `Effort` field set to F4's band.
 Feature-list line F6.
 
-**Rank rationale.** Phase 3's last feature. Its `Effort` field shares the band contract with F4.
+**Rank rationale.** Starts Phase 3's roadmap placement; F17 completes it and closes the phase.
+Its `Effort` field shares the band contract with F4.
 
 **Dependencies.** F5; soft: F8; couples: F4. The Project's number and fields are read with
 `gh api graphql` `organization(login:"4IRL"){projectV2(number:2){fields}}` and recorded in
