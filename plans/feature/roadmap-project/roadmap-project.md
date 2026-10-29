@@ -206,7 +206,7 @@ Capture the issue's node id, and give a Project route's token the Projects permi
 Add the Project lookup and the add-and-set calls to `GitHubClient`, all through `_request`.
 
 **To-do:**
-- [ ] Red, `tests/test_github.py` (fake transport; first response is the token mint):
+- [x] Red, `tests/test_github.py` (fake transport; first response is the token mint):
   - import `Complexity` from `issue_bot.complexity` and `PROJECT_FIELDS_QUERY` and
     `ProjectFields` in the `issue_bot.github` import; add `GRAPHQL_URL =
     "https://api.github.com/graphql"` beside `TOKEN_URL`/`ISSUE_URL`/`LABEL_URL`;
@@ -243,7 +243,7 @@ Add the Project lookup and the add-and-set calls to `GitHubClient`, all through 
     (pass `"errors": [{"message": "Secret detail"}]` and assert `"Secret detail"` is absent from
     `str(exc)` and `repr(exc)`).
   Run `.venv/bin/pytest tests/test_github.py`; confirm they fail.
-- [ ] Green, `issue_bot/github.py`:
+- [x] Green, `issue_bot/github.py`:
   - add `GRAPHQL_URL = f"{API_URL}/graphql"` beside `API_URL`, and module-level query strings
     `PROJECT_FIELDS_QUERY` (`query($org: String!, $number: Int!) { organization(login: $org) {
     projectV2(number: $number) { id fields(first: 100) { nodes { ... on
@@ -297,7 +297,7 @@ Add the Project lookup and the add-and-set calls to `GitHubClient`, all through 
   - update the `GitHubError` docstring's stage list (`token`, `label`, `issue`, `project`,
     `project-item`, `project-field`), the module docstring (REST and GraphQL APIs) and the
     first line of `GitHubClient`'s docstring (it also adds issues to a route's Project).
-- [ ] Run `.venv/bin/pytest` and confirm all tests pass.
+- [x] Run `.venv/bin/pytest` and confirm all tests pass. — 429 passed (2026-10-29)
 
 ### 4. Place the filed issue on the roadmap and report it
 Call the Project step from `filing_hook` after filing, and add the roadmap line to the link
