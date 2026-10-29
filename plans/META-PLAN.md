@@ -43,25 +43,25 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 
 ## Where the work stands
 
-**★FOCUS: `F6` — Add the issue to the chores4irl roadmap Project** (gated; branch `feature/roadmap-project`).
+**★FOCUS: `F6` — Add the issue to the chores4irl roadmap Project** (runnable; branch `feature/roadmap-project`).
 
 Phases 1, 1.5 and 2 are complete on `main`, and Phase 3's rating has shipped: each report is rated
 S/M/L/XL, the reporter can override it in the private preview, and it is filed as a
-`complexity:<band>` label (F4). F6, Phase 3's last feature, is gated on creating the new
-chores4irl roadmap Project.
+`complexity:<band>` label (F4). F6 is runnable: it files onto the existing org Project #2
+"chores4irl fold" (Assumption 2). F17 (the preview's Track pick), Phase 3's last feature,
+follows it. Phase 4 is pre-loaded as F11–F16; F11's live deploy waits on homelab's `c4i`
+Docker stage (homelab Phase 3).
 
 <!-- Two or three sentences at most: what is runnable today, what is gated and on what.
 Shipped work is git's record (`gh pr list --state merged`), not this file's. -->
 
 ### Shortest path to the focus feature
 
-F6's code prerequisites have shipped (F5's client, F8's routes, F4's band). Its one open
-prerequisite is the owner's manual gate.
+F6's prerequisites have shipped (F5's client, F8's routes, F4's band), and Project #2 already
+has the fields it sets (Assumption 2).
 
-1. **Create the new chores4irl roadmap Project** (owner, Assumption 2), with a Status field and a
-   Complexity single-select whose options are exactly `S`, `M`, `L`, `XL` (F4's kept contract).
-2. **Run F6** (`/run-feature F6`, effort M): filing adds the issue to that Project and sets Status
-   and Complexity.
+1. **Run F6** (`/run-feature F6`, effort M): filing adds the issue to Project #2 and sets its
+   Status and Effort fields.
 
 A live run needs the bot invited with the `bot` and `applications.commands` scopes and View
 Channel, Read Message History, Send Messages, Create Public Threads and Send Messages in Threads
@@ -74,9 +74,16 @@ on each route's intake channel, plus F5's GitHub App (README § Discord setup an
 
 > Written only by `/new-feature`; `/run-feature` removes a line at fold-back.
 
-**Next F-ID:** `F11`
+**Next F-ID:** `F18`
 
 - [ ] **F6** (added 2026-10-16): Add the created issue to the chores4irl roadmap (split from "create the issue in the 4IRL/chores4irl GitHub repo and add it to its roadmap").
+- [ ] **F11** (added 2026-10-28): Phase 4: deploy on `c4i` (the Pi 4) as a container with automatic restart, a memory limit, a health check and readable logs, deployed by one documented command over `ssh c4i`; folds in the deferred `--clear-commands` follow-up.
+- [ ] **F12** (added 2026-10-28): Phase 4: a report is never filed twice.
+- [ ] **F13** (added 2026-10-28): Phase 4: GitHub or Discord errors are reported in the thread with a retry, never silently dropped, and rate limits are respected (automatic retry first, then a Retry button).
+- [ ] **F14** (added 2026-10-28): Phase 4 quality of life: a help command.
+- [ ] **F15** (added 2026-10-28): Phase 4 quality of life: duplicate-issue hints.
+- [ ] **F16** (added 2026-10-28): Phase 4 quality of life: more issue types, declared in the route file rather than in code.
+- [ ] **F17** (added 2026-10-28): Track dropdown in the private preview. After F6 files each report onto the route's GitHub Project, let the reporter pick the item's Track in the private preview, alongside F4's S/M/L/XL band buttons, as an optional single-select row in PreviewView (not in the modal); options are the Project's own Track options read through GitHub's API, never a hardcoded list; each route and issue type can configure a pre-selected default by option name in the route file; the pick survives Edit; on File, after F6 adds the item, the bot sets Track (blank with no pick); a failed Track write is handled like F6's failed Project write; no dropdown for a route with no Project or a Project with no Track field; the bot still never sets ID, Order, Lane, Start date, Target date or Days.
 
 ---
 
@@ -84,7 +91,14 @@ on each route's intake channel, plus F5's GitHub App (README § Discord setup an
 
 | Order | Feature | Effort | Depends on | Phase |
 |---|---|---|---|---|
-| ★ 1 | **F6** — Add the issue to the chores4irl roadmap Project **[FOCUS]** | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
+| ★ 1 | **F6** — Add the issue to the chores4irl roadmap Project **[FOCUS]** | M | F5; soft: F8; couples: F4 | 3 |
+| 2 | **F17** — Track dropdown in the private preview | M | F6; couples: F4, F8 | 3 |
+| 3 | **F12** — Never file a report twice | M | soft: F6, F17 | 4 |
+| 4 | **F13** — Retry and rate limits (auto, then a Retry button) | L | F12; soft: F6 | 4 |
+| 5 | **F11** — Deploy on `c4i` | M | homelab#P3 (c4i Docker stage) | 4 |
+| 6 | **F14** — Help command | S | couples: F16 | 4 |
+| 7 | **F15** — Duplicate-issue hints in the preview | M | soft: F13; couples: F17 | 4 |
+| 8 | **F16** — Issue types from the route file | L | soft: F6, F17; couples: F4, F8 | 4 |
 
 <!-- *Depends on* holds dependency edges in the grammar of
 /home/rmila/Code/_STRONGHOLD/plans/roadmap.md §3.1 *Dependency edges and `NEXT.md`*, which is
@@ -108,7 +122,8 @@ gate), unsplit like `cond:`; any other text not in the grammar is reported, neve
 superseded row (Feature cell struck through with `~~`, *Depends on* starting `**superseded`)
 holds its supersession note, not edges; readers skip it. -->
 
-**Effort tally (remaining).** 2 pts (S=1 / M=2 / L=3 / XL=5).
+**Effort tally (remaining).** 17 pts (S=1 / M=2 / L=3 / XL=5): Phase 3 4 (F6, F17), Phase 4
+13 (F11–F16).
 
 ---
 
@@ -120,10 +135,17 @@ holds its supersession note, not edges; readers skip it. -->
 | Feature | Status | Branch | PR |
 |---|---|---|---|
 | **F6 — Add the issue to the chores4irl roadmap Project** ★FOCUS | pending | `feature/roadmap-project` | — |
+| **F17 — Track dropdown in the private preview** | pending | `feature/preview-track` | — |
+| **F12 — Never file a report twice** | pending | `feature/idempotent-filing` | — |
+| **F13 — Retry and rate limits** | pending | `feature/retry-rate-limits` | — |
+| **F11 — Deploy on `c4i`** | pending | `feature/deploy-c4i` | — |
+| **F14 — Help command** | pending | `feature/help-command` | — |
+| **F15 — Duplicate-issue hints** | pending | `feature/duplicate-hints` | — |
+| **F16 — Issue types from the route file** | pending | `feature/route-issue-types` | — |
 
 ---
 
-## Baseline: the codebase as it exists today (`main` at PR #21, `69d6af9`)
+## Baseline: the codebase as it exists today (`main` at PR #22, `95ec1e8`; code as of PR #21)
 
 > The Assumed starting state for every remaining feature unless its section says
 > otherwise. Describe what *is*, never what changed.
@@ -320,8 +342,14 @@ Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
 ### Assumptions to revisit at planning time
 
 1. ~~`!bug` → `bug`, `!feature` → `enhancement`~~ verified by F5 (PR #9); now in Baseline.
-2. The roadmap is a **new** chores4irl roadmap Project, not the existing org Project #2
-   "chores4irl fold" (owner's choice, 2026-10-16). F6 verifies the new Project exists.
+2. The roadmap is the existing org Project #2 "chores4irl fold" (owner's choice, 2026-10-28,
+   reversing the 2026-10-16 choice of a new Project), linked to `4IRL/chores4irl`. Its `Status`
+   single-select has `Todo`, `In Progress` and `Done`; its `Effort` single-select has `S`, `M`,
+   `L` and `XL` (the owner added `XL` for F4's band) and holds the band. The bot leaves the
+   Project's planning fields (`ID`, `Order`, `Lane`, `Start date`, `Target date`, `Days`) blank
+   for the owner's triage. F6 verifies these fields at planning.
+3. Project #2 has a `Track` single-select (e.g. an `A · Bugs` option) that the reporter picks in
+   the preview (F17, owner's request 2026-10-28). F17 verifies it at planning.
 
 ---
 
@@ -341,7 +369,7 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F1 — Channel listener and tag parsing · merged (#2)
 
-*Kept because F6 builds on it.*
+*Kept because F6, F12 and F13 build on it.*
 - `IssueBot(config, on_candidate=...)`: the `on_candidate(message, candidate)` hook is the
   single seam for candidates; F5's `filing_hook`, with F7's link post, plugs in there.
   Don't add a second candidate dispatch path. F3's File button feeds it (`_post_and_file`) with
@@ -351,7 +379,7 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F5 — File the issue in 4IRL/chores4irl · merged (#9)
 
-*Kept because F6 builds on it.*
+*Kept because F6, F12, F13, F15 and F17 build on it.*
 - `issue_bot/issues.py` is the only place an issue body and its labels are formatted
   (`render_body`, which `issue_body` and the preview share; `issue_labels`); later features
   extend it rather than formatting a second body.
@@ -370,9 +398,11 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F4 — Complexity triage (S/M/L/XL) · merged (#21)
 
-*Kept because F6 builds on it (couples: the band names).*
+*Kept because F6 builds on it (couples: the band names), F17 extends its preview (a Track row
+beside the band buttons, kept across Edit like the band override) and F16 must move its
+per-type `STARTING_BAND` into the route file.*
 - `issue_bot.complexity.Complexity` (`S`, `M`, `L`, `XL`) is the one home of the band names.
-  F6's Project Complexity single-select options must equal `str(band)`, never a second list.
+  F6 sets Project #2's `Effort` single-select to the option named `str(band)`, never a second list.
 - The band to file is `IssueCandidate.complexity` (the reporter's override if they pressed one,
   else the rules' rating); F6 reads it inside `filing_hook`, never re-rates.
 - The label is `complexity_label(band)` (`complexity:<band>`), created on demand by
@@ -382,7 +412,7 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F7 — Post the issue link in the thread · merged (#15)
 
-*Kept because F6 builds on it.*
+*Kept because F6 and F13 build on it.*
 - `bot._post_outcome(message, thread, text, what)` is the one path that posts a filing
   outcome: in the thread, else as a reply to the summary message, always with
   `AllowedMentions.none()` and `suppress_embeds=True`, logging a Discord failure by type,
@@ -395,7 +425,7 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F8 — Multi-target routes and multi-instance deployment · merged (#17)
 
-*Kept because F6 builds on it.*
+*Kept because F6, F17 and F16 add route keys, and F11 and F14 must keep commands route-agnostic.*
 - A route is a `TargetConfig` whose first field is `name`, its `[routes.<name>]` table name. F6
   keys its per-route Project config off `route.name`, adding its own keys under
   `[routes.<name>]` by extending `ROUTE_KEYS` and `load_routes` (as F3's `questions` did), never
@@ -467,10 +497,6 @@ Parallel features: `/worktree <F-ID>...`.
   the startup access-check log lines; decide whether to split the route-file error into
   "cannot be read" and "is not valid TOML"; and decide whether `Config.__post_init__` checks that
   routes is non-empty and keyed by each route's `channel_id`. None blocks a remaining feature.
-- **`--clear-commands`.** A one-shot empty guild sync for a rollback or retirement. Until then,
-  removing `/bug` and `/feature` from a server means an empty sync for that guild or removing
-  the app from the server; neither is verified (the Server Settings → Integrations path didn't
-  list the bot in the owner's test, 2026-10-21).
 - **F3 push-review polish.** The unticked minor to-dos in
   `plans/feature/clarifying-questions/reviews/push-review-feature-clarifying-questions.md`,
   Review 1, include:
@@ -504,7 +530,8 @@ Parallel features: `/worktree <F-ID>...`.
   A band press racing File, or the old preview's Edit submit, can briefly re-show dead buttons
   (code comments in `PreviewView._choose`; dd-261027-050, -051, -055, -058).
 - **ROADMAP Current-state row 3** (Complexity rating) still reads "not started": its Maintaining
-  rule refreshes Current-state rows only at a phase's close-out, which is F6's fold-back.
+  rule refreshes Current-state rows only at a phase's close-out, which is now F17's fold-back
+  (F17 joined Phase 3 on 2026-10-28). That close-out also adds Track to Phase 3's scope bullet.
 - **Drop the pre-rename `allowWrite` path.** `.claude/settings.json` still lists
   `/home/rmila/Code/c4i-issue-bot`; removing it is an optional owner edit in its own small
   PR (agents can't write that file).
@@ -515,27 +542,27 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F6 — Add the issue to the chores4irl roadmap Project · Phase 3 · Effort M · (added 2026-10-16)
 
-**Goal.** Each filed issue is added to the new chores4irl roadmap Project (GitHub Projects
-v2), with its Status set and its complexity field matching F4's rating.
+**Goal.** Each filed issue is added to the org Project #2 "chores4irl fold" (GitHub Projects
+v2, Assumption 2), with its Status set to `Todo` and its `Effort` field set to F4's band.
 Feature-list line F6.
 
-**Rank rationale.** Phase 3. It's blocked by the Project, which doesn't exist yet, and its
-complexity field shares a contract with F4.
+**Rank rationale.** Starts Phase 3's roadmap placement; F17 completes it and closes the phase.
+Its `Effort` field shares the band contract with F4.
 
-**Dependencies.** F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created
-(owner-approved). The gate is checked by finding the Project in
-`gh api graphql` `organization(login:"4IRL"){projectsV2}` and recording its number in
+**Dependencies.** F5; soft: F8; couples: F4. The Project's number and fields are read with
+`gh api graphql` `organization(login:"4IRL"){projectV2(number:2){fields}}` and recorded in
 config. Per F8's kept contract, the Project number and field IDs are per-route config under
 `[routes.<name>]` (a route may have no Project).
 
 **Sizing.** unscored (intake estimate M); split check pending.
 
 **Assumed starting state** = **Baseline**. Verify:
-- The new roadmap Project exists and is linked to chores4irl (Assumption 2).
+- Project #2 is linked to chores4irl and has the `Status` and `Effort` fields and options
+  Assumption 2 lists.
 
 **Expected end state** (repo-checkable):
 - The Project number and field IDs are config, never hardcoded.
-- Filing adds the issue to the Project and sets Status and the Complexity field from
+- Filing adds the issue to the Project and sets Status and the `Effort` field from
   `IssueCandidate.complexity` (F4's kept contract), with all GraphQL calls mocked in tests.
 - All suites green; Standing invariants untouched.
 
@@ -544,12 +571,281 @@ mocked transport.
 
 **Open risks / decisions.** (a) Org Projects need the `organization_projects` write
 permission (App) or a classic `project` scope; this widens F5's auth, so confirm at
-planning. (b) The Project's own fields (Status values, a Complexity single-select with
-S/M/L/XL) are designed when it is created. (c) Whether a failed Project write blocks
+planning. (b) The Project's fields exist (Assumption 2); planning confirms the option names
+match `str(band)` and `Todo` exactly, and whether config holds option ids or names. (c) Whether a failed Project write blocks
 filing or, like F4's label, is logged and skipped.
 
 **Session.** `/run-feature F6` on branch `feature/roadmap-project`; plan at
 `plans/feature/roadmap-project/roadmap-project.md`.
+
+---
+
+## F17 — Track dropdown in the private preview · Phase 3 · Effort M · (added 2026-10-28)
+
+**Goal.** The reporter picks the Project item's Track in the private preview, and on File the
+bot sets that Track after F6 adds the item. Feature-list line F17.
+
+**Rank rationale.** Phase 3's last feature (owner's choice, 2026-10-28): it completes roadmap
+placement, so Phase 3 closes at its fold-back, not F6's. It runs right after F6 because it
+writes through F6's Project client and per-route Project config.
+
+**Dependencies.** F6; couples: F4, F8. F6 supplies the Project add, the per-route Project
+config and the failed-write policy (its Open risk (c)). F4's kept contract supplies
+`PreviewView`, its band buttons and the `Draft` override that survives Edit. F8's kept
+contract puts the per-route, per-type default under `[routes.<name>]`.
+
+**Sizing.** unscored (intake estimate M); split check pending.
+
+**Assumed starting state** = **Baseline** plus F6 merged. Verify:
+- Project #2 has a `Track` single-select (Assumption 3), and F6's config shape for a route's
+  Project (number, field ids or names).
+- `PreviewView` has room for a select row: S/M/L/XL are row 0 and File/Edit row 1 (Discord
+  allows 5 rows).
+
+**Expected end state** (repo-checkable):
+- `PreviewView` has an optional single-select Track row. Its options are the Project's `Track`
+  options read through GitHub's GraphQL API, never a hardcoded list. No row when the route has
+  no Project or the Project has no `Track` field.
+- The route file can name a default Track option per issue type (e.g. `A · Bugs` for `bug` on
+  chores4irl), validated at startup per Standing invariant 3. With no default, nothing is
+  pre-selected.
+- The pick is carried in `Draft` and survives Edit, as F4's band override does.
+- On File, after F6 adds the item, the bot sets `Track` to the pick, or leaves it blank with no
+  pick. A failed Track write is handled like F6's failed Project write. The bot never sets
+  `ID`, `Order`, `Lane`, `Start date`, `Target date` or `Days`.
+- README and `docs/COMPLEXITY.md`'s preview description show the Track row; `example.routes.toml`
+  shows a default.
+- All suites green; Standing invariants untouched.
+
+**Test-suite deltas.** Mocked GraphQL for reading the field's options and for setting the field;
+`PreviewView` tests for the row's presence or absence, the default, the pick and the pick kept
+across Edit; config tests for the default key.
+
+**Open risks / decisions.** (a) When options are read: at startup (stale until restart, like
+the route file) or per preview (one API call per command, inside the 3-second interaction
+window). (b) A configured default whose name isn't an option on the Project: a startup error,
+a warning or a silent blank. (c) Discord's select is capped at 25 options. (d) Whether the
+default lives with the route's `questions` or beside F6's Project keys; a key a route may omit
+changes `test_example_routes_shape` (F8's kept contract).
+
+**Session.** `/run-feature F17` on branch `feature/preview-track`; plan at
+`plans/feature/preview-track/preview-track.md`.
+
+---
+
+## F12 — Never file a report twice · Phase 4 · Effort M · (added 2026-10-28)
+
+**Goal.** Each report is filed at most once, even after a timeout, a retry or a File press in
+a second Discord client. Feature-list line F12.
+
+**Rank rationale.** Phase 4's first runnable item, and a hard prerequisite of F13: retrying
+after a timeout that did file the issue would otherwise file it twice (README *Known limits*).
+
+**Dependencies.** soft: F6, F17. After them, the dedup path covers the Project add and
+the Track write as well.
+
+**Sizing.** unscored (intake estimate M); split check pending.
+
+**Assumed starting state** = **Baseline** plus F6 and F17 if merged. Verify:
+- The issue body's author line already carries the summary message URL (`issue_body`), a
+  candidate dedup key.
+
+**Expected end state** (repo-checkable):
+- Before creating an issue, filing checks for an existing issue for the same report (e.g. the
+  summary message URL or id) and, if one exists, reuses it, posting the existing link.
+- The F3 accepted limit (File in one client while an Edit is open in another files twice) is
+  closed or narrowed and README *Known limits* updated.
+- All suites green; Standing invariants untouched.
+
+**Test-suite deltas.** A repeated filing of the same candidate creates one issue; a timeout
+after create then a retry finds the existing issue.
+
+**Open risks / decisions.** (a) Dedup key and lookup: GitHub search (eventually consistent,
+with its own rate limit) vs listing recent issues vs a local record (the bot keeps no state
+today; homelab Phase 3 backs nothing up for it). (b) Scope of "a report": one summary message.
+
+**Session.** `/run-feature F12` on branch `feature/idempotent-filing`; plan at
+`plans/feature/idempotent-filing/idempotent-filing.md`.
+
+---
+
+## F13 — Retry and rate limits · Phase 4 · Effort L · (added 2026-10-28)
+
+**Goal.** GitHub and Discord failures are retried automatically with backoff, rate limits are
+respected, and a failure that persists is reported in the thread with a Retry button.
+Feature-list line F13.
+
+**Rank rationale.** Phase 4 hardening; needs F12 so a retry can't duplicate an issue.
+
+**Dependencies.** F12; soft: F6. F6's Project writes join the retried calls.
+
+**Sizing.** unscored (intake estimate L); split check pending.
+
+**Assumed starting state** = **Baseline** plus F12. Verify:
+- `GitHubError(stage, status)` is the only GitHub failure surface; `_post_outcome` is the one
+  outcome post path (F7's kept contract).
+
+**Expected end state** (repo-checkable):
+- Transient GitHub failures (transport errors, 5xx, 429 and secondary rate limits) are retried
+  with bounded backoff, honoring `Retry-After` / `x-ratelimit-reset`; Discord posts likewise.
+- After the last attempt, the thread's error post carries a Retry button that re-runs filing
+  for that report (idempotently, via F12) and replaces `FILING_ERROR_REPLY`'s "run the command
+  again".
+- Logging stays within Standing invariant 2.
+- All suites green; Standing invariants untouched.
+
+**Test-suite deltas.** Backoff and `Retry-After` against the fake transport (no real sleeps);
+the Retry button's callback re-files once and is ignored after success.
+
+**Open risks / decisions.** (a) The Retry button must survive a restart (a persistent view
+with a `custom_id` that encodes the report, rebuilt from the summary message), or be documented
+as dead after one like the preview's. (b) Who may press Retry: the reporter only, or anyone.
+(c) Retries must fit the interaction deadlines where an interaction is pending.
+
+**Session.** `/run-feature F13` on branch `feature/retry-rate-limits`; plan at
+`plans/feature/retry-rate-limits/retry-rate-limits.md`.
+
+---
+
+## F11 — Deploy on `c4i` · Phase 4 · Effort M · (added 2026-10-28)
+
+**Goal.** The bot runs unattended on `c4i`, the Pi 4 (arm64), as a container with automatic
+restart, a memory limit, a health check and readable logs, deployed by one documented command
+over `ssh c4i`, with a verified way to clear the commands for a rollback. Feature-list line
+F11.
+
+**Rank rationale.** Phase 4's deploy work; ranked after F12 and F13 only because its live run
+waits on homelab. Its repo-side work can be planned earlier (ROADMAP *Sequencing rationale*).
+
+**Dependencies.** homelab#P3 (c4i Docker stage). This repo owns the image, its config and the
+deploy command. The host side (Docker, the memory ceiling, root-only token and key files) is
+homelab's Phase 3 (`homelab/plans/HOST-ROLES.md`).
+
+**Sizing.** unscored (intake estimate M); split check pending.
+
+**Assumed starting state** = **Baseline**. Verify:
+- homelab's `c4i` Docker stage exists, and where it puts the token and key files.
+- The `Dockerfile`'s base image has an arm64 build.
+
+**Expected end state** (repo-checkable):
+- An arm64 image (built on `c4i` or cross-built), a compose file (or documented `docker run`)
+  with `restart: unless-stopped`, a memory limit, a health check and log rotation, and one
+  documented deploy command over `ssh c4i`.
+- A `--clear-commands` one-shot (an empty guild sync) for a rollback or retirement, folded in
+  from Deferred follow-ups. Until it is verified, removing the app from the server is the
+  documented path; the Server Settings → Integrations path didn't list the bot in the owner's
+  test (2026-10-21). README *Known limits* is updated.
+- All suites green; Standing invariants untouched.
+
+**Test-suite deltas.** `--clear-commands` syncs an empty command set to the configured guild
+only (mocked tree); the health signal's logic.
+
+**Open risks / decisions.** (a) The bot has no HTTP port, so the health check needs a signal,
+e.g. a heartbeat file touched while the Gateway is connected. (b) Build on the Pi or cross-build
+with `buildx`. (c) The live deploy is a live side effect: it needs the owner's go-ahead
+(CLAUDE.md). Phase 4's exit (two weeks of real use) is an owner gate after this ships.
+
+**Session.** `/run-feature F11` on branch `feature/deploy-c4i`; plan at
+`plans/feature/deploy-c4i/deploy-c4i.md`.
+
+---
+
+## F14 — Help command · Phase 4 · Effort S · (added 2026-10-28)
+
+**Goal.** A member runs a help command and gets a private explanation of how to report: the
+route's intake channel, the issue types, the preview and a link to `docs/COMPLEXITY.md`.
+Feature-list line F14.
+
+**Rank rationale.** Small quality-of-life addition; independent of the other Phase 4 work.
+
+**Dependencies.** couples: F16. If F16 lands first, help lists the route's configured types.
+
+**Sizing.** unscored (intake estimate S); split check pending.
+
+**Assumed starting state** = **Baseline**.
+
+**Expected end state** (repo-checkable):
+- One more guild command (name decided at planning) that replies privately, route-aware, and
+  honors `UNROUTED_COMMANDS` like `/bug` and `/feature` (F8's kept contract). Its payload stays
+  route-agnostic.
+- All suites green; Standing invariants untouched.
+
+**Test-suite deltas.** Routed, unrouted-refuse and unrouted-ignore replies.
+
+**Open risks / decisions.** (a) Command name (`/help` may clash with other bots). (b) Whether
+help answers outside intake channels, since in shared-token mode only one container should reply.
+
+**Session.** `/run-feature F14` on branch `feature/help-command`; plan at
+`plans/feature/help-command/help-command.md`.
+
+---
+
+## F15 — Duplicate-issue hints in the preview · Phase 4 · Effort M · (added 2026-10-28)
+
+**Goal.** The private preview lists a few existing issues in the route's repo whose titles look
+like the report's, so the reporter can stop before filing a duplicate. Feature-list line F15.
+
+**Rank rationale.** Quality of life, rule-based (no LLM, ROADMAP *Principles*).
+
+**Dependencies.** soft: F13; couples: F17. The search call should go through F13's
+rate-limit handling, and the hints share the preview with F17's Track row.
+
+**Sizing.** unscored (intake estimate M); split check pending.
+
+**Assumed starting state** = **Baseline** plus F13 and F17 if merged.
+
+**Expected end state** (repo-checkable):
+- The preview shows up to N likely duplicates (number, title, link) from a GitHub search
+  scoped to the route's repo; a search failure shows no hints and never blocks the preview.
+- Hint text from GitHub is member text for logging purposes (Standing invariant 2).
+- All suites green; Standing invariants untouched.
+
+**Test-suite deltas.** Mocked search results, empty results and a failed search.
+
+**Open risks / decisions.** (a) The match rule (title terms, open issues only) and N.
+(b) The search API's own rate limit (30/min) and its time inside the interaction deadline.
+(c) The embed space the hints take beside the 4096-character description.
+
+**Session.** `/run-feature F15` on branch `feature/duplicate-hints`; plan at
+`plans/feature/duplicate-hints/duplicate-hints.md`.
+
+---
+
+## F16 — Issue types from the route file · Phase 4 · Effort L · (added 2026-10-28)
+
+**Goal.** Issue types (command name, label, questions, starting band) are declared in the route
+file, so adding a type is a config change, not code. Feature-list line F16.
+
+**Rank rationale.** Largest Phase 4 item; last because it reshapes `IssueType`, which every
+other feature touches.
+
+**Dependencies.** soft: F6, F17; couples: F4, F8. F6 and F17 add route keys first, so the
+schema changes once more, not three times concurrently. F4's `STARTING_BAND` is per type, and
+F8's commands must stay route-agnostic.
+
+**Sizing.** unscored (intake estimate L); split check pending.
+
+**Assumed starting state** = **Baseline** plus F6 and F17. Verify:
+- Every use of `IssueType` (commands, labels, questions, `STARTING_BAND`, F17's per-type Track
+  default).
+
+**Expected end state** (repo-checkable):
+- The type set is read from the route file and validated at startup (Standing invariant 3); the
+  hard-coded `IssueType` members become data. Existing route files with `bug` and `feature`
+  keep working or get a documented upgrade (README *Upgrading* section).
+- Synced commands stay identical across every container on one token (F8's kept contract), so
+  the type set is instance-wide, or every route must declare the same set.
+- All suites green; Standing invariants untouched.
+
+**Test-suite deltas.** Config tests for type declarations; intake tests over a third,
+config-declared type.
+
+**Open risks / decisions.** (a) Instance-wide vs per-route types, given one guild command set
+per token. (b) Whether `docs/COMPLEXITY.md`'s starting bands become per-route data too (its
+drift test pins them today).
+
+**Session.** `/run-feature F16` on branch `feature/route-issue-types`; plan at
+`plans/feature/route-issue-types/route-issue-types.md`.
 
 ---
 
@@ -560,15 +856,24 @@ Phase 1:    done       (F1 #2; F9 rename #5; F2 threads #7; F5 filing #9; F10 in
 Phase 1.5:  done       (F8 routes #17)
 Phase 2:    done       (F3 questions + preview #19)
 Phase 3:    F4 rating #21 (done)
-            F5 ──► ★ F6   [cond: new roadmap Project] (couples F4; soft: after F8)
+            F5 ──► ★ F6 ──► F17   (F6 couples F4; F17 couples F4, F8)
+Phase 4:    filing track:   (soft: F6, F17) ┄► F12 ──► F13 ┄► F15
+            deploy track:   homelab#P3 (c4i Docker stage) ──► F11
+            QoL track:      F14 ⇄ F16   (couples; F16 soft after F6, F17)
 ```
 
-- **Hard chains:** F5 → F6. F1, F2, F3, F4, F5, F7, F8, F9 and F10 have shipped; refs to them
-  stay valid, so F6 waits only on its roadmap-Project gate.
+- **Hard chains:** F5 → F6 → F17; F12 → F13; homelab#P3 → F11 (external). F1, F2, F3, F4, F5,
+  F7, F8, F9 and F10 have shipped; refs to them stay valid, so F6 is unblocked, and F12, F14,
+  F15 and F16 have no unmet hard prerequisite.
 - **Soft preferences:** F8 (shipped) before F6, so Project config is per-route from the start.
-- **Couplings to honor:** F6 puts its per-route settings under `[routes.<name>]` (F8's kept
-  contract). F4 ↔ F6: both use the same S/M/L/XL band names, one as a label and one as a
-  Project field (F4's kept contract).
+  F6 and F17 before F12, F13 and F16, so dedup, retry and the type schema cover the Project
+  writes and route keys once. F13 before F15, so the search call is rate-limited.
+- **Couplings to honor:** F6, F17 and F16 put per-route settings under `[routes.<name>]` (F8's
+  kept contract). F4 ↔ F6: both use the same S/M/L/XL band names, one as a label and one as a
+  Project field (F4's kept contract). F4 ↔ F17: the Track row sits in F4's `PreviewView` and
+  its pick follows the band override's `Draft` pattern. F17 ↔ F15: both add to the private
+  preview. F14 ↔ F16: help lists the types F16 makes configurable. F11, F14 and F16 keep the
+  synced command set route-agnostic.
 
 ---
 
