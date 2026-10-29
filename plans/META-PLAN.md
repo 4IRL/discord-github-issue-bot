@@ -43,25 +43,23 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 
 ## Where the work stands
 
-**★FOCUS: `F6` — Add the issue to the chores4irl roadmap Project** (gated; branch `feature/roadmap-project`).
+**★FOCUS: `F6` — Add the issue to the chores4irl roadmap Project** (runnable; branch `feature/roadmap-project`).
 
 Phases 1, 1.5 and 2 are complete on `main`, and Phase 3's rating has shipped: each report is rated
 S/M/L/XL, the reporter can override it in the private preview, and it is filed as a
-`complexity:<band>` label (F4). F6, Phase 3's last feature, is gated on creating the new
-chores4irl roadmap Project.
+`complexity:<band>` label (F4). F6, Phase 3's last feature, is runnable: it files onto the
+existing org Project #2 "chores4irl fold" (Assumption 2).
 
 <!-- Two or three sentences at most: what is runnable today, what is gated and on what.
 Shipped work is git's record (`gh pr list --state merged`), not this file's. -->
 
 ### Shortest path to the focus feature
 
-F6's code prerequisites have shipped (F5's client, F8's routes, F4's band). Its one open
-prerequisite is the owner's manual gate.
+F6's prerequisites have shipped (F5's client, F8's routes, F4's band), and Project #2 already
+has the fields it sets (Assumption 2).
 
-1. **Create the new chores4irl roadmap Project** (owner, Assumption 2), with a Status field and a
-   Complexity single-select whose options are exactly `S`, `M`, `L`, `XL` (F4's kept contract).
-2. **Run F6** (`/run-feature F6`, effort M): filing adds the issue to that Project and sets Status
-   and Complexity.
+1. **Run F6** (`/run-feature F6`, effort M): filing adds the issue to Project #2 and sets its
+   Status and Effort fields.
 
 A live run needs the bot invited with the `bot` and `applications.commands` scopes and View
 Channel, Read Message History, Send Messages, Create Public Threads and Send Messages in Threads
@@ -84,7 +82,7 @@ on each route's intake channel, plus F5's GitHub App (README § Discord setup an
 
 | Order | Feature | Effort | Depends on | Phase |
 |---|---|---|---|---|
-| ★ 1 | **F6** — Add the issue to the chores4irl roadmap Project **[FOCUS]** | M | F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created (owner-approved) | 3 |
+| ★ 1 | **F6** — Add the issue to the chores4irl roadmap Project **[FOCUS]** | M | F5; soft: F8; couples: F4 | 3 |
 
 <!-- *Depends on* holds dependency edges in the grammar of
 /home/rmila/Code/_STRONGHOLD/plans/roadmap.md §3.1 *Dependency edges and `NEXT.md`*, which is
@@ -320,8 +318,12 @@ Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
 ### Assumptions to revisit at planning time
 
 1. ~~`!bug` → `bug`, `!feature` → `enhancement`~~ verified by F5 (PR #9); now in Baseline.
-2. The roadmap is a **new** chores4irl roadmap Project, not the existing org Project #2
-   "chores4irl fold" (owner's choice, 2026-10-16). F6 verifies the new Project exists.
+2. The roadmap is the existing org Project #2 "chores4irl fold" (owner's choice, 2026-10-28,
+   reversing the 2026-10-16 choice of a new Project), linked to `4IRL/chores4irl`. Its `Status`
+   single-select has `Todo`, `In Progress` and `Done`; its `Effort` single-select has `S`, `M`,
+   `L` and `XL` (the owner added `XL` for F4's band) and holds the band. The bot leaves the
+   Project's planning fields (`ID`, `Order`, `Lane`, `Start date`, `Target date`, `Days`) blank
+   for the owner's triage. F6 verifies these fields at planning.
 
 ---
 
@@ -372,7 +374,7 @@ Parallel features: `/worktree <F-ID>...`.
 
 *Kept because F6 builds on it (couples: the band names).*
 - `issue_bot.complexity.Complexity` (`S`, `M`, `L`, `XL`) is the one home of the band names.
-  F6's Project Complexity single-select options must equal `str(band)`, never a second list.
+  F6 sets Project #2's `Effort` single-select to the option named `str(band)`, never a second list.
 - The band to file is `IssueCandidate.complexity` (the reporter's override if they pressed one,
   else the rules' rating); F6 reads it inside `filing_hook`, never re-rates.
 - The label is `complexity_label(band)` (`complexity:<band>`), created on demand by
@@ -515,27 +517,26 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F6 — Add the issue to the chores4irl roadmap Project · Phase 3 · Effort M · (added 2026-10-16)
 
-**Goal.** Each filed issue is added to the new chores4irl roadmap Project (GitHub Projects
-v2), with its Status set and its complexity field matching F4's rating.
+**Goal.** Each filed issue is added to the org Project #2 "chores4irl fold" (GitHub Projects
+v2, Assumption 2), with its Status set to `Todo` and its `Effort` field set to F4's band.
 Feature-list line F6.
 
-**Rank rationale.** Phase 3. It's blocked by the Project, which doesn't exist yet, and its
-complexity field shares a contract with F4.
+**Rank rationale.** Phase 3's last feature. Its `Effort` field shares the band contract with F4.
 
-**Dependencies.** F5; soft: F8; couples: F4; cond: new chores4irl roadmap Project created
-(owner-approved). The gate is checked by finding the Project in
-`gh api graphql` `organization(login:"4IRL"){projectsV2}` and recording its number in
+**Dependencies.** F5; soft: F8; couples: F4. The Project's number and fields are read with
+`gh api graphql` `organization(login:"4IRL"){projectV2(number:2){fields}}` and recorded in
 config. Per F8's kept contract, the Project number and field IDs are per-route config under
 `[routes.<name>]` (a route may have no Project).
 
 **Sizing.** unscored (intake estimate M); split check pending.
 
 **Assumed starting state** = **Baseline**. Verify:
-- The new roadmap Project exists and is linked to chores4irl (Assumption 2).
+- Project #2 is linked to chores4irl and has the `Status` and `Effort` fields and options
+  Assumption 2 lists.
 
 **Expected end state** (repo-checkable):
 - The Project number and field IDs are config, never hardcoded.
-- Filing adds the issue to the Project and sets Status and the Complexity field from
+- Filing adds the issue to the Project and sets Status and the `Effort` field from
   `IssueCandidate.complexity` (F4's kept contract), with all GraphQL calls mocked in tests.
 - All suites green; Standing invariants untouched.
 
@@ -544,8 +545,8 @@ mocked transport.
 
 **Open risks / decisions.** (a) Org Projects need the `organization_projects` write
 permission (App) or a classic `project` scope; this widens F5's auth, so confirm at
-planning. (b) The Project's own fields (Status values, a Complexity single-select with
-S/M/L/XL) are designed when it is created. (c) Whether a failed Project write blocks
+planning. (b) The Project's fields exist (Assumption 2); planning confirms the option names
+match `str(band)` and `Todo` exactly, and whether config holds option ids or names. (c) Whether a failed Project write blocks
 filing or, like F4's label, is logged and skipped.
 
 **Session.** `/run-feature F6` on branch `feature/roadmap-project`; plan at
@@ -560,11 +561,11 @@ Phase 1:    done       (F1 #2; F9 rename #5; F2 threads #7; F5 filing #9; F10 in
 Phase 1.5:  done       (F8 routes #17)
 Phase 2:    done       (F3 questions + preview #19)
 Phase 3:    F4 rating #21 (done)
-            F5 ──► ★ F6   [cond: new roadmap Project] (couples F4; soft: after F8)
+            F5 ──► ★ F6   (couples F4; soft: after F8)
 ```
 
 - **Hard chains:** F5 → F6. F1, F2, F3, F4, F5, F7, F8, F9 and F10 have shipped; refs to them
-  stay valid, so F6 waits only on its roadmap-Project gate.
+  stay valid, so F6 is unblocked.
 - **Soft preferences:** F8 (shipped) before F6, so Project config is per-route from the start.
 - **Couplings to honor:** F6 puts its per-route settings under `[routes.<name>]` (F8's kept
   contract). F4 ↔ F6: both use the same S/M/L/XL band names, one as a label and one as a
