@@ -169,7 +169,7 @@ fixes below.
 #### DD-6: [Step 6] Recovering a lost Track pick
 **Labels:** kind=dd category=docs-wording reversible=yes rework=low · Recommended: 1 (hand-fix text: ask the reporter; every branch names Track) vs 2 (log the option name)
 
-**Chosen:** 1 (assumed: dd-policy, dd-261029-034)
+**Chosen:** 2 — log the option name (overturned at review; was assumed dd-261029-034). `place_on_roadmap`'s failure WARNINGs end with `track='<option>'` when the candidate carries a pick; README, SMOKE-TEST and CLAUDE.md updated.
 
 #### DD-7: [Steps 4, 5] Name of the lookup callable
 **Labels:** kind=dd category=naming-structure reversible=yes rework=low · Recommended: 1 (`track_lookup: TrackLookup`, like `filing_check`) vs 2 (keep `track_options` for both)

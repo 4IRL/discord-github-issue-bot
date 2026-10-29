@@ -54,7 +54,7 @@ Track write follows F6's failed-Project-write policy.
 - **DD-5 (asked, dd-261029-028).** The preview embed gets a **Track** field (the pick, or `None`)
   whenever the row is shown, like Complexity.
 - **Review pass 2:** the lookup callable is `track_lookup: TrackLookup` in the wiring (assumed,
-  dd-261029-035); a lost Track pick is recovered by asking the reporter (assumed, dd-261029-034);
+  dd-261029-035); a lost Track pick was first recovered by asking the reporter (assumed, dd-261029-034), overturned at the merge gate: every failed-roadmap WARNING ends with `track='<option>'` when the reporter picked one, and CLAUDE.md's logging rule allows that option name;
   guard tests for a no-project lookup and a Track route without a lookup (assumed, dd-261029-036).
 - **Review pass 1** (`reviews/preview-track-review.md`): no live Track smoke check (owner,
   dd-261029-029); a failed Track write uses its own stage `project-track` (dd-261029-030); a failed
