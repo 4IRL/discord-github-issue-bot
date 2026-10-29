@@ -518,10 +518,10 @@ Document the Project table, the App permission and the smoke check.
 Run the full test suites to confirm nothing is broken:
 
 **To-do:**
-- [ ] Run `.venv/bin/pytest` and confirm all tests pass
-- [ ] Investigate and fix any failures before marking the plan finished. If every check above
-  passed, tick this box with `— N/A: no failures`.
-- [ ] Copy the Owner checks below verbatim into the final report (for the orchestrator's
+- [x] Run `.venv/bin/pytest` and confirm all tests pass — 448 passed, 0 failed (2026-10-29)
+- [x] Investigate and fix any failures before marking the plan finished. If every check above
+  passed, tick this box with `— N/A: no failures`. — N/A: no failures
+- [x] Copy the Owner checks below verbatim into the final report (for the orchestrator's
   record; the durable carriers are the Owner checks section below and Step 6's README and
   docs/SMOKE-TEST.md text, which merge with the PR).
 
@@ -540,4 +540,4 @@ Run the full test suites to confirm nothing is broken:
   (Research Findings: GraphQL schema probes).
 
 ## Status
-finished: false
+finished: true
