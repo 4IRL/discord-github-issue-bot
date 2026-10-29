@@ -9,12 +9,14 @@ import discord
 from discord import app_commands
 
 from issue_bot.config import Config, TargetConfig
-from issue_bot.github import GitHubClient, GitHubError
+from issue_bot.github import GitHubClient, GitHubError, ProjectFields
 from issue_bot.handler import IssueCandidate
 from issue_bot.intake import (
     NO_MENTIONS,
+    TRACK_OPTION_LIMIT,
     CandidateHook,
     FilingCheck,
+    TrackLookup,
     discord_error_fields,
     intake_command,
 )
@@ -24,7 +26,7 @@ from issue_bot.threads import FILING_ERROR_REPLY, filed_reply, open_thread, thre
 
 logger = logging.getLogger(__name__)
 
-ProjectCheck = Callable[[TargetConfig], Awaitable[object]]
+ProjectCheck = Callable[[TargetConfig], Awaitable[ProjectFields]]
 
 
 def build_intents() -> discord.Intents:
@@ -167,9 +169,12 @@ class IssueBot(discord.Client):
     ``on_candidate`` (default: open its thread).
     ``filing_check``, when set, guards each command before its modal opens and runs once
     at startup. ``project_check``, when set, runs once at startup for each route with a
-    ``project``, after that route's access check. Production wires ``filing_hook`` as
-    ``on_candidate``, ``GitHubClient.check_access`` as ``filing_check`` and
-    ``GitHubClient.project_fields`` as ``project_check`` in ``__main__``.
+    ``project``, after that route's access check, and warns when its Track field has more
+    options than the preview can show. ``track_lookup``, when set, reads a route's Track
+    options for the private preview (only on a route whose ``project`` has ``track_field``).
+    Production wires ``filing_hook`` as ``on_candidate``, ``GitHubClient.check_access`` as
+    ``filing_check``, ``GitHubClient.project_fields`` as ``project_check`` and
+    ``GitHubClient.track_options`` as ``track_lookup`` in ``__main__``.
     """
 
     def __init__(
@@ -178,12 +183,14 @@ class IssueBot(discord.Client):
         on_candidate: CandidateHook = open_issue_thread,
         filing_check: FilingCheck | None = None,
         project_check: ProjectCheck | None = None,
+        track_lookup: TrackLookup | None = None,
     ) -> None:
         super().__init__(intents=build_intents())
         self.config = config
         self.on_candidate = on_candidate
         self.filing_check = filing_check
         self.project_check = project_check
+        self.track_lookup = track_lookup
         self._startup_checked: bool = False
         self.tree = IntakeTree(self)
         self._guild = discord.Object(id=config.guild_id)
@@ -196,6 +203,7 @@ class IssueBot(discord.Client):
                     config.unrouted,
                     self.on_candidate,
                     self.filing_check,
+                    track_lookup=self.track_lookup,
                 ),
                 guild=self._guild,
             )
@@ -263,7 +271,7 @@ class IssueBot(discord.Client):
         repo_id = route.github_repo_id
         number = route.project.number
         try:
-            await self.project_check(route)
+            fields = await self.project_check(route)
         except GitHubError as exc:
             logger.error(
                 "github project check failed for repo_id=%s project=%s: %s stage=%s status=%s",
@@ -284,6 +292,16 @@ class IssueBot(discord.Client):
             )
             return
         logger.info("github project ok for repo_id=%s project=%s", repo_id, number)
+        track_count = len(fields.track_option_ids)
+        if track_count > TRACK_OPTION_LIMIT:
+            logger.warning(
+                "github project track field has %d options; only the first %d can be picked"
+                " repo_id=%s project=%s",
+                track_count,
+                TRACK_OPTION_LIMIT,
+                repo_id,
+                number,
+            )
 
     async def on_ready(self) -> None:
         """Check each route's intake channel once: on_ready fires again after each Gateway reconnect.

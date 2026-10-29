@@ -277,11 +277,11 @@ Track write follows F6's failed-Project-write policy.
   `PREVIEW_REPLY` (the select's placeholder explains itself); update the module docstring.
 - [x] (2026-10-29, test_intake 96 passed, full suite 505 passed) Run `.venv/bin/pytest tests/test_intake.py` green, then the full `.venv/bin/pytest`.
 
-### 5. Wire it in the bot and the startup check
+### 5. Wire it in the bot and the startup check - COMPLETE (2026-10-29)
 `IssueBot` passes the lookup to the commands; the startup Project check warns past 25 options.
 
 **To-do:**
-- [ ] Red in `tests/test_bot.py`: (a) `IssueBot(config, track_lookup=lookup)` registers commands
+- [x] Red (2026-10-29; (a), (b), the 26-option case of (c) failed first; `test_setup_hook_checks_project_after_access`'s check now returns `PLAIN_FIELDS` too, since its call-order mock would record the new length read) in `tests/test_bot.py`: (a) `IssueBot(config, track_lookup=lookup)` registers commands
   whose modal carries the lookup (drive the registered `/bug` callback as the existing command →
   modal → File end-to-end test does, then inspect the sent modal); (b) the `__main__` wiring test
   asserts `init_kwargs["track_lookup"].__func__ is GitHubClient.track_options` and the sentinel
@@ -297,7 +297,7 @@ Track write follows F6's failed-Project-write policy.
   `len(fields.track_option_ids)` check raise AttributeError out of `setup_hook`. Confirm (a), (b) and
   the 26-option case of (c) fail (the 25-option case already passes; it guards the threshold after
   the Green).
-- [ ] Green: in `issue_bot/bot.py`, narrow `ProjectCheck` to `Callable[[TargetConfig],
+- [x] Green (2026-10-29): in `issue_bot/bot.py`, narrow `ProjectCheck` to `Callable[[TargetConfig],
   Awaitable[ProjectFields]]` (import `ProjectFields` from `issue_bot.github`; no cycle, github.py
   imports only config and complexity), add trailing `track_lookup: TrackLookup | None = None` to
   `IssueBot.__init__` (stored, and documented in its docstring) and pass it to
@@ -306,7 +306,7 @@ Track write follows F6's failed-Project-write policy.
   TRACK_OPTION_LIMIT` (import `TRACK_OPTION_LIMIT` and `TrackLookup` from `issue_bot.intake`, added
   to the existing alphabetized intake import list). In `issue_bot/__main__.py` pass
   `track_lookup=github.track_options`.
-- [ ] Run `.venv/bin/pytest tests/test_bot.py` green, then the full `.venv/bin/pytest`.
+- [x] (2026-10-29, test_bot 73 passed, full suite 509 passed) Run `.venv/bin/pytest tests/test_bot.py` green, then the full `.venv/bin/pytest`.
 
 ### 6. Docs and example
 README, `docs/COMPLEXITY.md`, `docs/SMOKE-TEST.md` and `example.routes.toml` show the Track row
