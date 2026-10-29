@@ -138,7 +138,7 @@ and the failure note was false for a field-set failure. All fixed or decided bel
 | 2 | Return the item id | Pre-builds for F17 |
 
 **Labels:** kind=dd category=approach reversible=yes rework=low · Recommended: 1
-**Chosen:** 1 (assumed: dd-policy, dd-261029-013)
+**Chosen:** 2 (overturned at review; was assumed dd-261029-013)
 
 #### DD-10: [Step 1] Validate the example's project table
 | # | Option | Trade-off |

@@ -223,7 +223,7 @@ async def test_place_on_roadmap_adds_issue_and_logs(
         complexity=Complexity.M,
         target=project_route,
     )
-    github = SimpleNamespace(add_to_project=AsyncMock(return_value=None))
+    github = SimpleNamespace(add_to_project=AsyncMock(return_value="PVTI_1"))
     issue = FiledIssue(7, ISSUE_URL, "I_node7")
 
     with caplog.at_level(logging.INFO):

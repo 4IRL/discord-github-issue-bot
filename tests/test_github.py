@@ -838,7 +838,7 @@ async def test_add_to_project_adds_and_sets_fields(
     )
     client = make_client(github_private_key, transport)
 
-    await client.add_to_project(project_route, ISSUE, Complexity.M)
+    assert await client.add_to_project(project_route, ISSUE, Complexity.M) == "PVTI_1"
 
     assert transport.await_count == 4
     token_call, lookup_call, add_call, set_call = transport.call_args_list
@@ -1012,8 +1012,8 @@ async def test_successful_add_keeps_cached_project_ids(
     )
     client = make_client(github_private_key, transport)
 
-    await client.add_to_project(project_route, ISSUE, Complexity.M)
-    await client.add_to_project(project_route, ISSUE, Complexity.XL)
+    assert await client.add_to_project(project_route, ISSUE, Complexity.M) == "PVTI_1"
+    assert await client.add_to_project(project_route, ISSUE, Complexity.XL) == "PVTI_1"
 
     calls = transport.call_args_list
     assert len(calls) == 6

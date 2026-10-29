@@ -229,7 +229,8 @@ Add the Project lookup and the add-and-set calls to `GitHubClient`, all through 
     `{"project": "PVT_1", "item": "PVTI_1", "statusField": "F_status", "status": "O_todo",
     "effortField": "F_effort", "effort": "O_m"}`; the first (token) call's payload is
     `{"repository_ids": [222], "permissions": {"issues": "write", "organization_projects":
-    "write"}}` and every GraphQL call's Authorization is `Bearer ghs_secret_token`;
+    "write"}}` and every GraphQL call's Authorization is `Bearer ghs_secret_token`; it returns
+    the item id `"PVTI_1"` (`-> str`; DD-9 overturned at the merge gate, dd-261029-013);
   - `add_to_project` raises `GitHubError("project-item", 200)` when the add returns `errors` or
     no item id, `GitHubError("project-field", 200)` when the update returns `errors` or a null
     alias, and the transport-failure form `GitHubError(<stage>, None)` for each stage;
@@ -286,14 +287,15 @@ Add the Project lookup and the add-and-set calls to `GitHubClient`, all through 
     Effort field's option names to ids, and `effort_option_ids` holds the band options only,
     `{str(band): options[str(band)] for band in Complexity}`; a failed lookup is never cached;
   - `async def add_to_project(self, target: TargetConfig, issue: FiledIssue, band: Complexity)
-    -> None`: `fields = await self.project_fields(target)`, add mutation (stage
+    -> str` (returns the Project item id; DD-9 overturned at the merge gate, dd-261029-013):
+    `fields = await self.project_fields(target)`, add mutation (stage
     `project-item`, item id must be a `str` at `addProjectV2ItemById.item.id`), then the set
     mutation (stage `project-field`, both aliases must be dicts with a `projectV2Item`); wrap
     the two mutations in `try:` / `except GitHubError as exc:` that, when `exc.stage` is
     `"project-item"` or `"project-field"`, drops the route's cached ids
     (`self._projects.pop(self._project_key(target), None)`, never a keyed `del`; comment: ids
     changed on GitHub, e.g. a deleted and re-created option, are looked up again on the next filing) and
-    then re-raises with a bare `raise`;
+    then re-raises with a bare `raise`; after the set succeeds it returns `item_id`;
   - update the `GitHubError` docstring's stage list (`token`, `label`, `issue`, `project`,
     `project-item`, `project-field`), the module docstring (REST and GraphQL APIs) and the
     first line of `GitHubClient`'s docstring (it also adds issues to a route's Project).
@@ -350,7 +352,8 @@ message.
     candidate.complexity, roadmap)`; import `place_on_roadmap`; update `filing_hook`'s docstring
     (a Project route also gets the roadmap step; its failure is a WARNING and a note, never a
     filing error);
-  - `tests/conftest.py` `fake_github`: add `add_to_project=AsyncMock(return_value=None)` to both
+  - `tests/conftest.py` `fake_github`: add `add_to_project=AsyncMock(return_value="PVTI_1")` (it
+    returns the item id, `-> str`; DD-9 overturned at the merge gate, dd-261029-013) to both
     returned `SimpleNamespace`s (the exception and the success branch);
   - update every other `filed_reply(...)` call in the tests to pass `None` (find them with
     `grep -rn 'filed_reply(' tests`).

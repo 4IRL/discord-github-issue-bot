@@ -368,8 +368,12 @@ class GitHubClient:
 
     async def add_to_project(
         self, target: TargetConfig, issue: FiledIssue, band: Complexity
-    ) -> None:
-        """Add the issue to the route's Project and set its Status and Effort; raise GitHubError otherwise."""
+    ) -> str:
+        """Add the issue to the route's Project, set its Status and Effort and return the item id.
+
+        The returned id is the ``addProjectV2ItemById`` Project item id, so a caller can set
+        more fields on that item. Raise GitHubError when any part of this fails.
+        """
         fields = await self.project_fields(target)
         try:
             added = await self._graphql(
@@ -402,6 +406,7 @@ class GitHubClient:
                     result.get("projectV2Item"), dict
                 ):
                     raise GitHubError("project-field", 200) from None
+            return item_id
         except GitHubError as exc:
             if exc.stage in ("project-item", "project-field"):
                 # Ids changed on GitHub (e.g. a deleted and re-created option) are looked up
