@@ -177,14 +177,14 @@ Record the new behaviour where members and operators read it.
 Run the full test suites to confirm nothing is broken:
 
 **To-do:**
-- [ ] Run `.venv/bin/pytest` and confirm all tests pass, the new Step 1-4 tests included
-- [ ] Re-check Standing invariants: invariant 1's grep prints nothing; every new `logger.` call logs only type, ids, URLs, error type, stage and status
-- [ ] Investigate and fix any failures before marking the plan finished
+- [x] Run `.venv/bin/pytest` and confirm all tests pass, the new Step 1-4 tests included. COMPLETE (2026-11-01): 531 passed, 0 failed (1 third-party DeprecationWarning from discord.py's `audioop` import).
+- [x] Re-check Standing invariants: invariant 1's grep prints nothing; every new `logger.` call logs only type, ids, URLs, error type, stage and status. COMPLETE (2026-11-01): grep prints nothing; the four new `logger.` calls since `git merge-base main HEAD` (refused second file, refused edit, lookup WARNING, found existing issue) log only type, interaction/message ids, issue URL, exception type, stage and status.
+- [x] Investigate and fix any failures before marking the plan finished. COMPLETE (2026-11-01): no failures.
 
 ## Manual checks (for the user, not boxes)
 - Live: with the user's go-ahead only (CLAUDE.md), in a test channel open `/bug`, press **Edit** in one client, **File** in another, then submit the Edit: the preview shows "This report was already filed" and one issue exists, and the log shows no `could not look up an existing issue` WARNING (live evidence the list call works, pass1-DD-1). It writes one summary message and thread in the test channel and one issue (plus a Project item on a Project route) in the test route's repo; close the issue and remove its test-Project item afterwards (SMOKE-TEST §5); a first filing with a band also creates that `complexity:<band>` label if the repo lacks it. The GitHub reuse path itself is covered by tests only.
 
-- [ ] Copy the "Manual checks" bullets verbatim into the final report.
+- [x] Copy the "Manual checks" bullets verbatim into the final report. COMPLETE (2026-11-01).
 
 ## Status
-finished: false
+finished: true
