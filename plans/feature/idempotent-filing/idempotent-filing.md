@@ -124,11 +124,11 @@ Before creating, look for an issue that already links this summary message; reus
 Prove the end-to-end hook files one issue and reuses it on re-entry, Project item included.
 
 **To-do:**
-- [ ] In `tests/test_bot.py`, add a stateful fake: a helper `recording_github()` returning a `SimpleNamespace` whose `create_issue` (AsyncMock with a side-effect function) appends `(body, FiledIssue(n, url, node))` to a list and returns the issue, whose `find_issue` is an AsyncMock whose side-effect function `(target, matches)` returns the first recorded issue whose body `matches`, else None, and with `ensure_label`, `add_to_project=AsyncMock(return_value="PVTI_1")`, `set_track` AsyncMocks.
+- [x] In `tests/test_bot.py`, add a stateful fake: a helper `recording_github()` returning a `SimpleNamespace` whose `create_issue` (AsyncMock with a side-effect function) appends `(body, FiledIssue(n, url, node))` to a list and returns the issue, whose `find_issue` is an AsyncMock whose side-effect function `(target, matches)` returns the first recorded issue whose body `matches`, else None, and with `ensure_label`, `add_to_project=AsyncMock(return_value="PVTI_1")`, `set_track` AsyncMocks.
   - `test_filing_same_candidate_twice_creates_one_issue`: call `filing_hook(github)(message, candidate)` twice with the same `make_message()` / `make_candidate(...)` (Project route, `track` set); `create_issue` awaited once; both runs post `filed_reply` with the same issue URL; `add_to_project` is awaited twice with the same `FiledIssue` (one Project item, since GitHub returns the existing item for the same content id) and `set_track` with `"PVTI_1"` both times.
   - `test_retry_after_timed_out_create_finds_the_issue`: first `create_issue` call records the issue then raises `GitHubError("issue", None)`; first run posts `FILING_ERROR_REPLY`; second run with the same candidate awaits `create_issue` no more (still once total), posts `filed_reply` with the recorded issue's URL, and runs the roadmap step.
   - Both use `assert_no_member_text(caplog)` with INFO capture.
-  - These should pass on Step 2's code; if either fails, fix `file_candidate`/`filing_hook` before ticking. Run `.venv/bin/pytest tests/test_bot.py -q`.
+  - These should pass on Step 2's code; if either fails, fix `file_candidate`/`filing_hook` before ticking. Run `.venv/bin/pytest tests/test_bot.py -q`. COMPLETE (2026-11-01): both tests pass on Step 2's code with no production change; tests/test_bot.py 75 passed, full suite 526 passed.
 
 ### 4. One File per intake session (closes F3)
 Share one mutable `Report` across every preview of an intake session; refuse a second File.

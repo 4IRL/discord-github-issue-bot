@@ -1,8 +1,9 @@
 import dataclasses
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, call
 
 import discord
 import pytest
@@ -407,6 +408,110 @@ async def test_filing_hook_plain_route_skips_roadmap(
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )
+
+
+def recording_github(fail_first_create: bool = False) -> SimpleNamespace:
+    """A fake GitHub that remembers created issues, so ``find_issue`` can find them again.
+
+    With ``fail_first_create``, the first create records its issue and then raises, as a
+    create that reached GitHub but timed out on the way back would.
+    """
+    created: list[tuple[str, FiledIssue]] = []
+
+    async def create_issue(
+        target: TargetConfig, title: str, body: str, labels: list[str]
+    ) -> FiledIssue:
+        number = len(created) + 7
+        issue = FiledIssue(number, f"https://github.com/o/r/issues/{number}", f"I_node{number}")
+        created.append((body, issue))
+        if fail_first_create and len(created) == 1:
+            raise GitHubError("issue", None)
+        return issue
+
+    async def find_issue(
+        target: TargetConfig, matches: Callable[[str], bool]
+    ) -> FiledIssue | None:
+        return next((issue for body, issue in created if matches(body)), None)
+
+    return SimpleNamespace(
+        created=created,
+        find_issue=AsyncMock(side_effect=find_issue),
+        create_issue=AsyncMock(side_effect=create_issue),
+        ensure_label=AsyncMock(return_value=None),
+        add_to_project=AsyncMock(return_value="PVTI_1"),
+        set_track=AsyncMock(return_value=None),
+    )
+
+
+def tracked_candidate(
+    make_candidate: CandidateFactory, project_route: TargetConfig
+) -> IssueCandidate:
+    return dataclasses.replace(
+        project_candidate(make_candidate, project_route), track="A · Bugs"
+    )
+
+
+async def test_filing_same_candidate_twice_creates_one_issue(
+    project_route: TargetConfig,
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = recording_github()
+    message = make_message()
+    candidate = tracked_candidate(make_candidate, project_route)
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github)(message, candidate)
+        await filing_hook(github)(message, candidate)
+    github.create_issue.assert_awaited_once()
+    issue = github.created[0][1]
+    link = call(
+        filed_reply(issue, "Secret title words", Complexity.M, True),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
+    assert message.create_thread.return_value.send.await_args_list == [link, link]
+    assert github.add_to_project.await_args_list == [
+        call(project_route, issue, Complexity.M),
+        call(project_route, issue, Complexity.M),
+    ]
+    assert github.set_track.await_args_list == [
+        call(project_route, "PVTI_1", "A · Bugs"),
+        call(project_route, "PVTI_1", "A · Bugs"),
+    ]
+    assert any("found existing issue for bug" in text for text in record_texts(caplog))
+    assert_no_member_text(caplog)
+
+
+async def test_retry_after_timed_out_create_finds_the_issue(
+    project_route: TargetConfig,
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = recording_github(fail_first_create=True)
+    message = make_message()
+    candidate = tracked_candidate(make_candidate, project_route)
+    send = message.create_thread.return_value.send
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github)(message, candidate)
+        send.assert_awaited_once_with(
+            FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
+        )
+        github.add_to_project.assert_not_awaited()
+        await filing_hook(github)(message, candidate)
+    github.create_issue.assert_awaited_once()
+    issue = github.created[0][1]
+    assert send.await_count == 2
+    assert send.await_args_list[1] == call(
+        filed_reply(issue, "Secret title words", Complexity.M, True),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
+    github.add_to_project.assert_awaited_once_with(project_route, issue, Complexity.M)
+    github.set_track.assert_awaited_once_with(project_route, "PVTI_1", "A · Bugs")
+    assert any("found existing issue for bug" in text for text in record_texts(caplog))
+    assert_no_member_text(caplog)
 
 
 async def test_filing_hook_failure_replies_and_logs_status(
