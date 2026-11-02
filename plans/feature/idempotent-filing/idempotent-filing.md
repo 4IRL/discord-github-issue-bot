@@ -134,7 +134,7 @@ Prove the end-to-end hook files one issue and reuses it on re-entry, Project ite
 Share one mutable `Report` across every preview of an intake session; refuse a second File.
 
 **To-do:**
-- [ ] Red, in `tests/test_intake.py` (import `ALREADY_FILED_REPLY`):
+- [x] Red, in `tests/test_intake.py` (import `ALREADY_FILED_REPLY`):
   - `test_edit_submit_after_file_refuses`: `view = await submitted_preview(route, hook, make_interaction())`; `modal = await reopened_modal(view, make_interaction)`; `await view.file_button.callback(make_interaction())`; `edit_interaction = make_interaction(interaction_id=4343)` (so the logged id differs from the previews' default 4242); `await edited_submit(modal, edit_interaction)` → `edit_interaction.response.edit_message` awaited once with `content=ALREADY_FILED_REPLY, view=None`; `hook` awaited once; with `caplog.at_level(logging.INFO)` around the Edit submit, `intake_messages(caplog, logging.INFO)` contains `f"refused edit of filed bug interaction_id={edit_interaction.id}"` and `assert_no_member_text(caplog)` passes.
   - `test_file_on_sibling_preview_after_file_refuses` (two Edits from V1): open `modal_a` and `modal_b` from V1; submit `modal_a` → V2 (the `view` kwarg of that edit), submit `modal_b` → V3; File V3 → hook awaited once; File V2 with `make_interaction(interaction_id=4343)` → its `response.edit_message` awaited with `content=ALREADY_FILED_REPLY, view=None`, hook still awaited once, V2 `is_finished()`; with INFO capture around that press, `intake_messages(caplog, logging.INFO)` contains `f"refused second file bug interaction_id={<that interaction>.id}"` and `assert_no_member_text(caplog)` passes.
   - `test_concurrent_file_on_sibling_previews_files_once`: build V2 and V3 as above; give V3's File interaction an `edit_message` side effect that does `await asyncio.sleep(0)` and then sets `response.is_done.return_value = True` (as `test_file_only_once` does); `await asyncio.gather(v3.file_button.callback(first), v2.file_button.callback(second))` → hook awaited once, both views `is_finished()`.
@@ -142,7 +142,7 @@ Share one mutable `Report` across every preview of an intake session; refuse a s
   - `test_edit_carries_report_to_new_preview`: the view from an Edit submit has `report is view.report` of the original.
   - Keep `test_edit_submit_after_expiry_still_previews` (DD-6) passing unchanged: expiry is not filing.
   - Run `.venv/bin/pytest tests/test_intake.py -q`; confirm it fails (an ImportError of `ALREADY_FILED_REPLY` at collection is the expected red).
-- [ ] Green, in `issue_bot/intake.py`:
+- [x] Green, in `issue_bot/intake.py`:
   - Add the fixed text `ALREADY_FILED_REPLY = "This report was already filed, so nothing more was posted. Check the channel for its link."` with the other replies.
   - Add `@dataclass class Report:` (docstring "One intake session: a fresh submit and every preview its Edits open. ``filed`` is set at the first **File** press, so the session files once (F12); it marks the press, not a successful filing, so a File whose summary post failed still ends the session.") with `filed: bool = False`, near `Draft`.
   - `PreviewView.__init__` gains a trailing `report: Report | None = None` and sets `self.report = report if report is not None else Report()`; in the class docstring say **File** files the report once across every preview sharing its ``report``.
@@ -161,7 +161,7 @@ Share one mutable `Report` across every preview of an intake session; refuse a s
   - `on_timeout`: `if self._closed or self.report.filed: return` (a sibling preview filed the report, so "nothing was filed" would be false).
   - `IntakeModal.on_submit`: first thing, before the fresh-submit defer and the blank-title check, add `if self.preview is not None and self.preview.report.filed:` → log `refused edit of filed %s interaction_id=%s`, `await interaction.response.edit_message(content=ALREADY_FILED_REPLY, view=None)`, `return`. Pass `report=self.preview.report if self.preview is not None else None` to the new `PreviewView(...)`.
   - Run `.venv/bin/pytest -q`; all pass.
-- [ ] Refactor: confirm no new log line carries member text (`grep -n 'logger\.' issue_bot/intake.py issue_bot/issues.py issue_bot/github.py` and read the new ones); `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot` prints nothing.
+- [x] Refactor: confirm no new log line carries member text (`grep -n 'logger\.' issue_bot/intake.py issue_bot/issues.py issue_bot/github.py` and read the new ones); `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot` prints nothing. COMPLETE (2026-11-01): 5 new tests red (ImportError of `ALREADY_FILED_REPLY` at collection) then green; full suite 531 passed; the two new log lines carry type and interaction id only; invariant grep prints nothing; review fix: rewrapped the `PreviewView` docstring.
 
 ### 5. Docs
 Record the new behaviour where members and operators read it.
