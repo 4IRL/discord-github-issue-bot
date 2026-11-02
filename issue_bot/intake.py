@@ -6,7 +6,9 @@ route whose Project has a ``track_field``, a fresh submit reads the Track option
 ``track_lookup`` and the preview gets an optional Track dropdown (row 2) and a **Track** field;
 the pick survives Edit, which reuses the old preview's options. A failed lookup shows no row.
 Its **File** button posts the public summary and hands it to ``on_candidate``; **Edit** reopens
-the modal prefilled; an expired preview files nothing.
+the modal prefilled; an expired preview files nothing. Previews of one report share a
+``Report``, so once one is filed a second **File** or an Edit submit gets
+``ALREADY_FILED_REPLY``.
 
 Modal text and interaction payloads are member text: logs carry the issue type, the
 interaction, message and channel ids and the summary URL only, and a Discord API error by its
@@ -59,6 +61,7 @@ PREVIEW_SHORTENED_NOTE = "\n\n_…preview shortened; the full text will be filed
 FILING_REPLY = "Filing your report…"
 PREVIEW_EXPIRED_REPLY = "This preview expired, so nothing was filed. Run the command again to report it."
 BLANK_TITLE_EDIT_REPLY = "The title needs a letter or digit. Press Edit to fix it."
+ALREADY_FILED_REPLY = "This report was already filed, so nothing more was posted. Check the channel for its link."
 COMPLEXITY_FIELD = "Complexity"
 COMPLEXITY_SUGGESTED = "{band}, suggested by the rules"
 COMPLEXITY_CHOSEN = "{band}, your choice (the rules suggested {suggested})"
@@ -152,6 +155,17 @@ class Draft:
     track: str | None = None
 
 
+@dataclass
+class Report:
+    """One intake session: a fresh submit and every preview its Edits open.
+
+    ``filed`` is set at the first **File** press, so the session files once (F12); it marks the
+    press, not a successful filing, so a File whose summary post failed still ends the session.
+    """
+
+    filed: bool = False
+
+
 def preview_embed(draft: Draft, author_name: str, track_row: bool = False) -> discord.Embed:
     """Return the preview embed: the issue body as filed, with ``PREVIEW_LINK`` for the summary link.
 
@@ -234,10 +248,10 @@ async def _post_and_file(
 class PreviewView(discord.ui.View):
     """The private preview's buttons and optional Track dropdown.
 
-    The S/M/L/XL buttons override the rated band, **File** files the draft once, and **Edit**
-    reopens the modal. With ``track_options``, a Track select on row 2 shows the first
-    ``TRACK_OPTION_LIMIT`` of them (values are indexes; labels cut to ``TRACK_LABEL_LIMIT``) and
-    sets the draft's Track; a pick logs nothing.
+    The S/M/L/XL buttons override the rated band, **File** files the report once across every
+    preview sharing its ``report``, and **Edit** reopens the modal. With ``track_options``, a
+    Track select on row 2 shows the first ``TRACK_OPTION_LIMIT`` of them (values are indexes;
+    labels cut to ``TRACK_LABEL_LIMIT``) and sets the draft's Track; a pick logs nothing.
 
     The preview expires ``PREVIEW_TIMEOUT`` seconds after the submit that showed it; a button
     press never extends that deadline (DD-5).
@@ -251,6 +265,7 @@ class PreviewView(discord.ui.View):
         draft: Draft,
         interaction: discord.Interaction,
         track_options: tuple[str, ...] = (),
+        report: Report | None = None,
     ) -> None:
         super().__init__(timeout=PREVIEW_TIMEOUT)
         self.issue_type = issue_type
@@ -259,6 +274,8 @@ class PreviewView(discord.ui.View):
         self.draft = draft
         # The interaction whose original response is the preview message.
         self.interaction = interaction
+        # Shared by every preview of one intake session; a fresh submit starts a new one.
+        self.report = report if report is not None else Report()
         self._closed = False
         self._deadline = time.monotonic() + PREVIEW_TIMEOUT
         self._band_buttons: dict[Complexity, discord.ui.Button] = {
@@ -372,7 +389,15 @@ class PreviewView(discord.ui.View):
         self._keep_deadline()
         if self._closed:
             return
-        # No await before closing: each click runs as its own task, so this guard files once.
+        # No await before closing: each click runs as its own task, so this guard files once,
+        # and the shared report files once across sibling previews (F12).
+        if self.report.filed:
+            self._closed = True
+            self.stop()
+            logger.info("refused second file %s interaction_id=%s", self.issue_type, interaction.id)
+            await interaction.response.edit_message(content=ALREADY_FILED_REPLY, view=None)
+            return
+        self.report.filed = True
         self._closed = True
         self.stop()
         await interaction.response.edit_message(content=FILING_REPLY, view=None)
@@ -395,8 +420,11 @@ class PreviewView(discord.ui.View):
         )
 
     async def on_timeout(self) -> None:
-        """Edit the preview to ``PREVIEW_EXPIRED_REPLY``, keeping its embed; nothing is filed."""
-        if self._closed:
+        """Edit the preview to ``PREVIEW_EXPIRED_REPLY``, keeping its embed; nothing is filed.
+
+        Does nothing once a sibling preview filed the report, where "nothing was filed" is false.
+        """
+        if self._closed or self.report.filed:
             return
         self._closed = True
         logger.info(
@@ -475,7 +503,16 @@ class IntakeModal(discord.ui.Modal):
             self.add_item(discord.ui.Label(text=question.label, component=answer_input))
 
     async def on_submit(self, interaction: discord.Interaction, /) -> None:
-        """Show the private preview, or, after Edit, update the preview in place."""
+        """Show the private preview, or, after Edit, update the preview in place.
+
+        An Edit submitted after its report was filed gets ``ALREADY_FILED_REPLY`` instead.
+        """
+        if self.preview is not None and self.preview.report.filed:
+            logger.info(
+                "refused edit of filed %s interaction_id=%s", self.issue_type, interaction.id
+            )
+            await interaction.response.edit_message(content=ALREADY_FILED_REPLY, view=None)
+            return
         if self.preview is None:
             # First: Discord allows 3 s, and without thinking=True a modal-submit defer is a
             # public message update.
@@ -507,6 +544,7 @@ class IntakeModal(discord.ui.Modal):
             draft,
             interaction,
             track_options=options,
+            report=self.preview.report if self.preview is not None else None,
         )
         logger.info("previewed %s interaction_id=%s", self.issue_type, interaction.id)
         embed = preview_embed(
