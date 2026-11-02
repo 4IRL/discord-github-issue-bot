@@ -1,7 +1,7 @@
 import dataclasses
 import logging
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import ANY, AsyncMock, Mock
 
 import pytest
 
@@ -18,6 +18,7 @@ from issue_bot.issues import (
     issue_title,
     place_on_roadmap,
     render_body,
+    reports_link,
 )
 from tests.conftest import ISSUE_URL, CandidateFactory, assert_no_member_text, record_texts
 
@@ -140,9 +141,12 @@ async def test_file_candidate_passes_title_body_labels(make_candidate: Candidate
     candidate = make_candidate(title="T", answers=(("What happened?", "Steps here"),))
     filed = FiledIssue(7, "u", "I_node7")
     github = SimpleNamespace(
-        create_issue=AsyncMock(return_value=filed), ensure_label=AsyncMock()
+        find_issue=AsyncMock(return_value=None),
+        create_issue=AsyncMock(return_value=filed),
+        ensure_label=AsyncMock(),
     )
     order = Mock()
+    order.attach_mock(github.find_issue, "find_issue")
     order.attach_mock(github.ensure_label, "ensure_label")
     order.attach_mock(github.create_issue, "create_issue")
 
@@ -153,7 +157,9 @@ async def test_file_candidate_passes_title_body_labels(make_candidate: Candidate
     github.create_issue.assert_awaited_once_with(
         candidate.target, issue_title(candidate), issue_body(candidate), ["bug", "complexity:S"]
     )
+    github.find_issue.assert_awaited_once_with(candidate.target, ANY)
     call_names = [name for name, _args, _kwargs in order.mock_calls]
+    assert call_names.index("find_issue") < call_names.index("ensure_label")
     assert call_names.index("ensure_label") < call_names.index("create_issue")
 
 
@@ -167,6 +173,7 @@ async def test_file_candidate_files_without_complexity_label_when_label_fails(
     )
     filed = FiledIssue(7, "u", "I_node7")
     github = SimpleNamespace(
+        find_issue=AsyncMock(return_value=None),
         create_issue=AsyncMock(return_value=filed),
         ensure_label=AsyncMock(side_effect=GitHubError("label", 500)),
     )
@@ -189,6 +196,81 @@ async def test_file_candidate_files_without_complexity_label_when_label_fails(
     assert "GitHubError" in warnings[0]
     assert "stage=label" in warnings[0]
     assert "status=500" in warnings[0]
+    assert_no_member_text(caplog)
+
+
+REPORT_URL = "https://discord.com/channels/111/555/99"
+
+
+def test_reports_link_matches_only_the_author_line() -> None:
+    body = render_body("Al", REPORT_URL, (("What happened?", "It broke"),))
+    assert reports_link(body, REPORT_URL)
+    assert reports_link(body.replace("\n", "\r\n"), REPORT_URL)
+    assert not reports_link(body, "https://discord.com/channels/111/555/98")
+    member_line = render_body("Al", "https://discord.com/channels/111/555/98", ()).replace(
+        "\n", f"\nfake in Discord: {REPORT_URL}\n", 1
+    )
+    assert member_line.split("\n")[1] == f"fake in Discord: {REPORT_URL}"
+    assert not reports_link(member_line, REPORT_URL)
+    assert not reports_link(render_body("Al", REPORT_URL + "1", ()), REPORT_URL)
+
+
+async def test_file_candidate_reuses_existing_issue(
+    make_candidate: CandidateFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    candidate = make_candidate(
+        title="Secret title words",
+        answers=(("What happened?", "Secret body words"),),
+        author_name="Alice",
+    )
+    other = make_candidate(message_id=98, message_url="https://discord.com/channels/111/555/98")
+    existing = FiledIssue(5, "https://github.com/o/r/issues/5", "I_5")
+    github = SimpleNamespace(
+        find_issue=AsyncMock(return_value=existing),
+        ensure_label=AsyncMock(),
+        create_issue=AsyncMock(),
+    )
+
+    with caplog.at_level(logging.INFO):
+        result = await file_candidate(github, candidate)  # type: ignore[arg-type]
+
+    assert result is existing
+    github.create_issue.assert_not_awaited()
+    github.ensure_label.assert_not_awaited()
+    target, matches = github.find_issue.await_args.args
+    assert target is candidate.target
+    assert matches(issue_body(candidate)) is True
+    assert matches(issue_body(other)) is False
+    assert issues_records(caplog, logging.INFO) == [
+        "found existing issue for bug message_id=99 issue=https://github.com/o/r/issues/5"
+    ]
+    assert_no_member_text(caplog)
+
+
+async def test_file_candidate_lookup_failure_still_files(
+    make_candidate: CandidateFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    candidate = make_candidate(
+        title="Secret title words",
+        answers=(("What happened?", "Secret body words"),),
+        author_name="Alice",
+    )
+    filed = FiledIssue(5, "https://github.com/o/r/issues/5", "I_5")
+    github = SimpleNamespace(
+        find_issue=AsyncMock(side_effect=GitHubError("lookup", 502)),
+        ensure_label=AsyncMock(),
+        create_issue=AsyncMock(return_value=filed),
+    )
+
+    with caplog.at_level(logging.INFO):
+        result = await file_candidate(github, candidate)  # type: ignore[arg-type]
+
+    assert result is filed
+    github.create_issue.assert_awaited_once()
+    assert issues_records(caplog, logging.WARNING) == [
+        "could not look up an existing issue for bug message_id=99: "
+        "GitHubError stage=lookup status=502"
+    ]
     assert_no_member_text(caplog)
 
 

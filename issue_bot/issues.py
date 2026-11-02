@@ -1,8 +1,9 @@
 """Turns a candidate into the GitHub issue's title, body and labels; the only place an issue body is formatted.
 
 Also places a filed issue on its route's roadmap Project, setting its Track when the reporter
-picked one. Its log lines (a skipped complexity label, a roadmap placement and a failed one)
-carry the issue type, the message id, the issue URL and an error's type (with a
+picked one, and reuses an issue already filed for the same summary message (F12). Its log lines
+(a found existing issue, a failed lookup, a skipped complexity label, a roadmap placement and a
+failed one) carry the issue type, the message id, the issue URL and an error's type (with a
 ``GitHubError``'s stage and status) only, never member text, response text or exception text.
 """
 
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 ISSUE_TITLE_LIMIT = 256  # GitHub's maximum issue-title length.
 PREVIEW_LINK = "(link added when filed)"  # Stands in for the summary link in the private preview.
+AUTHOR_LINK_SEPARATOR = " in Discord: "  # Joins the author to the link on a body's first line.
 
 
 def issue_title(candidate: IssueCandidate) -> str:
@@ -45,9 +47,14 @@ def render_body(author_name: str, link: str, answers: Sequence[tuple[str, str]])
     )
     author = _defang_mentions(author_name.replace("`", ""))
     return (
-        f"Reported by `{author}` in Discord: {link}\n\n---\n\n"
+        f"Reported by `{author}`{AUTHOR_LINK_SEPARATOR}{link}\n\n---\n\n"
         f"{sections or '_No description given._'}"
     )
+
+
+def reports_link(body: str, link: str) -> bool:
+    """Whether ``body``'s first line is ``render_body``'s author line for ``link``."""
+    return body.split("\n", 1)[0].rstrip("\r").endswith(f"{AUTHOR_LINK_SEPARATOR}{link}")
 
 
 def issue_body(candidate: IssueCandidate) -> str:
@@ -64,12 +71,35 @@ def issue_labels(candidate: IssueCandidate) -> list[str]:
 
 
 async def file_candidate(github: GitHubClient, candidate: IssueCandidate) -> FiledIssue:
-    """File the candidate as an issue in its target repo and return the created issue.
+    """File the candidate as an issue in its target repo and return the filed (or already-filed) issue.
 
-    The complexity label is created on the repo first if missing; if that fails, a WARNING is
-    logged and the issue is filed with the type label only. A ``GitHubError`` from
-    ``create_issue`` propagates.
+    An issue whose author line already links this summary message is returned instead of filing
+    again; a failed lookup is a WARNING and the issue is filed (DD-3). The complexity label is
+    created on the repo first if missing; if that fails, a WARNING is logged and the issue is
+    filed with the type label only. A ``GitHubError`` from ``create_issue`` propagates.
     """
+    try:
+        existing = await github.find_issue(
+            candidate.target, lambda body: reports_link(body, candidate.message_url)
+        )
+    except GitHubError as exc:
+        logger.warning(
+            "could not look up an existing issue for %s message_id=%s: %s stage=%s status=%s",
+            candidate.type,
+            candidate.message_id,
+            type(exc).__name__,
+            exc.stage,
+            exc.status,
+        )
+        existing = None
+    if existing is not None:
+        logger.info(
+            "found existing issue for %s message_id=%s issue=%s",
+            candidate.type,
+            candidate.message_id,
+            existing.html_url,
+        )
+        return existing
     labels = issue_labels(candidate)
     try:
         await github.ensure_label(candidate.target, labels[1])

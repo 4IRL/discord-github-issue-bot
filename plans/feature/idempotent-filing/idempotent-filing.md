@@ -92,13 +92,13 @@ Add a read path to the client: find the newest issue whose body satisfies a pred
 Before creating, look for an issue that already links this summary message; reuse it.
 
 **To-do:**
-- [ ] Red, in `tests/test_issues.py`:
+- [x] Red, in `tests/test_issues.py`:
   - `test_reports_link_matches_only_the_author_line`: `reports_link(render_body("Al", URL, ()), URL)` is True, and so is the same body with `\n` replaced by `\r\n` (GitHub returns CRLF after a web edit); False for a different URL, for a body whose *second* line carries `in Discord: URL` (member text), and for a URL that is a prefix of another (`URL + "1"`).
   - `test_file_candidate_reuses_existing_issue`: fake `github = SimpleNamespace(find_issue=AsyncMock(return_value=FiledIssue(5, "https://github.com/o/r/issues/5", "I_5")), ensure_label=AsyncMock(), create_issue=AsyncMock())` → returns that issue; `create_issue` and `ensure_label` not awaited; the predicate passed to `find_issue` returns True for `issue_body(candidate)` and False for another candidate's body; an INFO log `found existing issue for <type> message_id=<id> issue=<url>` and `assert_no_member_text(caplog)`.
   - `test_file_candidate_lookup_failure_still_files`: `github = SimpleNamespace(find_issue=AsyncMock(side_effect=GitHubError("lookup", 502)), ensure_label=AsyncMock(), create_issue=AsyncMock(return_value=FiledIssue(5, "https://github.com/o/r/issues/5", "I_5")))` → `create_issue` awaited once; WARNING `could not look up an existing issue for <type> message_id=<id>: GitHubError stage=lookup status=502`.
   - Add `find_issue=AsyncMock(return_value=None)` to the existing `SimpleNamespace` fakes at l.142 and l.169, and in `test_file_candidate_passes_title_body_labels` add `order.attach_mock(github.find_issue, "find_issue")`, assert `github.find_issue.assert_awaited_once_with(candidate.target, ANY)` (add `ANY` to the `unittest.mock` import) and `call_names.index("find_issue") < call_names.index("ensure_label")`.
   - Run `.venv/bin/pytest tests/test_issues.py -q`; confirm it fails (an ImportError of `reports_link` at collection is the expected red).
-- [ ] Green, in `issue_bot/issues.py`:
+- [x] Green, in `issue_bot/issues.py`:
   - Add `def reports_link(body: str, link: str) -> bool` right after `render_body`, docstring "Whether ``body``'s first line is ``render_body``'s author line for ``link``.": `return body.split("\n", 1)[0].rstrip("\r").endswith(f"{AUTHOR_LINK_SEPARATOR}{link}")`. Make `render_body` build its author line with the same `" in Discord: "` text (a module constant `AUTHOR_LINK_SEPARATOR = " in Discord: "` used by both) so the two cannot drift.
   - In `file_candidate`, before the label step:
     ```python
@@ -118,7 +118,7 @@ Before creating, look for an issue that already links this summary message; reus
     and extend its docstring: an issue already linking this summary message is returned instead of filing again; a failed lookup is a WARNING and the issue is filed (DD-3).
   - Update the module docstring's list of log lines (a found issue, a failed lookup).
   - In `tests/conftest.py` `fake_github`, add `find_issue=AsyncMock(return_value=None)` to both branches.
-  - Run `.venv/bin/pytest -q`; all pass.
+  - Run `.venv/bin/pytest -q`; all pass. COMPLETE (2026-11-01): 3 new tests red (ImportError of `reports_link` at collection) then green; full suite 524 passed; review fix: `file_candidate` docstring summary now says it returns the filed (or already-filed) issue.
 
 ### 3. Hook-level dedup: a repeated filing and a retry after a timed-out create
 Prove the end-to-end hook files one issue and reuses it on re-entry, Project item included.
