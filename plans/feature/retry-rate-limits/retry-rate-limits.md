@@ -617,18 +617,18 @@ This step records the new behavior where operators read it.
 Run the full suite and check the Expected end state.
 
 **To-do:**
-- [ ] Run `.venv/bin/pytest` and confirm all tests pass.
-- [ ] Check Standing invariant 1:
+- [x] Run `.venv/bin/pytest` and confirm all tests pass. (2026-11-17: 573 passed, 1 warning)
+- [x] Check Standing invariant 1:
   `grep -rnE '1137236302358659185|969373970|chores4irl|c4i-github-issues' --include='*.py' issue_bot || true`
   prints nothing (the `|| true` keeps grep's exit 1 on no match from reading as a failure; the
   pass condition is empty output).
-- [ ] Check invariant 2 by grep: no new log call in `issue_bot/` passes `candidate.title`,
+- [x] Check invariant 2 by grep: no new log call in `issue_bot/` passes `candidate.title`,
   `candidate.answers`, `author_name`, an interaction object, response `data`, `exc_info=True`,
   or a header value (`git diff main -- issue_bot | grep -nE 'logger\.(debug|info|warning|error|exception)' || true`
   and read each hit). `github.py` still has no logger.
-- [ ] Check invariant 3: `git diff main -- issue_bot/config.py example.env example.routes.toml`
+- [x] Check invariant 3: `git diff main -- issue_bot/config.py example.env example.routes.toml`
   is empty (no new config keys).
-- [ ] Investigate and fix any failure before marking the plan finished.
+- [x] Investigate and fix any failure before marking the plan finished. (none found)
 
 ## Status
-finished: false
+finished: true
