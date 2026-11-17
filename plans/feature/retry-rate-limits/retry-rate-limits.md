@@ -345,23 +345,23 @@ or carrying the errors text.
   drops the token on 401 as before. Fix anything the tests expose.
 - [x] Run `.venv/bin/pytest tests/test_github.py`.
 
-### 4. `file_candidate` fails closed on a re-filing (DD-4)
+### 4. `file_candidate` fails closed on a re-filing (DD-4) - COMPLETE (2026-11-17)
 This step lets a re-filing refuse to create when the existing-issue lookup fails, so a create
 that timed out but landed is never duplicated.
 
 **To-do:**
-- [ ] **Red:** in `tests/test_issues.py` add
+- [x] **Red:** in `tests/test_issues.py` add
   `test_file_candidate_refiling_lookup_failure_raises`: `fake_github` with
   `find_issue=AsyncMock(side_effect=GitHubError("lookup", 502))`. Then
   `await file_candidate(github, candidate, refiling=True)` raises that `GitHubError`, and
   `create_issue` and `ensure_label` are never awaited. Keep the existing
   `test_file_candidate_lookup_failure_still_files` (first attempt, fail-open) green.
-- [ ] **Green:** change `file_candidate(github, candidate)` in `issue_bot/issues.py` to
+- [x] **Green:** change `file_candidate(github, candidate)` in `issue_bot/issues.py` to
   `file_candidate(github: GitHubClient, candidate: IssueCandidate, *, refiling: bool = False) -> FiledIssue`.
   In its lookup `except GitHubError` branch, `raise` when `refiling` (after the
   existing WARNING log, unchanged), else proceed as today. Update the docstring (DD-3 fail-open on
   the first attempt, fail-closed on a re-filing, F13 DD-4).
-- [ ] Run `.venv/bin/pytest tests/test_issues.py`.
+- [x] Run `.venv/bin/pytest tests/test_issues.py`.
 
 ### 5. Filing-level retry, `_post_outcome` retry and `view=` (DD-6, DD-7)
 This step makes `filing_hook` re-run `file_candidate` once on a transient failure, and makes

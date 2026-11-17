@@ -274,6 +274,34 @@ async def test_file_candidate_lookup_failure_still_files(
     assert_no_member_text(caplog)
 
 
+async def test_file_candidate_refiling_lookup_failure_raises(
+    make_candidate: CandidateFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    candidate = make_candidate(
+        title="Secret title words",
+        answers=(("What happened?", "Secret body words"),),
+        author_name="Alice",
+    )
+    lookup_error = GitHubError("lookup", 502)
+    github = SimpleNamespace(
+        find_issue=AsyncMock(side_effect=lookup_error),
+        ensure_label=AsyncMock(),
+        create_issue=AsyncMock(),
+    )
+
+    with caplog.at_level(logging.INFO), pytest.raises(GitHubError) as raised:
+        await file_candidate(github, candidate, refiling=True)  # type: ignore[arg-type]
+
+    assert raised.value is lookup_error
+    github.ensure_label.assert_not_awaited()
+    github.create_issue.assert_not_awaited()
+    assert issues_records(caplog, logging.WARNING) == [
+        "could not look up an existing issue for bug message_id=99: "
+        "GitHubError stage=lookup status=502"
+    ]
+    assert_no_member_text(caplog)
+
+
 def issues_records(caplog: pytest.LogCaptureFixture, level: int) -> list[str]:
     return [
         record.getMessage()

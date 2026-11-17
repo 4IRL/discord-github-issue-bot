@@ -70,13 +70,17 @@ def issue_labels(candidate: IssueCandidate) -> list[str]:
     ]
 
 
-async def file_candidate(github: GitHubClient, candidate: IssueCandidate) -> FiledIssue:
+async def file_candidate(
+    github: GitHubClient, candidate: IssueCandidate, *, refiling: bool = False
+) -> FiledIssue:
     """File the candidate as an issue in its target repo and return the filed (or already-filed) issue.
 
     An issue whose author line already links this summary message is returned instead of filing
-    again; a failed lookup is a WARNING and the issue is filed (DD-3). The complexity label is
-    created on the repo first if missing; if that fails, a WARNING is logged and the issue is
-    filed with the type label only. A ``GitHubError`` from ``create_issue`` propagates.
+    again. A failed lookup is a WARNING; on the first attempt the issue is then filed anyway
+    (fail-open, DD-3), while on a re-filing (``refiling=True``) the lookup's ``GitHubError`` is
+    re-raised instead, since an earlier create may have landed (fail-closed, F13 DD-4). The
+    complexity label is created on the repo first if missing; if that fails, a WARNING is logged
+    and the issue is filed with the type label only. A ``GitHubError`` from ``create_issue`` propagates.
     """
     try:
         existing = await github.find_issue(
@@ -91,6 +95,8 @@ async def file_candidate(github: GitHubClient, candidate: IssueCandidate) -> Fil
             exc.stage,
             exc.status,
         )
+        if refiling:
+            raise
         existing = None
     if existing is not None:
         logger.info(
