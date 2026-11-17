@@ -27,6 +27,7 @@ TOKEN_REFRESH_MARGIN = 300  # seconds before expires_at
 JWT_LIFETIME = 540  # GitHub rejects exp > 10 minutes ahead
 REQUEST_TIMEOUT = 30  # seconds
 LABEL_COLOR = "c5def5"  # the colour new labels get; any later colour change happens on GitHub
+LOOKUP_PAGE_SIZE = 100  # newest issues and pull requests searched for an earlier filing of the same summary
 
 # Option ids are GraphQL String, not ID: a String! variable is accepted for the nullable
 # singleSelectOptionId, while an ID! declaration fails with variableMismatch.
@@ -109,8 +110,8 @@ class ProjectFields:
 class GitHubError(Exception):
     """A GitHub request failed; carries the stage and HTTP status only, never response text.
 
-    ``stage`` is ``"token"``, ``"label"``, ``"issue"``, ``"project"``, ``"project-item"``,
-    ``"project-field"`` or ``"project-track"``; ``status`` is None for a transport failure.
+    ``stage`` is ``"token"``, ``"label"``, ``"issue"``, ``"lookup"``, ``"project"``,
+    ``"project-item"``, ``"project-field"`` or ``"project-track"``; ``status`` is None for a transport failure.
     """
 
     def __init__(self, stage: str, status: int | None) -> None:
@@ -215,6 +216,7 @@ def _parse_token_response(data: Any) -> tuple[str, float] | None:
 class GitHubClient:
     """Creates issues and their labels, and adds them to a route's Project, as an App installation.
 
+    Also finds an issue filed earlier for the same report, so a report is not filed twice.
     Caches a repo-scoped token per repo and Project need.
     """
 
@@ -250,10 +252,15 @@ class GitHubClient:
         }
 
     async def _request(
-        self, stage: str, url: str, headers: Mapping[str, str], payload: object
+        self,
+        stage: str,
+        url: str,
+        headers: Mapping[str, str],
+        payload: object,
+        method: str = "POST",
     ) -> tuple[int, Any]:
         try:
-            return await self._transport("POST", url, headers, payload)
+            return await self._transport(method, url, headers, payload)
         except (aiohttp.ClientError, TimeoutError):
             pass
         # Raised outside the handler so __context__ is None: the transport error's
@@ -336,6 +343,44 @@ class GitHubClient:
         ):
             raise GitHubError("issue", status) from None
         return FiledIssue(data["number"], data["html_url"], data["node_id"])
+
+    async def find_issue(
+        self, target: TargetConfig, matches: Callable[[str], bool]
+    ) -> FiledIssue | None:
+        """Return the newest issue among the target repo's latest ``LOOKUP_PAGE_SIZE`` issues and
+        pull requests whose body ``matches``, else None; raise GitHubError (stage ``lookup``, or
+        ``token`` when no installation token can be had) on any failure.
+        """
+        token = await self._installation_token(target)
+        status, data = await self._request(
+            "lookup",
+            f"{API_URL}/repos/{target.github_repo}/issues"
+            f"?state=all&sort=created&direction=desc&per_page={LOOKUP_PAGE_SIZE}",
+            self._headers(token),
+            None,
+            method="GET",
+        )
+        if status == 401:
+            # Never a keyed del: a concurrent filing may already have dropped it.
+            self._tokens.pop(self._token_key(target), None)
+            raise GitHubError("lookup", status) from None
+        if status != 200 or not isinstance(data, list):
+            raise GitHubError("lookup", status) from None
+        for item in data:
+            # The issues list includes pull requests; they are never a filed report.
+            if not isinstance(item, dict) or "pull_request" in item:
+                continue
+            body = item.get("body")
+            if not isinstance(body, str) or not matches(body):
+                continue
+            if (
+                type(item.get("number")) is not int
+                or not isinstance(item.get("html_url"), str)
+                or not isinstance(item.get("node_id"), str)
+            ):
+                raise GitHubError("lookup", status) from None
+            return FiledIssue(item["number"], item["html_url"], item["node_id"])
+        return None
 
     async def _graphql(
         self, stage: str, target: TargetConfig, query: str, variables: dict[str, object]

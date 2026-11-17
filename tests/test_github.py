@@ -26,6 +26,7 @@ from issue_bot.github import (
 TOKEN_URL = "https://api.github.com/app/installations/444/access_tokens"
 ISSUE_URL = "https://api.github.com/repos/example-org/example-repo/issues"
 LABEL_URL = "https://api.github.com/repos/example-org/example-repo/labels"
+LOOKUP_URL = f"{ISSUE_URL}?state=all&sort=created&direction=desc&per_page=100"
 GRAPHQL_URL = "https://api.github.com/graphql"
 HTML_URL = "https://github.com/example-org/example-repo/issues/7"
 EXPIRES_AT = "2026-10-18T13:00:00Z"
@@ -633,6 +634,151 @@ async def test_ensure_label_transport_error_raises_status_none(
 
     await client.ensure_label(route, "complexity:M")
     assert transport.await_count == 3
+
+
+def body_is_yes(body: str) -> bool:
+    return body == "yes"
+
+
+async def test_find_issue_returns_first_match(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    listing = [
+        {"number": 9, "html_url": "https://github.com/example-org/example-repo/issues/9",
+         "node_id": "I_9", "body": "no"},
+        {"number": 7, "html_url": HTML_URL, "node_id": "I_node7", "body": "yes"},
+        {"number": 3, "html_url": "https://github.com/example-org/example-repo/issues/3",
+         "node_id": "I_3", "body": "yes"},
+    ]
+    transport = AsyncMock(side_effect=[token_response(), (200, listing)])
+    client = make_client(github_private_key, transport)
+
+    result = await client.find_issue(route, body_is_yes)
+
+    assert result == FiledIssue(7, HTML_URL, "I_node7")
+    method, url, headers, payload = transport.call_args_list[1].args
+    assert (method, url, payload) == ("GET", LOOKUP_URL, None)
+    assert headers["Authorization"] == "Bearer ghs_secret_token"
+
+
+@pytest.mark.parametrize(
+    "listing",
+    [[], [{"number": 9, "html_url": HTML_URL, "node_id": "I_9", "body": "no"}]],
+    ids=["empty", "no-match"],
+)
+async def test_find_issue_returns_none_without_match(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig, listing: list[dict[str, Any]]
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), (200, listing)])
+    client = make_client(github_private_key, transport)
+
+    assert await client.find_issue(route, body_is_yes) is None
+
+
+async def test_find_issue_skips_pull_requests_null_bodies_and_non_dicts(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    listing = [
+        "junk",
+        None,
+        {"number": 8, "html_url": HTML_URL, "node_id": "PR_8", "body": "yes", "pull_request": {}},
+        {"number": 6, "html_url": HTML_URL, "node_id": "I_6", "body": None},
+    ]
+    transport = AsyncMock(side_effect=[token_response(), (200, listing)])
+    client = make_client(github_private_key, transport)
+    seen_bodies: list[str] = []
+
+    def record_and_match(body: str) -> bool:
+        seen_bodies.append(body)
+        return body == "yes"
+
+    assert await client.find_issue(route, record_and_match) is None
+    assert seen_bodies == []
+
+
+async def test_find_issue_non_200_raises_lookup_error(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    error_body = {"message": "Secret error words"}
+    transport = AsyncMock(side_effect=[token_response(), (500, error_body)])
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.find_issue(route, body_is_yes)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status) == ("lookup", 500)
+    assert "Secret error words" not in str(exc)
+
+
+async def test_find_issue_401_drops_token(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[token_response(), (401, None), token_response(), (200, [])]
+    )
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.find_issue(route, body_is_yes)
+    assert (exc_info.value.stage, exc_info.value.status) == ("lookup", 401)
+    assert await client.find_issue(route, body_is_yes) is None
+
+    assert [call.args[1] for call in transport.call_args_list] == [
+        TOKEN_URL,
+        LOOKUP_URL,
+        TOKEN_URL,
+        LOOKUP_URL,
+    ]
+
+
+async def test_find_issue_non_list_raises(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), (200, {"items": []})])
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.find_issue(route, body_is_yes)
+
+    assert (exc_info.value.stage, exc_info.value.status) == ("lookup", 200)
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        {"number": 7, "html_url": HTML_URL, "body": "yes"},
+        {"number": True, "html_url": HTML_URL, "node_id": "I_node7", "body": "yes"},
+        {"number": 7, "html_url": 5, "node_id": "I_node7", "body": "yes"},
+    ],
+    ids=["missing-node-id", "bool-number", "non-str-url"],
+)
+async def test_find_issue_malformed_match_raises(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig, item: dict[str, Any]
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), (200, [item])])
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.find_issue(route, body_is_yes)
+
+    assert (exc_info.value.stage, exc_info.value.status) == ("lookup", 200)
+
+
+async def test_find_issue_transport_error_raises_lookup(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    error = aiohttp.ClientError("Secret error words")
+    transport = AsyncMock(side_effect=[token_response(), error])
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.find_issue(route, body_is_yes)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status) == ("lookup", None)
+    assert exc.__context__ is None
+    assert "Secret error words" not in str(exc)
 
 
 PROJECT_FIELDS = ProjectFields(

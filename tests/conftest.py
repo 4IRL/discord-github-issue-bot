@@ -96,12 +96,14 @@ def forbidden(code: int, text: str) -> discord.Forbidden:
 def fake_github(result: FiledIssue | Exception) -> SimpleNamespace:
     if isinstance(result, Exception):
         return SimpleNamespace(
+            find_issue=AsyncMock(return_value=None),
             create_issue=AsyncMock(side_effect=result),
             ensure_label=AsyncMock(return_value=None),
             add_to_project=AsyncMock(return_value="PVTI_1"),
             set_track=AsyncMock(return_value=None),
         )
     return SimpleNamespace(
+        find_issue=AsyncMock(return_value=None),
         create_issue=AsyncMock(return_value=result),
         ensure_label=AsyncMock(return_value=None),
         add_to_project=AsyncMock(return_value="PVTI_1"),

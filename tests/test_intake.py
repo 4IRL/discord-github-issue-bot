@@ -13,6 +13,7 @@ from issue_bot.complexity import Complexity, rate
 from issue_bot.config import Config, TargetConfig, UnroutedCommands
 from issue_bot.github import FiledIssue, GitHubError
 from issue_bot.intake import (
+    ALREADY_FILED_REPLY,
     ANSWER_MAX_LENGTH,
     BLANK_TITLE_EDIT_REPLY,
     BLANK_TITLE_REPLY,
@@ -846,6 +847,107 @@ async def test_edit_submit_after_expiry_still_previews(
     assert edit_call.kwargs["content"] == PREVIEW_REPLY
     assert isinstance(edit_call.kwargs["embed"], discord.Embed)
     assert isinstance(edit_call.kwargs["view"], PreviewView)
+
+
+async def test_edit_submit_after_file_refuses(
+    route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    hook = AsyncMock()
+    view = await submitted_preview(route, hook, make_interaction())
+    modal = await reopened_modal(view, make_interaction)
+    await view.file_button.callback(make_interaction())
+    edit_interaction = make_interaction(interaction_id=4343)
+    with caplog.at_level(logging.INFO):
+        await edited_submit(modal, edit_interaction)
+    edit_interaction.response.edit_message.assert_awaited_once_with(
+        content=ALREADY_FILED_REPLY, view=None
+    )
+    hook.assert_awaited_once()
+    assert f"refused edit of filed bug interaction_id={edit_interaction.id}" in intake_messages(
+        caplog, logging.INFO
+    )
+    assert_no_member_text(caplog)
+
+
+async def sibling_previews(
+    route: TargetConfig, hook: CandidateHook, make_interaction: InteractionFactory
+) -> tuple[PreviewView, PreviewView, SimpleNamespace]:
+    """Open two Edits from one preview and submit both; return the two new previews.
+
+    Also returns the interaction whose original response is the first new preview.
+    """
+    view = await submitted_preview(route, hook, make_interaction())
+    modal_a = await reopened_modal(view, make_interaction)
+    modal_b = await reopened_modal(view, make_interaction)
+    interaction_a = make_interaction()
+    await edited_submit(modal_a, interaction_a)
+    interaction_b = make_interaction()
+    await edited_submit(modal_b, interaction_b)
+    second = interaction_a.response.edit_message.await_args.kwargs["view"]
+    third = interaction_b.response.edit_message.await_args.kwargs["view"]
+    return second, third, interaction_a
+
+
+async def test_file_on_sibling_preview_after_file_refuses(
+    route: TargetConfig, make_interaction: InteractionFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    hook = AsyncMock()
+    second, third, _interaction = await sibling_previews(route, hook, make_interaction)
+    await third.file_button.callback(make_interaction())
+    hook.assert_awaited_once()
+    press = make_interaction(interaction_id=4343)
+    with caplog.at_level(logging.INFO):
+        await second.file_button.callback(press)
+    press.response.edit_message.assert_awaited_once_with(content=ALREADY_FILED_REPLY, view=None)
+    hook.assert_awaited_once()
+    assert second.is_finished()
+    assert f"refused second file bug interaction_id={press.id}" in intake_messages(
+        caplog, logging.INFO
+    )
+    assert_no_member_text(caplog)
+
+
+async def test_concurrent_file_on_sibling_previews_files_once(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    hook = AsyncMock()
+    second, third, _interaction = await sibling_previews(route, hook, make_interaction)
+    first_press = make_interaction()
+    second_press = make_interaction()
+
+    async def ack(*args: object, **kwargs: object) -> None:
+        await asyncio.sleep(0)
+        first_press.response.is_done.return_value = True
+
+    first_press.response.edit_message.side_effect = ack
+    await asyncio.gather(
+        third.file_button.callback(first_press), second.file_button.callback(second_press)
+    )
+    hook.assert_awaited_once()
+    assert second.is_finished()
+    assert third.is_finished()
+
+
+async def test_timeout_after_sibling_filed_does_nothing(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    second, third, second_interaction = await sibling_previews(
+        route, AsyncMock(), make_interaction
+    )
+    await third.file_button.callback(make_interaction())
+    await second.on_timeout()
+    second_interaction.edit_original_response.assert_not_awaited()
+
+
+async def test_edit_carries_report_to_new_preview(
+    route: TargetConfig, make_interaction: InteractionFactory
+) -> None:
+    view = await submitted_preview(route, AsyncMock(), make_interaction())
+    modal = await reopened_modal(view, make_interaction)
+    edit_interaction = make_interaction()
+    await edited_submit(modal, edit_interaction)
+    new_view = edit_interaction.response.edit_message.await_args.kwargs["view"]
+    assert new_view.report is view.report
 
 
 async def test_timeout_expires_preview_and_files_nothing(

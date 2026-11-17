@@ -126,7 +126,7 @@ holds its supersession note, not edges; readers skip it. -->
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F12 — Never file a report twice** ★FOCUS | pending | `feature/idempotent-filing` | — |
+| **F12 — Never file a report twice** ★FOCUS | in-review | `feature/idempotent-filing` | [#28](https://github.com/4IRL/discord-github-issue-bot/pull/28) |
 | **F13 — Retry and rate limits** | pending | `feature/retry-rate-limits` | — |
 | **F11 — Deploy on `c4i`** | pending | `feature/deploy-c4i` | — |
 | **F14 — Help command** | pending | `feature/help-command` | — |
