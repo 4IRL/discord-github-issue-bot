@@ -461,19 +461,21 @@ This step makes `filing_hook` re-run `file_candidate` once on a transient failur
   `record_client`) still passes because `GitHubClient(...)` in `__main__.py` is unchanged.
 - [x] Run `.venv/bin/pytest tests/test_bot.py tests/test_intake.py`, then `.venv/bin/pytest`.
 
-### 6. Retry button on the filing-error post (DD-1, DD-2, DD-11)
+### 6. Retry button on the filing-error post (DD-1, DD-2, DD-11) - COMPLETE (2026-11-17)
 This step attaches an in-memory **Retry** button to the error post. Any member may press it once.
 It re-runs filing as a re-filing, strictly after the automatic retries, never overlapping one.
 
+Ack failure (assumed: dd-policy, dd-261117-074): if the Retry press's ack raises, the re-filing does not run; on_error logs it and FILING_ERROR_REPLY's 'if the button no longer works' text covers the member. Kept file_button's ordering.
+
 **To-do:**
-- [ ] In `issue_bot/threads.py`, change `FILING_ERROR_REPLY` to fixed text with no member or
+- [x] In `issue_bot/threads.py`, change `FILING_ERROR_REPLY` to fixed text with no member or
   response text:
   `"Sorry, I couldn't file this as a GitHub issue. Press **Retry** to try again; if the button no longer works, check the repo before running the command again."`.
   Update the exact-text pin `test_filing_error_reply_is_fixed_text` (`tests/test_threads.py`).
-- [ ] Add `RETRY_TIMEOUT = 24 * 60 * 60  # seconds; the Retry button lives a day, in memory only (DD-1)`
+- [x] Add `RETRY_TIMEOUT = 24 * 60 * 60  # seconds; the Retry button lives a day, in memory only (DD-1)`
   and `RETRY_ALREADY_REPLY = "This report is already being retried."` (fixed text) to `bot.py`,
   with `RETRYING_REPLY = "Retrying…"` (fixed text, the press's ack, pass1-DD-7) next to it.
-- [ ] **Red** in `tests/test_bot.py`. Every test except `test_roadmap_failure_has_no_retry_button`
+- [x] **Red** in `tests/test_bot.py`. Every test except `test_roadmap_failure_has_no_retry_button`
   (which files successfully) starts from a first filing that fails with a non-transient error, `github = fake_github(GitHubError("issue", 422))` (no automatic re-run, so
   the error post with its `RetryView` is made). Where the press must then succeed, set
   `github.create_issue.side_effect = [GitHubError("issue", 422), FiledIssue(7, ISSUE_URL, "I_node7")]`.
@@ -529,7 +531,7 @@ It re-runs filing as a re-filing, strictly after the automatic retries, never ov
     swallowed.
   - `test_roadmap_failure_has_no_retry_button`: filing succeeds, `place_on_roadmap` returns
     `False`, and the link post has no `view` kwarg (DD-11).
-- [ ] **Green:** add `class RetryView(discord.ui.View)` in `issue_bot/bot.py`, with
+- [x] **Green:** add `class RetryView(discord.ui.View)` in `issue_bot/bot.py`, with
   `__init__(self, retry: Callable[[], Awaitable[None]], issue_type: IssueType)` calling
   `super().__init__(timeout=RETRY_TIMEOUT)`, and attributes `self._retry = retry`,
   `self.issue_type = issue_type`, `self.pressed = False` and
@@ -556,20 +558,20 @@ It re-runs filing as a re-filing, strictly after the automatic retries, never ov
   alphabetized: constants, classes, then functions). `on_timeout`
   edits `self.message` with `view=None` when set, catching `discord.HTTPException` (ERROR with
   type, status, code, message id) and `Exception` (type only).
-- [ ] In `filing_hook`'s `attempt`, on the final failure build
+- [x] In `filing_hook`'s `attempt`, on the final failure build
   `view = RetryView(lambda: attempt(message, candidate, thread, refiling=True), candidate.type)`,
   then `sent = await _post_outcome(message, thread, FILING_ERROR_REPLY, "filing error", view=view, sleep=sleep)`
   and `view.message = sent`. If `sent is None` (the post failed), call `view.stop()`. Retries stay
   sequential: the button exists only after the automatic retries end, each view files at most once,
   and a new button appears only after that re-filing has failed. Extend the `filing_hook`
   docstring: the final `FILING_ERROR_REPLY` post carries a **Retry** button (`RetryView`).
-- [ ] Update the existing assertions that pin the filing-error send kwargs (the error-post pins
+- [x] Update the existing assertions that pin the filing-error send kwargs (the error-post pins
   in `tests/test_bot.py`, including Step 5's filing-retry tests, and
   `test_github_error_still_posts_filing_error_reply` in `tests/test_intake.py`;
   `test_retry_after_timed_out_create_finds_the_issue` no longer posts an error after Step 5) to expect
   `view=ANY` (from `unittest.mock`) or to assert the view's type. Grep for every
   `FILING_ERROR_REPLY` use in `tests/` and update each one.
-- [ ] Run `.venv/bin/pytest tests/test_bot.py tests/test_threads.py tests/test_intake.py`, then
+- [x] Run `.venv/bin/pytest tests/test_bot.py tests/test_threads.py tests/test_intake.py`, then
   `.venv/bin/pytest`.
 
 ### 7. Documentation
@@ -593,8 +595,9 @@ This step records the new behavior where operators read it.
     the command again (check the repo first)" to "so after a failed filing press **Retry** on
     the error post, or, once that button no longer works, check the repo and run the command
     again".
-  - Add: the Retry button is dead after a restart or after `RETRY_TIMEOUT` (a day). Then run the
-    command again after checking the repo.
+  - Add: the Retry button is dead after a restart or after `RETRY_TIMEOUT` (a day), and a Retry
+    press whose acknowledgement fails (expired interaction or Discord error) does not re-file.
+    Then run the command again after checking the repo.
 - [ ] `CLAUDE.md`, *Project rules*, the "Logs never contain members' message text or names"
   bullet: change "the command, modal and preview-view error handlers" to "the command, modal,
   preview-view and Retry-view error handlers" (wording otherwise unchanged).

@@ -21,6 +21,7 @@ from issue_bot.intake import (
     TrackLookup,
     discord_error_fields,
     intake_command,
+    report_error,
 )
 from issue_bot.issue_type import IssueType
 from issue_bot.issues import file_candidate, place_on_roadmap
@@ -32,6 +33,10 @@ FILING_ATTEMPTS = 2  # file_candidate runs; the re-run is a re-filing (DD-4, DD-
 FILING_RETRY_DELAY = 2.0  # seconds
 POST_ATTEMPTS = 3
 POST_BACKOFF = 1.0  # seconds, doubled per attempt
+RETRY_TIMEOUT = 24 * 60 * 60  # seconds; the Retry button lives a day, in memory only (DD-1)
+# Fixed text: it carries no member text and no GitHub response text.
+RETRY_ALREADY_REPLY = "This report is already being retried."
+RETRYING_REPLY = "Retrying…"
 
 ProjectCheck = Callable[[TargetConfig], Awaitable[ProjectFields]]
 
@@ -122,6 +127,65 @@ async def _post_outcome(
     raise AssertionError("unreachable: the last attempt returns")
 
 
+class RetryView(discord.ui.View):
+    """The **Retry** button on a filing-error post: re-runs filing once, as a re-filing.
+
+    Any member may press it (DD-2; re-filing is idempotent through ``file_candidate``). It lives
+    ``RETRY_TIMEOUT`` seconds in memory only, so it is dead after a restart (DD-1). Each view
+    files at most once; a failed re-filing posts a new error post with a new view.
+    """
+
+    def __init__(self, retry: Callable[[], Awaitable[None]], issue_type: IssueType) -> None:
+        super().__init__(timeout=RETRY_TIMEOUT)
+        self._retry = retry
+        self.issue_type = issue_type
+        self.pressed = False
+        self.message: discord.Message | None = None
+
+    @discord.ui.button(label="Retry", style=discord.ButtonStyle.primary)
+    async def retry_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        if self.pressed:
+            await interaction.response.send_message(RETRY_ALREADY_REPLY, ephemeral=True)
+            return
+        # No await before this: each click runs as its own task, so this guard files once (F12).
+        self.pressed = True
+        self.stop()
+        await interaction.response.edit_message(content=RETRYING_REPLY, view=None)
+        await self._retry()
+
+    async def on_timeout(self) -> None:
+        """Remove the expired button from the error post; a failed edit is logged and swallowed."""
+        if self.message is None:
+            return
+        try:
+            await self.message.edit(view=None)
+        except discord.HTTPException as exc:
+            logger.error(
+                "could not remove %s retry button message_id=%s: %s status=%s code=%s",
+                self.issue_type,
+                self.message.id,
+                type(exc).__name__,
+                exc.status,
+                exc.code,
+            )
+        except Exception as exc:
+            # A network or timeout failure must not reach asyncio's traceback log.
+            logger.error(
+                "could not remove %s retry button message_id=%s: %s",
+                self.issue_type,
+                self.message.id,
+                type(exc).__name__,
+            )
+
+    async def on_error(
+        self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item, /
+    ) -> None:
+        """Replace discord.py's default, which logs the traceback (it can quote member text)."""
+        await report_error(interaction, error, self.issue_type, "retry")
+
+
 def filing_hook(
     github: GitHubClient, *, sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
 ) -> CandidateHook:
@@ -131,9 +195,10 @@ def filing_hook(
     re-runs filing once, as a re-filing (lookup first, fail-closed), after
     ``FILING_RETRY_DELAY``. On success it posts ``filed_reply``; on a final ``GitHubError`` it
     posts the fixed ``FILING_ERROR_REPLY``, in the thread or, with no thread, as a reply to the
-    summary message. A route with a Project also gets the roadmap step after filing
-    (``place_on_roadmap``); its failure is a WARNING and a note in the link message, never a
-    filing error. It never logs member text or GitHub response text: only the type, ids, URLs,
+    summary message. That error post carries a **Retry** button (``RetryView``) that re-runs
+    filing once, as a re-filing; a failed re-filing posts a new error post with a new button.
+    A route with a Project also gets the roadmap step after filing (``place_on_roadmap``); its
+    failure is a WARNING and a note in the link message, never a filing error. It never logs member text or GitHub response text: only the type, ids, URLs,
     error type, stage and status.
     """
 
@@ -170,9 +235,15 @@ def filing_hook(
                     exc.stage,
                     exc.status,
                 )
-                await _post_outcome(
-                    message, thread, FILING_ERROR_REPLY, "filing error", sleep=sleep
+                view = RetryView(
+                    lambda: attempt(message, candidate, thread, refiling=True), candidate.type
                 )
+                sent = await _post_outcome(
+                    message, thread, FILING_ERROR_REPLY, "filing error", view=view, sleep=sleep
+                )
+                view.message = sent
+                if sent is None:
+                    view.stop()
                 return
             logger.info(
                 "filed %s message_id=%s (%s) thread_id=%s issue=%s",

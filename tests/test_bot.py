@@ -1,9 +1,10 @@
+import asyncio
 import dataclasses
 import logging
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock, call
+from unittest.mock import ANY, AsyncMock, Mock, call
 
 import aiohttp
 import discord
@@ -12,12 +13,17 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from discord import app_commands
 
 import issue_bot.__main__ as entry_point
+import issue_bot.bot as bot_module
 from issue_bot.bot import (
     FILING_ATTEMPTS,
     FILING_RETRY_DELAY,
     POST_ATTEMPTS,
     POST_BACKOFF,
+    RETRY_ALREADY_REPLY,
+    RETRY_TIMEOUT,
+    RETRYING_REPLY,
     IssueBot,
+    RetryView,
     build_intents,
     channel_problems,
     filing_hook,
@@ -29,6 +35,7 @@ from issue_bot.github import FiledIssue, GitHubClient, GitHubError, ProjectField
 from issue_bot.handler import IssueCandidate
 from issue_bot.intake import FILING_UNAVAILABLE_REPLY, INTAKE_ERROR_REPLY, NO_MENTIONS, IntakeModal
 from issue_bot.issue_type import IssueType
+from issue_bot.issues import file_candidate
 from issue_bot.threads import FILING_ERROR_REPLY, filed_reply
 from tests.conftest import (
     ISSUE_URL,
@@ -540,7 +547,7 @@ async def test_filing_retry_lookup_failure_fails_closed(
     assert github.find_issue.await_count == 2
     assert recording_sleep.await_args_list == [call(FILING_RETRY_DELAY)]
     message.create_thread.return_value.send.assert_awaited_once_with(
-        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True, view=ANY
     )
     errors = [
         record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
@@ -563,7 +570,7 @@ async def test_filing_not_retried_on_permanent_error(
     recording_sleep.assert_not_awaited()
     github.create_issue.assert_awaited_once()
     message.create_thread.return_value.send.assert_awaited_once_with(
-        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True, view=ANY
     )
     assert not [record for record in bot_records(caplog) if record.levelno == logging.WARNING]
     assert_no_member_text(caplog)
@@ -596,7 +603,7 @@ async def test_filing_retry_reruns_once_when_rate_limited(
     assert len(errors) == 1
     assert "could not file bug" in errors[0]
     message.create_thread.return_value.send.assert_awaited_once_with(
-        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True, view=ANY
     )
     assert_no_member_text(caplog)
 
@@ -624,7 +631,7 @@ async def test_filing_hook_failure_replies_and_logs_status(
     with caplog.at_level(logging.INFO):
         await filing_hook(github)(message, secret_candidate(make_candidate))
     message.create_thread.return_value.send.assert_awaited_once_with(
-        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True, view=ANY
     )
     message.reply.assert_not_awaited()
     errors = [
@@ -692,7 +699,7 @@ async def test_filing_hook_failure_without_thread_replies_error_on_summary(
     assert recording_sleep.await_args_list == [call(FILING_RETRY_DELAY)]
     assert github.create_issue.await_count == FILING_ATTEMPTS
     message.reply.assert_awaited_once_with(
-        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True, view=ANY
     )
     assert_no_member_text(caplog)
 
@@ -714,6 +721,10 @@ async def test_filing_error_send_failure_logged_without_text(
     ]
     assert len(send_errors) == 1
     assert all(part in send_errors[0] for part in ("Forbidden", "403", "50001", "99"))
+    # The post failed, so its Retry button never reached Discord: the view is stopped.
+    view = error_post_view(message)
+    assert view.message is None
+    assert view.is_finished()
     for text in record_texts(caplog):
         assert "Secret error words" not in text
     assert_no_member_text(caplog)
@@ -923,6 +934,293 @@ async def test_filing_hook_unexpected_error_reaches_preview_on_error(
     assert_no_member_text(caplog)
     button_interaction.followup.send.assert_awaited_once_with(INTAKE_ERROR_REPLY, ephemeral=True)
     button_interaction.response.send_message.assert_not_awaited()
+
+
+def error_post_view(message: SimpleNamespace) -> RetryView:
+    """The ``RetryView`` on the latest error post in the message's thread."""
+    view = message.create_thread.return_value.send.await_args.kwargs["view"]
+    assert isinstance(view, RetryView)
+    return view
+
+
+async def test_filing_error_post_has_retry_button(
+    make_message: MessageFactory, make_candidate: CandidateFactory
+) -> None:
+    github = fake_github(GitHubError("issue", 422))
+    message = make_message()
+    await filing_hook(github)(message, secret_candidate(make_candidate))
+    send = message.create_thread.return_value.send
+    send.assert_awaited_once_with(
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True, view=ANY
+    )
+    view = error_post_view(message)
+    assert len(view.children) == 1
+    assert view.retry_button.label == "Retry"
+    assert not view.retry_button.disabled
+    assert view.timeout == RETRY_TIMEOUT
+    # No custom_id is set by the code, so the button is not persistent (DD-1).
+    assert not view.retry_button.is_persistent()
+    assert not view.is_persistent()
+    assert view.message is send.return_value
+    assert not view.is_finished()
+
+    no_thread = make_message()
+    no_thread.create_thread.side_effect = forbidden(50013, "x")
+    await filing_hook(github)(no_thread, secret_candidate(make_candidate))
+    no_thread.reply.assert_awaited_once_with(
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True, view=ANY
+    )
+    assert isinstance(no_thread.reply.await_args.kwargs["view"], RetryView)
+
+
+async def test_retry_press_refiles_once(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    make_interaction: InteractionFactory,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    issue = FiledIssue(7, ISSUE_URL, "I_node7")
+    github = fake_github(GitHubError("issue", 422))
+    github.create_issue.side_effect = [GitHubError("issue", 422), issue]
+    refilings: list[bool] = []
+
+    async def spy(
+        github: GitHubClient, candidate: IssueCandidate, *, refiling: bool = False
+    ) -> FiledIssue:
+        refilings.append(refiling)
+        return await file_candidate(github, candidate, refiling=refiling)
+
+    monkeypatch.setattr(bot_module, "file_candidate", spy)
+    message = make_message()
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github, sleep=AsyncMock())(message, secret_candidate(make_candidate))
+        view = error_post_view(message)
+        order = Mock()
+        order.attach_mock(github.find_issue, "find_issue")
+        order.attach_mock(github.create_issue, "create_issue")
+        interaction = make_interaction()
+        await view.retry_button.callback(interaction)
+    interaction.response.edit_message.assert_awaited_once_with(content=RETRYING_REPLY, view=None)
+    assert refilings == [False, True]
+    assert [name for name, _args, _kwargs in order.mock_calls] == ["find_issue", "create_issue"]
+    assert message.create_thread.return_value.send.await_args == call(
+        filed_reply(issue, "Secret title words", Complexity.S, None),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
+    assert view.is_finished()
+    assert view.pressed
+    assert_no_member_text(caplog)
+
+
+async def test_retry_press_ignored_after_first(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    make_interaction: InteractionFactory,
+) -> None:
+    github = fake_github(GitHubError("issue", 422))
+    github.create_issue.side_effect = [
+        GitHubError("issue", 422),
+        FiledIssue(7, ISSUE_URL, "I_node7"),
+    ]
+    message = make_message()
+    await filing_hook(github, sleep=AsyncMock())(message, secret_candidate(make_candidate))
+    view = error_post_view(message)
+    await view.retry_button.callback(make_interaction())
+    second = make_interaction()
+    await view.retry_button.callback(second)
+    second.response.send_message.assert_awaited_once_with(RETRY_ALREADY_REPLY, ephemeral=True)
+    second.response.edit_message.assert_not_awaited()
+    assert github.create_issue.await_count == 2
+
+
+async def test_retry_concurrent_presses_refile_once(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    make_interaction: InteractionFactory,
+) -> None:
+    github = fake_github(GitHubError("issue", 422))
+    github.create_issue.side_effect = [
+        GitHubError("issue", 422),
+        FiledIssue(7, ISSUE_URL, "I_node7"),
+    ]
+    message = make_message()
+    await filing_hook(github, sleep=AsyncMock())(message, secret_candidate(make_candidate))
+    view = error_post_view(message)
+    first = make_interaction()
+    second = make_interaction()
+
+    async def ack(*args: object, **kwargs: object) -> None:
+        await asyncio.sleep(0)
+        first.response.is_done.return_value = True
+
+    first.response.edit_message.side_effect = ack
+    await asyncio.gather(view.retry_button.callback(first), view.retry_button.callback(second))
+    second.response.send_message.assert_awaited_once_with(RETRY_ALREADY_REPLY, ephemeral=True)
+    assert github.create_issue.await_count == 2
+    assert github.find_issue.await_count == 2
+    assert view.is_finished()
+
+
+async def test_retry_failure_posts_new_retry_button(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    make_interaction: InteractionFactory,
+) -> None:
+    github = fake_github(GitHubError("issue", 422))
+    message = make_message()
+    await filing_hook(github, sleep=AsyncMock())(message, secret_candidate(make_candidate))
+    old_view = error_post_view(message)
+    await old_view.retry_button.callback(make_interaction())
+    send = message.create_thread.return_value.send
+    assert send.await_count == 2
+    send.assert_awaited_with(
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True, view=ANY
+    )
+    new_view = error_post_view(message)
+    assert new_view is not old_view
+    assert old_view.is_finished()
+    assert not new_view.is_finished()
+    assert not new_view.pressed
+
+
+async def test_retry_press_lookup_failure_fails_closed(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    make_interaction: InteractionFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = fake_github(GitHubError("issue", 422))
+    github.find_issue = AsyncMock(side_effect=[None, GitHubError("lookup", 422)])
+    message = make_message()
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github, sleep=AsyncMock())(message, secret_candidate(make_candidate))
+        old_view = error_post_view(message)
+        await old_view.retry_button.callback(make_interaction())
+    assert github.create_issue.await_count == 1
+    send = message.create_thread.return_value.send
+    assert send.await_count == 2
+    send.assert_awaited_with(
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True, view=ANY
+    )
+    assert error_post_view(message) is not old_view
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert errors[-1].startswith("could not file bug message_id=99 ")
+    assert errors[-1].endswith("GitHubError stage=lookup status=422")
+    assert_no_member_text(caplog)
+
+
+async def test_retry_press_by_any_member(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    make_interaction: InteractionFactory,
+) -> None:
+    issue = FiledIssue(7, ISSUE_URL, "I_node7")
+    github = fake_github(GitHubError("issue", 422))
+    github.create_issue.side_effect = [GitHubError("issue", 422), issue]
+    message = make_message()
+    candidate = secret_candidate(make_candidate)
+    await filing_hook(github, sleep=AsyncMock())(message, candidate)
+    other = make_interaction(user_id=candidate.author_id + 1, display_name="Bob")
+    await error_post_view(message).retry_button.callback(other)
+    assert github.create_issue.await_count == 2
+    other.response.send_message.assert_not_awaited()
+    message.create_thread.return_value.send.assert_awaited_with(
+        filed_reply(issue, "Secret title words", Complexity.S, None),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
+
+
+async def test_retry_view_on_error_logs_safely(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    make_interaction: InteractionFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = fake_github(GitHubError("issue", 422))
+    message = make_message()
+    interaction = make_interaction()
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github, sleep=AsyncMock())(message, secret_candidate(make_candidate))
+        view = error_post_view(message)
+        github.find_issue.side_effect = RuntimeError("Secret exception words")
+        # discord.py's own dispatch path (2.7.1: item, interaction): an exception in the
+        # Retry callback reaches on_error.
+        await view._scheduled_task(view.retry_button, interaction)
+    intake_errors = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "issue_bot.intake" and record.levelno == logging.ERROR
+    ]
+    assert intake_errors == [
+        "unhandled RuntimeError in bug retry interaction_id=4242 status=None code=None"
+    ]
+    for text in record_texts(caplog):
+        assert "Secret exception words" not in text
+    interaction.followup.send.assert_awaited_once_with(INTAKE_ERROR_REPLY, ephemeral=True)
+    interaction.response.send_message.assert_not_awaited()
+    assert_no_member_text(caplog)
+
+
+async def test_retry_view_timeout_removes_button(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = fake_github(GitHubError("issue", 422))
+    message = make_message()
+    posted = SimpleNamespace(id=321, edit=AsyncMock())
+    message.create_thread.return_value.send.return_value = posted
+    await filing_hook(github)(message, secret_candidate(make_candidate))
+    view = error_post_view(message)
+    assert view.message is posted
+    await view.on_timeout()
+    posted.edit.assert_awaited_once_with(view=None)
+
+    caplog.clear()
+    posted.edit.side_effect = forbidden(50001, "Secret error words")
+    with caplog.at_level(logging.INFO):
+        await view.on_timeout()
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert errors == [
+        "could not remove bug retry button message_id=321: Forbidden status=403 code=50001"
+    ]
+
+    caplog.clear()
+    posted.edit.side_effect = aiohttp.ClientConnectionError("Secret error words")
+    with caplog.at_level(logging.INFO):
+        await view.on_timeout()
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert errors == ["could not remove bug retry button message_id=321: ClientConnectionError"]
+    for text in record_texts(caplog):
+        assert "Secret error words" not in text
+
+
+async def test_roadmap_failure_has_no_retry_button(
+    project_route: TargetConfig,
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+) -> None:
+    issue = FiledIssue(7, ISSUE_URL, "I_node7")
+    github = fake_github(issue)
+    github.add_to_project.side_effect = GitHubError("project-field", 200)
+    message = make_message()
+    await filing_hook(github)(message, project_candidate(make_candidate, project_route))
+    send = message.create_thread.return_value.send
+    send.assert_awaited_once_with(
+        filed_reply(issue, "Secret title words", Complexity.M, False),
+        allowed_mentions=NO_MENTIONS,
+        suppress_embeds=True,
+    )
+    assert "view" not in send.await_args.kwargs
 
 
 async def test_on_ready_logs_missing_channel_as_error(
