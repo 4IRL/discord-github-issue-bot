@@ -1720,3 +1720,115 @@ async def test_graphql_non_list_errors_is_not_rate_limited(
     assert (exc.stage, exc.status, exc.rate_limited) == ("project", 200, False)
     assert urls(transport) == [TOKEN_URL, GRAPHQL_URL]
     sleep.assert_not_awaited()
+
+
+# make_client's default clock is 1_000_000.0, so this reset is one second away.
+RATE_LIMITED_BODY = {"errors": [{"type": "RATE_LIMITED", "message": "Secret error words"}]}
+GRAPHQL_RATE_LIMITED = (200, RATE_LIMITED_BODY, {"x-ratelimit-reset": "1000001"})
+
+
+async def test_graphql_rate_limited_retries_then_succeeds(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[token_response(), GRAPHQL_RATE_LIMITED, project_response()]
+    )
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    assert await client.project_fields(project_route) == PROJECT_FIELDS
+
+    assert urls(transport) == [TOKEN_URL, GRAPHQL_URL, GRAPHQL_URL]
+    assert sleep.await_args_list == [call(1.0)]
+
+
+async def test_graphql_rate_limited_exhausted_is_rate_limited(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), *[GRAPHQL_RATE_LIMITED] * MAX_ATTEMPTS])
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.project_fields(project_route)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status, exc.rate_limited) == ("project", 200, True)
+    assert exc.__cause__ is None
+    assert exc.__suppress_context__ is True
+    assert "Secret error words" not in str(exc)
+    assert "Secret error words" not in repr(exc)
+    assert urls(transport) == [TOKEN_URL] + [GRAPHQL_URL] * MAX_ATTEMPTS
+    assert sleep.await_args_list == [call(1.0)] * (MAX_ATTEMPTS - 1)
+
+
+async def test_graphql_rate_limited_without_wait_fails_at_once(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), (200, RATE_LIMITED_BODY, {})])
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.project_fields(project_route)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status, exc.rate_limited) == ("project", 200, True)
+    assert exc.__cause__ is None
+    assert exc.__suppress_context__ is True
+    assert "Secret error words" not in str(exc)
+    assert "Secret error words" not in repr(exc)
+    assert urls(transport) == [TOKEN_URL, GRAPHQL_URL]
+    sleep.assert_not_awaited()
+
+
+async def test_graphql_other_errors_not_retried(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), ERRORS_RESPONSE])
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.project_fields(project_route)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status, exc.rate_limited) == ("project", 200, False)
+    assert urls(transport) == [TOKEN_URL, GRAPHQL_URL]
+    sleep.assert_not_awaited()
+
+
+
+async def test_graphql_rate_limited_among_other_errors_is_retried(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    body = {"errors": ["not a dict", {"message": "Secret detail"}, {"type": "RATE_LIMITED"}]}
+    transport = AsyncMock(
+        side_effect=[
+            token_response(),
+            (200, body, {"x-ratelimit-reset": "1000001"}),
+            project_response(),
+        ]
+    )
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    assert await client.project_fields(project_route) == PROJECT_FIELDS
+
+    assert urls(transport) == [TOKEN_URL, GRAPHQL_URL, GRAPHQL_URL]
+    assert sleep.await_args_list == [call(1.0)]
+
+
+async def test_graphql_rate_limited_prefers_retry_after(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    headers = {"retry-after": "2", "x-ratelimit-reset": "1000001"}
+    transport = AsyncMock(
+        side_effect=[token_response(), (200, RATE_LIMITED_BODY, headers), project_response()]
+    )
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    assert await client.project_fields(project_route) == PROJECT_FIELDS
+
+    assert sleep.await_args_list == [call(2.0)]

@@ -317,13 +317,13 @@ a rate limit with no usable wait fails at once (pass1-DD-3).
 - [x] **Refactor:** keep `_retry_wait` pure (no `self`, no logging; `github.py` never logs) and
   type-annotated. Run `.venv/bin/pytest tests/test_github.py`, then `.venv/bin/pytest`.
 
-### 3. GraphQL rate limits surface as rate-limited errors
+### 3. GraphQL rate limits surface as rate-limited errors - COMPLETE (2026-11-17)
 This step makes a `RATE_LIMITED` GraphQL reply that runs out of retries raise
 `GitHubError(stage, 200, rate_limited=True)` instead of a schema-mismatch error, without logging
 or carrying the errors text.
 
 **To-do:**
-- [ ] **Red:** as in step 2, each `side_effect` list starts with `token_response()` and requests
+- [x] **Red:** as in step 2, each `side_effect` list starts with `token_response()` and requests
   are counted by URL. Each rate-limited reply carries a usable wait, since one without a wait
   fails at once (pass1-DD-3): with `make_client`'s default `clock` (`1_000_000.0`), the reply is
   `(200, {"errors": [{"type": "RATE_LIMITED", "message": "Secret error words"}]}, {"x-ratelimit-reset": "1000001"})`
@@ -341,9 +341,9 @@ or carrying the errors text.
   `GitHubError("project", 200)` after one `GRAPHQL_URL` request (URLs `[TOKEN_URL, GRAPHQL_URL]`),
   as today. Step 2's `_retry_wait` already classifies the body, so these tests are expected to
   pass on their first run: this step confirms Step 2's behaviour rather than driving new code.
-- [ ] **Green:** confirm `GitHubClient._graphql` still raises `GitHubError(stage, status)` for non-rate-limit `errors` and
+- [x] **Green:** confirm `GitHubClient._graphql` still raises `GitHubError(stage, status)` for non-rate-limit `errors` and
   drops the token on 401 as before. Fix anything the tests expose.
-- [ ] Run `.venv/bin/pytest tests/test_github.py`.
+- [x] Run `.venv/bin/pytest tests/test_github.py`.
 
 ### 4. `file_candidate` fails closed on a re-filing (DD-4)
 This step lets a re-filing refuse to create when the existing-issue lookup fails, so a create
