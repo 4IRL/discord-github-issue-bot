@@ -302,6 +302,25 @@ async def test_file_candidate_refiling_lookup_failure_raises(
     assert_no_member_text(caplog)
 
 
+async def test_file_candidate_refiling_with_no_existing_issue_files(
+    make_candidate: CandidateFactory,
+) -> None:
+    candidate = make_candidate(title="T", answers=(("What happened?", "Steps here"),))
+    filed = FiledIssue(7, "u", "I_node7")
+    github = SimpleNamespace(
+        find_issue=AsyncMock(return_value=None),
+        create_issue=AsyncMock(return_value=filed),
+        ensure_label=AsyncMock(),
+    )
+
+    result = await file_candidate(github, candidate, refiling=True)  # type: ignore[arg-type]
+
+    assert result is filed
+    github.create_issue.assert_awaited_once_with(
+        candidate.target, issue_title(candidate), issue_body(candidate), ["bug", "complexity:S"]
+    )
+
+
 def issues_records(caplog: pytest.LogCaptureFixture, level: int) -> list[str]:
     return [
         record.getMessage()
