@@ -574,11 +574,11 @@ Ack failure (assumed: dd-policy, dd-261117-074): if the Retry press's ack raises
 - [x] Run `.venv/bin/pytest tests/test_bot.py tests/test_threads.py tests/test_intake.py`, then
   `.venv/bin/pytest`.
 
-### 7. Documentation
+### 7. Documentation - COMPLETE (2026-11-17)
 This step records the new behavior where operators read it.
 
 **To-do:**
-- [ ] `README.md`: describe automatic retries (GitHub: up to `MAX_ATTEMPTS` per request, honoring
+- [x] `README.md`: describe automatic retries (GitHub: up to `MAX_ATTEMPTS` per request, honoring
   `Retry-After`/`x-ratelimit-reset` up to `MAX_RETRY_WAIT`, and failing at once on a rate limit
   with no usable wait; a create is never re-sent blindly, and
   filing re-runs once with the lookup first, failing closed; Discord outcome posts retried
@@ -598,10 +598,10 @@ This step records the new behavior where operators read it.
   - Add: the Retry button is dead after a restart or after `RETRY_TIMEOUT` (a day), and a Retry
     press whose acknowledgement fails (expired interaction or Discord error) does not re-file.
     Then run the command again after checking the repo.
-- [ ] `CLAUDE.md`, *Project rules*, the "Logs never contain members' message text or names"
+- [x] `CLAUDE.md`, *Project rules*, the "Logs never contain members' message text or names"
   bullet: change "the command, modal and preview-view error handlers" to "the command, modal,
   preview-view and Retry-view error handlers" (wording otherwise unchanged).
-- [ ] `docs/SMOKE-TEST.md`, *Troubleshooting*, the row for "The log shows `could not look up an
+- [x] `docs/SMOKE-TEST.md`, *Troubleshooting*, the row for "The log shows `could not look up an
   existing issue for … stage=lookup status=…`": change "that lookup failed, and the bot filed
   anyway." to "that lookup failed, and on a first attempt the bot filed anyway.", and replace
   the row's last sentence, "After `stage=lookup` the issue is filed normally, but once F13
@@ -610,7 +610,7 @@ This step records the new behavior where operators read it.
   re-run or a **Retry** press) the bot stops instead and posts the error with a **Retry**
   button, so check the repo before pressing it." Afterwards
   `grep -n "once F13 retries filings" docs/SMOKE-TEST.md || true` prints nothing.
-- [ ] Do not edit `plans/META-PLAN.md` here. The fold-back happens after merge (`/run-feature`
+- [x] Do not edit `plans/META-PLAN.md` here. The fold-back happens after merge (`/run-feature`
   Phase C).
 
 ### 8. Verify All Tests Pass
