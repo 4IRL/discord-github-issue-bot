@@ -70,7 +70,8 @@ component.
 
 - LLM-written questions or triage: clarification and complexity are rule-based by choice.
 - Editing, closing or syncing existing issues from Discord; the bot only creates.
-- Channels in other Discord servers, or repos outside the 4IRL GitHub org.
+- Channels in other Discord servers. (Repos outside the 4IRL GitHub org came into scope on
+  2026-11-17: from Phase 5, any repo whose owner installed the GitHub App can be registered.)
 
 ## Current state
 
@@ -167,6 +168,23 @@ visibly in the thread.
 
 **Why here.** Hardening is ordered by what real use exposes. The bot can be deployed
 earlier (see Sequencing rationale), but this phase makes it safe to leave running.
+
+### Phase 5: Self-service registration · planned
+
+**Goal.** Members link repos to the server themselves and report from any channel.
+**Advances capabilities:** 1, 6.
+
+- `/register` takes a GitHub repo link, says if it is already linked, otherwise records it and
+  checks the GitHub App is installed for it, pointing the member to the install page if not.
+  The App installation is looked up per repo, not set in the environment (F18).
+- `/bug` and `/feature` work in any channel of the guild; the modal's dropdown picks one of the
+  registered repos, and one bot instance serves the whole guild (F19).
+
+**Exit criteria.** A member registers a new repo and files into it from a channel with no route
+entry, with no config edit or restart.
+
+**Why here.** Added 2026-11-17, after Phase 4 by the owner's choice, so hardening ships on the
+current routing model first.
 
 ## Sequencing rationale
 

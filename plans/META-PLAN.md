@@ -48,7 +48,7 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 Phases 1 through 3 are complete on `main`: each report is rated S/M/L/XL (F4) and, on a route
 with a `project` table, added to its org Project with Status, Effort and the reporter's Track
 (F6, F17). Phase 4 is runnable from F12; F11's live deploy waits on homelab's `c4i` Docker stage
-(homelab Phase 3).
+(homelab Phase 3). Phase 5 (self-service registration: F18, then F19) is queued after Phase 4.
 
 <!-- Two or three sentences at most: what is runnable today, what is gated and on what.
 Shipped work is git's record (`gh pr list --state merged`), not this file's. -->
@@ -71,7 +71,7 @@ on each route's intake channel, plus F5's GitHub App (README § Discord setup an
 
 > Written only by `/new-feature`; `/run-feature` removes a line at fold-back.
 
-**Next F-ID:** `F18`
+**Next F-ID:** `F20`
 
 - [ ] **F11** (added 2026-10-28): Phase 4: deploy on `c4i` (the Pi 4) as a container with automatic restart, a memory limit, a health check and readable logs, deployed by one documented command over `ssh c4i`; folds in the deferred `--clear-commands` follow-up.
 - [ ] **F12** (added 2026-10-28): Phase 4: a report is never filed twice.
@@ -79,6 +79,8 @@ on each route's intake channel, plus F5's GitHub App (README § Discord setup an
 - [ ] **F14** (added 2026-10-28): Phase 4 quality of life: a help command.
 - [ ] **F15** (added 2026-10-28): Phase 4 quality of life: duplicate-issue hints.
 - [ ] **F16** (added 2026-10-28): Phase 4 quality of life: more issue types, declared in the route file rather than in code.
+- [ ] **F18** (added 2026-11-17): Add a `/register` command to the Discord bot that pulls up a modal and prompts the user for a github repo link. We will need to reconfigure the way an app ID is stored and recalled (currently in `.env`). If the repo is already linked, relay that to the user. If not, register it and check if the GitHub App is installed for that repo. If not, prompt the user to navigate GitHub to install it.
+- [ ] **F19** (added 2026-11-17): Create a configurability to the bot, allowing the user to have a bot instance listen to all Discord channels and map to any number of GitHub repos. Rather than carry hardcoded values in the `.env`, the bot could be invoked in any channel within the Discord guild/server. The issue/feature modal will have a drop-down that corresponds with the registered repos.
 
 ---
 
@@ -92,6 +94,8 @@ on each route's intake channel, plus F5's GitHub App (README § Discord setup an
 | 4 | **F14** — Help command | S | couples: F16 | 4 |
 | 5 | **F15** — Duplicate-issue hints in the preview | M | soft: F13; couples: F17 | 4 |
 | 6 | **F16** — Issue types from the route file | L | soft: F6, F17; couples: F4, F8 | 4 |
+| 7 | **F18** — Repo registry and `/register` | XL | couples: F11, F16 | 5 |
+| 8 | **F19** — Any-channel intake with a repo dropdown | L | F18; couples: F14, F16 | 5 |
 
 <!-- *Depends on* holds dependency edges in the grammar of
 /home/rmila/Code/_STRONGHOLD/plans/roadmap.md §3.1 *Dependency edges and `NEXT.md`*, which is
@@ -115,7 +119,8 @@ gate), unsplit like `cond:`; any other text not in the grammar is reported, neve
 superseded row (Feature cell struck through with `~~`, *Depends on* starting `**superseded`)
 holds its supersession note, not edges; readers skip it. -->
 
-**Effort tally (remaining).** 13 pts (S=1 / M=2 / L=3 / XL=5): Phase 4 13 (F11–F16).
+**Effort tally (remaining).** 21 pts (S=1 / M=2 / L=3 / XL=5): Phase 4 13 (F11–F16), Phase 5 8
+(F18, F19).
 
 ---
 
@@ -132,10 +137,12 @@ holds its supersession note, not edges; readers skip it. -->
 | **F14 — Help command** | pending | `feature/help-command` | — |
 | **F15 — Duplicate-issue hints** | pending | `feature/duplicate-hints` | — |
 | **F16 — Issue types from the route file** | pending | `feature/route-issue-types` | — |
+| **F18 — Repo registry and `/register`** | pending | `feature/repo-registry` | — |
+| **F19 — Any-channel intake with a repo dropdown** | pending | `feature/any-channel-intake` | — |
 
 ---
 
-## Baseline: the codebase as it exists today (`main` at PR #26, `efb3935`)
+## Baseline: the codebase as it exists today (`main` at PR #27, `ba17bec`; code as of PR #26)
 
 > The Assumed starting state for every remaining feature unless its section says
 > otherwise. Describe what *is*, never what changed.
@@ -431,7 +438,7 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F5 — File the issue in 4IRL/chores4irl · merged (#9)
 
-*Kept because F12, F13 and F15 build on it.*
+*Kept because F12, F13 and F15 build on it, and F18 replaces its single-installation auth.*
 - `issue_bot/issues.py` is the only place an issue body and its labels are formatted
   (`render_body`, which `issue_body` and the preview share; `issue_labels`); later features
   extend it rather than formatting a second body.
@@ -475,7 +482,8 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F8 — Multi-target routes and multi-instance deployment · merged (#17)
 
-*Kept because F16 adds route keys, and F11 and F14 must keep commands route-agnostic.*
+*Kept because F16 adds route keys, F11 and F14 must keep commands route-agnostic, and F19
+retires its channel-keyed lookup and shared-token multi-instance mode.*
 - A route is a `TargetConfig` whose first field is `name`, its `[routes.<name>]` table name.
   Per-route settings are keys under `[routes.<name>]`, added by extending `ROUTE_KEYS` and
   `load_routes` (as F3's `questions` and F6's `project` did), never a second config file or
@@ -494,8 +502,9 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F6 — Add the issue to the roadmap Project · merged (#24)
 
-*Kept because F12 and F13 must cover its Project writes (F17's Track write included), and F16
-adds route keys beside its `project` table.*
+*Kept because F12 and F13 must cover its Project writes (F17's Track write included), F16
+adds route keys beside its `project` table, and F18's token minting must keep its
+`organization_projects` scope rule.*
 - A route's Project is its optional `[routes.<name>.project]` table → `TargetConfig.project`
   (`ProjectConfig(number, status_field, status, effort_field, track_field=None,
   track_defaults=())`): names, never ids; the owner is
@@ -516,8 +525,9 @@ adds route keys beside its `project` table.*
 
 ## F17 — Track dropdown in the private preview · merged (#26)
 
-*Kept because F12 must cover its Track write, F15 shares the preview with its Track row, and F16
-reshapes the `IssueType` its per-type defaults key on.*
+*Kept because F12 must cover its Track write, F15 shares the preview with its Track row, F16
+reshapes the `IssueType` its per-type defaults key on, and F19 must look Track options up for the
+repo picked in the modal.*
 - The Track row is a `discord.ui.Select` on `PreviewView` row 2, present only when the route's
   project names a `track_field` and the lookup returned options; its pick is `Draft.track`,
   carried across Edit like the band override and into `IssueCandidate.track`. A new preview
@@ -877,6 +887,108 @@ drift test pins them today).
 
 ---
 
+## F18 — Repo registry and `/register` · Phase 5 · Effort XL · (added 2026-11-17)
+
+**Goal.** Any guild member runs `/register`, enters a GitHub repo link in a modal, and the bot
+links that repo to the server: it says so privately if the repo is already linked; otherwise it
+records the repo, looks up the GitHub App's installation for it and, when the App is not
+installed there, replies with the App's install link so the member can install it on GitHub
+and register again. Feature-list line F18.
+
+**Rank rationale.** First of Phase 5 (self-service registration), queued after Phase 4's
+hardening by the owner's choice (2026-11-17). F19's any-channel intake needs its registry.
+
+**Dependencies.** couples: F11, F16. F11's deploy must mount a writable state volume for the
+registry. F16 reshapes the route file, which F18 makes optional per-repo settings.
+
+**Sizing.** unscored (intake estimate XL); split check pending.
+
+**Assumed starting state** = **Baseline**. Verify:
+- `GitHubClient(app_id, installation_id, private_key)` mints every token from the one
+  `GITHUB_APP_INSTALLATION_ID`; `load_routes` requires each route's owner to equal `GITHUB_ORG`.
+- The bot keeps no state on disk today.
+
+**Expected end state** (repo-checkable):
+- Decided at intake (dd-261117-009, -010, -011): `GITHUB_APP_ID` and the private key path stay
+  in the environment (they identify the App). `GITHUB_APP_INSTALLATION_ID` and `GITHUB_ORG` leave
+  it: the installation id is looked up per repo (`GET /repos/{owner}/{repo}/installation` with the
+  App JWT) and stored in a bot-written registry (e.g. SQLite) on a mounted, writable volume
+  whose path is config. Any owner (user or org) that installed the App is accepted; the ROADMAP's
+  Out of scope was amended to match. Any member may run `/register`, and a member may file into
+  a registered repo they cannot access on GitHub themselves (accepted).
+- `/register` opens a modal with one repo-link field; the link is parsed and normalized to
+  `owner/name` (bad links get a private error). The reply is private and is one of: already
+  linked; registered and the App is installed; registered and the App is not installed (with the
+  App's public install URL, re-checked on the next `/register` of that repo or at filing).
+- `GitHubClient` mints installation tokens per installation id taken from the registry entry,
+  still scoped to the one repo id (plus `organization_projects` on a Project repo).
+- The route file becomes optional per-repo settings (questions, labels, Project) keyed by repo;
+  a registered repo with no entry uses documented default questions and labels. README gets an
+  *Upgrading* section for existing `.env` and route files.
+- Logs carry the repo id and installation id, never the member's link text beyond the
+  normalized `owner/name` (Standing invariant 2 decision at planning).
+- All suites green; Standing invariants untouched, except invariant 3, which planning amends
+  for the keys that leave the environment.
+
+**Test-suite deltas.** Link parsing; already-linked, installed and not-installed replies against
+the fake transport; registry persistence across a restart (temp file); per-installation token
+minting.
+
+**Open risks / decisions.** (a) Registry format and location (SQLite vs JSON) and its backup
+(homelab backs nothing up today). (b) Whether to also offer unregistering, and who may.
+(c) Install-URL form (`https://github.com/apps/<slug>/installations/new`), so the App slug may
+become config. (d) Whether an owner's repo name is logged (owner/name is not member text, but it
+came from a member). (e) Least privilege: any member can link any repo where the App is
+installed; the App installation's repo selection is the real boundary.
+
+**Session.** `/run-feature F18` on branch `feature/repo-registry`; plan at
+`plans/feature/repo-registry/repo-registry.md`.
+
+---
+
+## F19 — Any-channel intake with a repo dropdown · Phase 5 · Effort L · (added 2026-11-17)
+
+**Goal.** `/bug` and `/feature` work in any channel of the guild; the modal has a dropdown of the
+registered repos and files into the one picked. One bot instance serves the whole guild.
+Feature-list line F19.
+
+**Rank rationale.** Completes Phase 5; needs F18's registry for the dropdown's options.
+
+**Dependencies.** F18; couples: F14, F16. F14's help and F16's type set are simpler once one
+instance serves every channel (both currently plan around shared-token mode).
+
+**Sizing.** unscored (intake estimate L); split check pending.
+
+**Assumed starting state** = **Baseline** plus F18.
+
+**Expected end state** (repo-checkable):
+- Decided at intake (dd-261117-012): the commands work in every channel. The modal shows a
+  required registered-repo select (`ui.Label`-wrapped, at most 25 options); a channel that still
+  has a route entry pre-selects its repo. `UNROUTED_COMMANDS` and the shared-token
+  multi-instance mode are retired (README *Run several instances* replaced by an *Upgrading*
+  note). F8's channel-keyed `Config.routes` lookup gives way to the registry.
+- The pre-modal `filing_check` moves after the repo is picked (submit), since the repo is unknown
+  until then; the private preview shows the picked repo, and F17's Track options are looked up
+  for that repo.
+- The summary message and thread open in the invoking channel; README lists the channel
+  permissions the bot needs guild-wide.
+- With no registered repo, the command replies privately pointing at `/register`.
+- ROADMAP capabilities 1 and 6 are reworded for any-channel intake at the F19 session.
+- All suites green; Standing invariants untouched.
+
+**Test-suite deltas.** Dropdown options from the registry, pre-selection from a channel route,
+no-repo reply, filing into the picked repo, a modal submit for a repo whose App was uninstalled.
+
+**Open risks / decisions.** (a) More than 25 registered repos (Discord's select limit).
+(b) Channels where the bot cannot post a summary or open a thread (permission errors at
+submit). (c) Edit keeps or re-asks the repo pick, and an Edit that changes the repo invalidates
+the Track pick.
+
+**Session.** `/run-feature F19` on branch `feature/any-channel-intake`; plan at
+`plans/feature/any-channel-intake/any-channel-intake.md`.
+
+---
+
 ## Dependencies & couplings (remaining work)
 
 ```
@@ -887,16 +999,20 @@ Phase 3:    done       (F4 rating #21; F6 roadmap #24; F17 Track #26)
 Phase 4:    filing track:   (soft: F6, F17) ┄► ★ F12 ──► F13 ┄► F15
             deploy track:   homelab#P3 (c4i Docker stage) ──► F11
             QoL track:      F14 ⇄ F16   (couples; F16 soft after F6, F17)
+Phase 5:    registry track: F18 ──► F19   (F18 ⇄ F11, F16; F19 ⇄ F14, F16)
 ```
 
-- **Hard chains:** F12 → F13; homelab#P3 → F11 (external). F1–F10 and F17 have shipped;
+- **Hard chains:** F12 → F13; F18 → F19; homelab#P3 → F11 (external). F1–F10 and F17 have shipped;
   refs to them stay valid, so F12, F14, F15 and F16 have no unmet hard prerequisite.
 - **Soft preferences:** F6 and F17 (both shipped) before F12, F13 and F16, so dedup, retry and the type schema cover the Project
   writes and route keys once. F13 before F15, so the search call is rate-limited.
 - **Couplings to honor:** F16 puts per-route settings under `[routes.<name>]` beside F6's
   `project` table (F8's and F6's kept contracts). F17 ↔ F15: F15 adds to the private preview
   beside F17's Track row (F17's kept contract). F14 ↔ F16: help lists the types F16 makes configurable. F11, F14 and F16 keep the
-  synced command set route-agnostic.
+  synced command set route-agnostic. F18 ↔ F11: the deploy mounts a writable registry volume.
+  F18 ↔ F16: both reshape the route file; whichever lands second rebases its schema. F19 ↔ F14,
+  F16: F19 retires shared-token mode, which F14's open decision (b) and F16's open decision (a)
+  plan around; whichever runs after F19 drops that constraint.
 
 ---
 
