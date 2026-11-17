@@ -179,22 +179,22 @@ honor `Retry-After` and tests never sleep for real.
   that, with a one-line comment saying why. The fake `ClientSession` keeps the test offline.
 - [x] Run `.venv/bin/pytest tests/test_github.py` and then `.venv/bin/pytest`. All must pass.
 
-### 2. Retry loop in `GitHubClient._request` (TDD)
+### 2. Retry loop in `GitHubClient._request` (TDD) - COMPLETE (2026-11-17)
 This step makes `_request` retry rate-limited responses for every stage, and transport errors and
 5xx for idempotent stages, with bounded backoff that honors the headers (DD-3, DD-6, DD-8, DD-10);
 a rate limit with no usable wait fails at once (pass1-DD-3).
 
 **To-do:**
-- [ ] Add module constants in `github.py` beside `REQUEST_TIMEOUT`, with unit comments:
+- [x] Add module constants in `github.py` beside `REQUEST_TIMEOUT`, with unit comments:
   `MAX_ATTEMPTS = 3  # per request, first try included`, `BACKOFF_BASE = 1.0  # seconds`,
   `BACKOFF_CAP = 8.0  # seconds`, `MAX_RETRY_WAIT = 60.0  # seconds; a longer requested wait fails at once (DD-10)`,
   `RETRY_STATUSES = frozenset({500, 502, 503, 504})`.
-- [ ] Extend `GitHubError.__init__(self, stage: str, status: int | None, *, rate_limited: bool = False)`.
+- [x] Extend `GitHubError.__init__(self, stage: str, status: int | None, *, rate_limited: bool = False)`.
   Store `self.rate_limited` and keep the message `f"{stage} request failed status={status}"` (no
   header values, no response text). Add a property
   `transient -> bool: return self.status is None or self.status in RETRY_STATUSES or self.rate_limited`.
   Existing positional constructions (`GitHubError("issue", None)`) keep working.
-- [ ] **Red:** in `tests/test_github.py` add, each with an injected recording `sleep` mock and a
+- [x] **Red:** in `tests/test_github.py` add, each with an injected recording `sleep` mock and a
   fixed `clock`. A client starts with no cached token, so every scripted `side_effect` list
   starts with `token_response()` (the token mint to `TOKEN_URL` is always the first transport
   call) and the scripted responses below follow it. Count requests by URL from
@@ -244,7 +244,7 @@ a rate limit with no usable wait fails at once (pass1-DD-3).
   `test_create_issue_not_resent_after_transport_error`, `test_create_issue_not_resent_after_5xx`
   and `test_retry_errors_keep_no_context`: today's `_request` already behaves as they assert, so
   they pass at Red and must stay green after Green.
-- [ ] **Green:** give `_request` a keyword-only `idempotent: bool = True` and implement the loop:
+- [x] **Green:** give `_request` a keyword-only `idempotent: bool = True` and implement the loop:
   for `attempt` in `1..MAX_ATTEMPTS`, first set `transport_failed = False`, then call the
   transport and unpack `status, data, headers` from its reply. On
   `(aiohttp.ClientError, TimeoutError)` (never bound with `as`) set
@@ -276,16 +276,16 @@ a rate limit with no usable wait fails at once (pass1-DD-3).
   `from None`, as every raise in `github.py` does today, so `__context__` stays None and
   `__suppress_context__` is True (`test_retry_errors_keep_no_context`). Otherwise
   `await self._sleep(wait)` and loop. Never read or format response text.
-- [ ] Pass `idempotent=False` from `GitHubClient.create_issue`'s `_request` call only. The
+- [x] Pass `idempotent=False` from `GitHubClient.create_issue`'s `_request` call only. The
   token mint, `ensure_label`, `find_issue` and every `_graphql` call keep the default `True`.
-- [ ] In `GitHubClient._installation_token`, build `app_jwt(...)` before the request as
+- [x] In `GitHubClient._installation_token`, build `app_jwt(...)` before the request as
   today. With `MAX_ATTEMPTS=3` and `MAX_RETRY_WAIT=60` the worst-case retry window (≈ 2×60 s +
   3×`REQUEST_TIMEOUT`) stays inside `JWT_LIFETIME` 540 s, so no per-attempt rebuild is needed.
   Add a one-line comment saying so.
-- [ ] Update the `GitHubError` docstring to mention `rate_limited` and `transient` (still no
+- [x] Update the `GitHubError` docstring to mention `rate_limited` and `transient` (still no
   response text), and the module docstring's "carry the request stage and HTTP status only" to
   "carry the request stage, HTTP status and a rate-limited flag only".
-- [ ] **Rework the existing single-failure tests.** These existing `tests/test_github.py` tests
+- [x] **Rework the existing single-failure tests.** These existing `tests/test_github.py` tests
   script one 5xx or transport error on an idempotent stage, which the loop now retries: the
   retry either consumes the success scripted for a later call (so nothing raises) or runs out
   of `side_effect` entries (`StopAsyncIteration`, which `_request` does not catch). One rule for
@@ -314,7 +314,7 @@ a rate limit with no usable wait fails at once (pass1-DD-3).
   (`test_check_access_transport_error_raises_status_none`, the `token` cases of
   `test_transport_error_raises_status_none`), and the `ERRORS_RESPONSE` cases (no
   `RATE_LIMITED`). Never loosen the retry to make one of these pass.
-- [ ] **Refactor:** keep `_retry_wait` pure (no `self`, no logging; `github.py` never logs) and
+- [x] **Refactor:** keep `_retry_wait` pure (no `self`, no logging; `github.py` never logs) and
   type-annotated. Run `.venv/bin/pytest tests/test_github.py`, then `.venv/bin/pytest`.
 
 ### 3. GraphQL rate limits surface as rate-limited errors

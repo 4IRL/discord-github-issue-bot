@@ -1,11 +1,12 @@
 """File issues through the GitHub REST and GraphQL APIs, authenticated as a GitHub App.
 
-This module never logs. Its errors carry the request stage and HTTP status only,
-never GitHub's response text, tokens or the App private key; callers log them
-by type, stage and status.
+This module never logs. Its errors carry the request stage, HTTP status and a
+rate-limited flag only, never GitHub's response text, tokens or the App private key;
+callers log them by type, stage and status.
 """
 
 import asyncio
+import math
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
@@ -27,6 +28,11 @@ USER_AGENT = "discord-github-issue-bot"
 TOKEN_REFRESH_MARGIN = 300  # seconds before expires_at
 JWT_LIFETIME = 540  # GitHub rejects exp > 10 minutes ahead
 REQUEST_TIMEOUT = 30  # seconds
+MAX_ATTEMPTS = 3  # per request, first try included
+BACKOFF_BASE = 1.0  # seconds
+BACKOFF_CAP = 8.0  # seconds
+MAX_RETRY_WAIT = 60.0  # seconds; a longer requested wait fails at once (DD-10)
+RETRY_STATUSES = frozenset({500, 502, 503, 504})
 LABEL_COLOR = "c5def5"  # the colour new labels get; any later colour change happens on GitHub
 LOOKUP_PAGE_SIZE = 100  # newest issues and pull requests searched for an earlier filing of the same summary
 
@@ -113,16 +119,73 @@ class ProjectFields:
 
 
 class GitHubError(Exception):
-    """A GitHub request failed; carries the stage and HTTP status only, never response text.
+    """A GitHub request failed; carries the stage, HTTP status and a rate-limited flag only,
+    never response text or header values.
 
     ``stage`` is ``"token"``, ``"label"``, ``"issue"``, ``"lookup"``, ``"project"``,
     ``"project-item"``, ``"project-field"`` or ``"project-track"``; ``status`` is None for a transport failure.
+    ``rate_limited`` is True when GitHub rate-limited the request; ``transient`` is True for a
+    transport failure, a retryable 5xx or a rate limit, so a caller may try again later.
     """
 
-    def __init__(self, stage: str, status: int | None) -> None:
+    def __init__(self, stage: str, status: int | None, *, rate_limited: bool = False) -> None:
         super().__init__(f"{stage} request failed status={status}")
         self.stage = stage
         self.status = status
+        self.rate_limited = rate_limited
+
+    @property
+    def transient(self) -> bool:
+        """True for a transport failure, a retryable 5xx or a rate limit."""
+        return self.status is None or self.status in RETRY_STATUSES or self.rate_limited
+
+
+def _retry_wait(
+    status: int | None,
+    data: Any,
+    headers: Mapping[str, str],
+    attempt: int,
+    now: float,
+    idempotent: bool,
+) -> tuple[float | None, bool]:
+    """Return (seconds to wait before the next attempt, rate limited) for one reply.
+
+    The wait is None when the reply is final. A rate limit waits what ``retry-after`` or
+    ``x-ratelimit-reset`` asks, for every request; with no usable wait it returns ``math.inf``,
+    so the caller fails at once. A transport failure (``status`` None) or retryable 5xx backs
+    off exponentially, only when the request is idempotent. Never reads response text.
+    """
+    graphql_rate_limited = (
+        status == 200
+        and isinstance(data, dict)
+        and isinstance(data.get("errors"), list)
+        and any(
+            isinstance(error, dict) and error.get("type") == "RATE_LIMITED"
+            for error in data["errors"]
+        )
+    )
+    if (
+        status == 429
+        or (
+            status == 403
+            and ("retry-after" in headers or headers.get("x-ratelimit-remaining") == "0")
+        )
+        or graphql_rate_limited
+    ):
+        wait: float | None = None
+        try:
+            wait = float(headers["retry-after"])
+        except (KeyError, ValueError):
+            try:
+                wait = float(headers["x-ratelimit-reset"]) - now
+            except (KeyError, ValueError):
+                pass
+        if wait is None or not wait > 0:
+            return math.inf, True
+        return wait, True
+    if idempotent and (status is None or status in RETRY_STATUSES):
+        return min(BACKOFF_BASE * 2 ** (attempt - 1), BACKOFF_CAP), False
+    return None, False
 
 
 def app_jwt(app_id: int, private_key: RSAPrivateKey, now: float) -> str:
@@ -265,15 +328,39 @@ class GitHubClient:
         headers: Mapping[str, str],
         payload: object,
         method: str = "POST",
+        *,
+        idempotent: bool = True,
     ) -> tuple[int, Any]:
-        try:
-            status, data, _response_headers = await self._transport(method, url, headers, payload)
-            return status, data
-        except (aiohttp.ClientError, TimeoutError):
-            pass
-        # Raised outside the handler so __context__ is None: the transport error's
-        # traceback frames hold the request headers, including the bearer token.
-        raise GitHubError(stage, None) from None
+        """Send one request, retrying rate limits, and transport errors and 5xx when idempotent.
+
+        Return the final (status, data) for the caller to check, or raise GitHubError when a
+        transport error or retryable reply outlasts ``MAX_ATTEMPTS`` or asks for a wait over
+        ``MAX_RETRY_WAIT``. A non-idempotent request (``create_issue``) is never re-sent after a
+        transport error or 5xx, since it may have landed.
+        """
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            transport_failed = False
+            try:
+                status, data, response_headers = await self._transport(
+                    method, url, headers, payload
+                )
+            except (aiohttp.ClientError, TimeoutError):
+                status, data, response_headers = None, None, {}
+                transport_failed = True
+            wait, rate_limited = _retry_wait(
+                status, data, response_headers, attempt, self._clock(), idempotent
+            )
+            # Every raise sits outside the handler so __context__ is None: the transport
+            # error's traceback frames hold the request headers, including the bearer token.
+            if wait is None:
+                if transport_failed:
+                    raise GitHubError(stage, None) from None
+                assert status is not None  # only a transport failure leaves it None
+                return status, data
+            if wait > MAX_RETRY_WAIT or attempt == MAX_ATTEMPTS:
+                raise GitHubError(stage, status, rate_limited=rate_limited) from None
+            await self._sleep(wait)
+        raise AssertionError("unreachable: the last attempt returns or raises")
 
     @staticmethod
     def _token_key(target: TargetConfig) -> tuple[int, bool]:
@@ -288,6 +375,8 @@ class GitHubClient:
         # Least privilege: only a route with a Project asks for the Projects permission.
         if target.project is not None:
             permissions["organization_projects"] = "write"
+        # One JWT for every attempt: the worst-case retry window (about 2 x MAX_RETRY_WAIT plus
+        # 3 x REQUEST_TIMEOUT) stays inside JWT_LIFETIME, so no per-attempt rebuild is needed.
         status, data = await self._request(
             "token",
             f"{API_URL}/app/installations/{self._installation_id}/access_tokens",
@@ -337,6 +426,7 @@ class GitHubClient:
             f"{API_URL}/repos/{target.github_repo}/issues",
             self._headers(token),
             {"title": title, "body": body, "labels": labels},
+            idempotent=False,
         )
         if status == 401:
             # Never a keyed del: a concurrent filing may already have dropped it.

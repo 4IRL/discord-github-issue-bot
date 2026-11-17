@@ -2,7 +2,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from datetime import datetime
 from typing import Any, Self
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, call
 
 import aiohttp
 import jwt
@@ -12,7 +12,10 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from issue_bot.complexity import Complexity
 from issue_bot.config import Config, TargetConfig
 from issue_bot.github import (
+    BACKOFF_BASE,
+    BACKOFF_CAP,
     LABEL_COLOR,
+    MAX_ATTEMPTS,
     PROJECT_FIELDS_QUERY,
     SET_TRACK_MUTATION,
     FiledIssue,
@@ -123,7 +126,7 @@ async def test_token_reused_until_near_expiry(
     await create(client, route)
 
     assert transport.await_count == 3
-    assert [call.args[1] for call in transport.call_args_list] == [
+    assert [recorded.args[1] for recorded in transport.call_args_list] == [
         TOKEN_URL,
         ISSUE_URL,
         ISSUE_URL,
@@ -150,7 +153,7 @@ async def test_two_routes_mint_separate_tokens(
     await create(client, first)
 
     assert transport.await_count == 5
-    assert [call.args[1] for call in transport.call_args_list] == [
+    assert [recorded.args[1] for recorded in transport.call_args_list] == [
         TOKEN_URL,
         ISSUE_URL,
         TOKEN_URL,
@@ -158,7 +161,7 @@ async def test_two_routes_mint_separate_tokens(
         ISSUE_URL,
     ]
     token_payloads = [
-        call.args[3] for call in transport.call_args_list if call.args[1] == TOKEN_URL
+        recorded.args[3] for recorded in transport.call_args_list if recorded.args[1] == TOKEN_URL
     ]
     assert [payload["repository_ids"] for payload in token_payloads] == [[222], [223]]
 
@@ -177,7 +180,7 @@ async def test_token_refreshed_near_expiry(
     await create(client, route)
 
     assert transport.await_count == 4
-    assert [call.args[1] for call in transport.call_args_list] == [
+    assert [recorded.args[1] for recorded in transport.call_args_list] == [
         TOKEN_URL,
         ISSUE_URL,
         TOKEN_URL,
@@ -231,7 +234,7 @@ async def test_issue_request_401_drops_cached_token(
     assert (exc_info.value.stage, exc_info.value.status) == ("issue", 401)
     assert await create(client, route) == FiledIssue(7, HTML_URL, "I_node7")
 
-    assert [call.args[1] for call in transport.call_args_list] == [
+    assert [recorded.args[1] for recorded in transport.call_args_list] == [
         TOKEN_URL,
         ISSUE_URL,
         TOKEN_URL,
@@ -249,7 +252,7 @@ async def test_issue_request_404_keeps_cached_token(
         await create(client, route)
     assert await create(client, route) == FiledIssue(7, HTML_URL, "I_node7")
 
-    assert [call.args[1] for call in transport.call_args_list] == [
+    assert [recorded.args[1] for recorded in transport.call_args_list] == [
         TOKEN_URL,
         ISSUE_URL,
         ISSUE_URL,
@@ -453,7 +456,7 @@ async def test_plain_and_project_route_mint_separate_tokens(
     await client.check_access(project_route)
 
     assert transport.await_count == 2
-    assert [call.args[3] for call in transport.call_args_list] == [
+    assert [recorded.args[3] for recorded in transport.call_args_list] == [
         {"repository_ids": [222], "permissions": {"issues": "write"}},
         PROJECT_TOKEN_PAYLOAD,
     ]
@@ -482,7 +485,7 @@ async def test_issue_401_on_project_route_drops_only_its_token(
     await create(client, route)
     await create(client, project_route)
 
-    assert [call.args[1] for call in transport.call_args_list] == [
+    assert [recorded.args[1] for recorded in transport.call_args_list] == [
         TOKEN_URL,
         TOKEN_URL,
         ISSUE_URL,
@@ -585,7 +588,7 @@ async def test_ensure_label_is_cached_per_repo(
     await client.ensure_label(second, "complexity:S")
 
     assert transport.await_count == 4
-    assert [call.args[1] for call in transport.call_args_list] == [
+    assert [recorded.args[1] for recorded in transport.call_args_list] == [
         TOKEN_URL,
         LABEL_URL,
         TOKEN_URL,
@@ -606,7 +609,7 @@ async def test_ensure_label_401_drops_cached_token(
     assert (exc_info.value.stage, exc_info.value.status) == ("label", 401)
     await client.ensure_label(route, "complexity:M")
 
-    assert [call.args[1] for call in transport.call_args_list] == [
+    assert [recorded.args[1] for recorded in transport.call_args_list] == [
         TOKEN_URL,
         LABEL_URL,
         TOKEN_URL,
@@ -637,7 +640,7 @@ async def test_ensure_label_401_on_project_route_drops_only_its_token(
     await client.ensure_label(route, "complexity:M")
     await client.ensure_label(project_route, "complexity:L")
 
-    assert [call.args[1] for call in transport.call_args_list] == [
+    assert [recorded.args[1] for recorded in transport.call_args_list] == [
         TOKEN_URL,
         TOKEN_URL,
         LABEL_URL,
@@ -652,7 +655,9 @@ async def test_ensure_label_500_raises_and_is_not_cached(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     error_body = {"message": "Secret error words"}
-    transport = AsyncMock(side_effect=[token_response(), (500, error_body, {}), (201, {}, {})])
+    transport = AsyncMock(
+        side_effect=[token_response(), *[(500, error_body, {})] * MAX_ATTEMPTS, (201, {}, {})]
+    )
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
@@ -664,18 +669,16 @@ async def test_ensure_label_500_raises_and_is_not_cached(
     assert "Secret error words" not in str(exc)
 
     await client.ensure_label(route, "complexity:M")
-    assert [call.args[1] for call in transport.call_args_list] == [
-        TOKEN_URL,
-        LABEL_URL,
-        LABEL_URL,
-    ]
+    assert [recorded.args[1] for recorded in transport.call_args_list] == [
+        TOKEN_URL
+    ] + [LABEL_URL] * (MAX_ATTEMPTS + 1)
 
 
 async def test_ensure_label_transport_error_raises_status_none(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     error = aiohttp.ClientConnectionError("Secret error words")
-    transport = AsyncMock(side_effect=[token_response(), error, (201, {}, {})])
+    transport = AsyncMock(side_effect=[token_response(), *[error] * MAX_ATTEMPTS, (201, {}, {})])
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
@@ -686,7 +689,7 @@ async def test_ensure_label_transport_error_raises_status_none(
     assert "Secret error words" not in str(exc)
 
     await client.ensure_label(route, "complexity:M")
-    assert transport.await_count == 3
+    assert transport.await_count == MAX_ATTEMPTS + 2
 
 
 def body_is_yes(body: str) -> bool:
@@ -753,7 +756,7 @@ async def test_find_issue_non_200_raises_lookup_error(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     error_body = {"message": "Secret error words"}
-    transport = AsyncMock(side_effect=[token_response(), (500, error_body, {})])
+    transport = AsyncMock(side_effect=[token_response(), *[(500, error_body, {})] * MAX_ATTEMPTS])
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
@@ -777,7 +780,7 @@ async def test_find_issue_401_drops_token(
     assert (exc_info.value.stage, exc_info.value.status) == ("lookup", 401)
     assert await client.find_issue(route, body_is_yes) is None
 
-    assert [call.args[1] for call in transport.call_args_list] == [
+    assert [recorded.args[1] for recorded in transport.call_args_list] == [
         TOKEN_URL,
         LOOKUP_URL,
         TOKEN_URL,
@@ -822,7 +825,7 @@ async def test_find_issue_transport_error_raises_lookup(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     error = aiohttp.ClientError("Secret error words")
-    transport = AsyncMock(side_effect=[token_response(), error])
+    transport = AsyncMock(side_effect=[token_response(), *[error] * MAX_ATTEMPTS])
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
@@ -1013,7 +1016,9 @@ async def test_project_fields_bad_response_raises(
 async def test_project_fields_non_200_raises(
     github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
 ) -> None:
-    transport = AsyncMock(side_effect=[token_response(), (502, {"message": "Secret detail"}, {})])
+    transport = AsyncMock(
+        side_effect=[token_response(), *[(502, {"message": "Secret detail"}, {})] * MAX_ATTEMPTS]
+    )
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
@@ -1037,7 +1042,7 @@ async def test_project_fields_401_drops_token(
     assert (exc_info.value.stage, exc_info.value.status) == ("project", 401)
 
     assert await client.project_fields(project_route) == PROJECT_FIELDS
-    assert [call.args[1] for call in transport.call_args_list] == [
+    assert [recorded.args[1] for recorded in transport.call_args_list] == [
         TOKEN_URL,
         GRAPHQL_URL,
         TOKEN_URL,
@@ -1059,8 +1064,8 @@ async def test_add_to_project_adds_and_sets_fields(
     token_call, lookup_call, add_call, set_call = transport.call_args_list
     assert token_call.args[3] == PROJECT_TOKEN_PAYLOAD
     assert lookup_call.args[3]["query"] == PROJECT_FIELDS_QUERY
-    for call in (lookup_call, add_call, set_call):
-        method, url, headers, _payload = call.args
+    for recorded in (lookup_call, add_call, set_call):
+        method, url, headers, _payload = recorded.args
         assert (method, url) == ("POST", GRAPHQL_URL)
         assert headers["Authorization"] == "Bearer ghs_secret_token"
     add_payload = add_call.args[3]
@@ -1147,8 +1152,11 @@ async def test_add_to_project_transport_error_raises_status_none(
     stage: str,
 ) -> None:
     responses: list[Any] = [token_response(), project_response(), add_response(), set_response()]
-    responses[failing_call] = aiohttp.ClientConnectionError("Secret error words")
-    client = make_client(github_private_key, AsyncMock(side_effect=responses[: failing_call + 1]))
+    error = aiohttp.ClientConnectionError("Secret error words")
+    client = make_client(
+        github_private_key,
+        AsyncMock(side_effect=responses[:failing_call] + [error] * MAX_ATTEMPTS),
+    )
 
     with pytest.raises(GitHubError) as exc_info:
         await client.add_to_project(project_route, ISSUE, Complexity.M)
@@ -1419,7 +1427,7 @@ async def test_set_track_without_option_raises_before_request(
     assert exc.__cause__ is None
     assert transport.await_count == 2
     assert all(
-        call.args[3].get("query") != SET_TRACK_MUTATION for call in transport.call_args_list
+        recorded.args[3].get("query") != SET_TRACK_MUTATION for recorded in transport.call_args_list
     )
     # The cached ids were dropped: the next lookup requests again.
     await client.track_options(track_route)
@@ -1444,11 +1452,13 @@ async def test_set_track_failure_raises_and_drops_cached_ids(
     response: Any,
     status: int | None,
 ) -> None:
+    # Only the transport case is retried inside _request.
+    repeats = MAX_ATTEMPTS if status is None else 1
     transport = AsyncMock(
         side_effect=[
             token_response(),
             track_project_response(),
-            response,
+            *[response] * repeats,
             track_project_response(),
             set_track_response(),
         ]
@@ -1468,6 +1478,245 @@ async def test_set_track_failure_raises_and_drops_cached_ids(
 
     await client.set_track(track_route, "PVTI_1", "A · Bugs")
     calls = transport.call_args_list
-    assert len(calls) == 5
-    assert calls[3].args[3]["query"] == PROJECT_FIELDS_QUERY
-    assert calls[4].args[3]["query"] == SET_TRACK_MUTATION
+    assert len(calls) == 4 + repeats
+    assert calls[-2].args[3]["query"] == PROJECT_FIELDS_QUERY
+    assert calls[-1].args[3]["query"] == SET_TRACK_MUTATION
+
+
+def urls(transport: AsyncMock) -> list[str]:
+    """The URL of every transport call, the token mint included."""
+    return [c.args[1] for c in transport.call_args_list]
+
+
+async def test_request_retries_5xx_then_succeeds(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), (502, None, {}), (200, [], {})])
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    assert await client.find_issue(route, body_is_yes) is None
+
+    assert urls(transport) == [TOKEN_URL, LOOKUP_URL, LOOKUP_URL]
+    assert sleep.await_args_list == [call(BACKOFF_BASE)]
+
+
+async def test_request_retries_transport_error_for_idempotent_stage(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    error = aiohttp.ClientConnectionError("Secret error words")
+    transport = AsyncMock(side_effect=[token_response(), error, (201, {}, {})])
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    await client.ensure_label(route, "complexity:M")
+
+    assert urls(transport) == [TOKEN_URL, LABEL_URL, LABEL_URL]
+    assert sleep.await_args_list == [call(BACKOFF_BASE)]
+
+
+async def test_request_gives_up_after_max_attempts(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), *[(503, None, {})] * MAX_ATTEMPTS])
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.find_issue(route, body_is_yes)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status, exc.rate_limited) == ("lookup", 503, False)
+    assert exc.transient is True
+    assert urls(transport) == [TOKEN_URL] + [LOOKUP_URL] * MAX_ATTEMPTS
+    assert sleep.await_args_list == [
+        call(min(BACKOFF_BASE, BACKOFF_CAP)),
+        call(min(2 * BACKOFF_BASE, BACKOFF_CAP)),
+    ]
+
+
+async def test_request_honors_retry_after(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[token_response(), (429, None, {"retry-after": "7"}), (200, [], {})]
+    )
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    assert await client.find_issue(route, body_is_yes) is None
+
+    assert urls(transport) == [TOKEN_URL, LOOKUP_URL, LOOKUP_URL]
+    assert sleep.await_args_list == [call(7.0)]
+
+
+async def test_request_honors_ratelimit_reset(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    def clock() -> float:
+        return 1_000_000.0
+
+    headers = {"x-ratelimit-remaining": "0", "x-ratelimit-reset": str(int(clock()) + 12)}
+    transport = AsyncMock(side_effect=[token_response(), (403, None, headers), (200, [], {})])
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, clock=clock, sleep=sleep)
+
+    assert await client.find_issue(route, body_is_yes) is None
+
+    assert urls(transport) == [TOKEN_URL, LOOKUP_URL, LOOKUP_URL]
+    assert sleep.await_args_list == [call(12.0)]
+
+
+@pytest.mark.parametrize(
+    "response",
+    [(429, None, {}), (403, None, {"retry-after": "0"})],
+    ids=["429-no-wait", "403-zero-retry-after"],
+)
+async def test_request_rate_limit_without_wait_fails_at_once(
+    github_private_key: rsa.RSAPrivateKey,
+    route: TargetConfig,
+    response: tuple[int, Any, dict[str, str]],
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), response])
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.find_issue(route, body_is_yes)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status, exc.rate_limited) == ("lookup", response[0], True)
+    assert urls(transport) == [TOKEN_URL, LOOKUP_URL]
+    sleep.assert_not_awaited()
+
+
+async def test_request_rate_limit_over_cap_fails_at_once(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), (429, None, {"retry-after": "3600"})])
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.find_issue(route, body_is_yes)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status, exc.rate_limited) == ("lookup", 429, True)
+    assert urls(transport) == [TOKEN_URL, LOOKUP_URL]
+    sleep.assert_not_awaited()
+
+
+async def test_request_rate_limit_exhausted_raises_rate_limited(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[token_response(), *[(429, None, {"retry-after": "1"})] * MAX_ATTEMPTS]
+    )
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.find_issue(route, body_is_yes)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status, exc.rate_limited) == ("lookup", 429, True)
+    assert exc.transient is True
+    assert urls(transport) == [TOKEN_URL] + [LOOKUP_URL] * MAX_ATTEMPTS
+    assert sleep.await_args_list == [call(1.0)] * (MAX_ATTEMPTS - 1)
+
+
+async def test_plain_403_is_not_retried(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), (403, None, {})])
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.ensure_label(route, "complexity:M")
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status, exc.rate_limited) == ("label", 403, False)
+    assert urls(transport) == [TOKEN_URL, LABEL_URL]
+    sleep.assert_not_awaited()
+
+
+async def test_create_issue_not_resent_after_transport_error(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), TimeoutError()])
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await create(client, route)
+
+    assert (exc_info.value.stage, exc_info.value.status) == ("issue", None)
+    assert urls(transport) == [TOKEN_URL, ISSUE_URL]
+    sleep.assert_not_awaited()
+
+
+async def test_create_issue_not_resent_after_5xx(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), (502, None, {})])
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await create(client, route)
+
+    assert (exc_info.value.stage, exc_info.value.status) == ("issue", 502)
+    assert urls(transport) == [TOKEN_URL, ISSUE_URL]
+    sleep.assert_not_awaited()
+
+
+async def test_create_issue_retried_when_rate_limited(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    transport = AsyncMock(
+        side_effect=[token_response(), (429, None, {"retry-after": "2"}), issue_response()]
+    )
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    assert await create(client, route) == FiledIssue(7, HTML_URL, "I_node7")
+
+    assert urls(transport) == [TOKEN_URL, ISSUE_URL, ISSUE_URL]
+    assert sleep.await_args_list == [call(2.0)]
+
+
+async def test_retry_errors_keep_no_context(
+    github_private_key: rsa.RSAPrivateKey, route: TargetConfig
+) -> None:
+    error = aiohttp.ClientConnectionError("Secret error words")
+    transport = AsyncMock(side_effect=[token_response(), *[error] * MAX_ATTEMPTS])
+    client = make_client(github_private_key, transport)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.find_issue(route, body_is_yes)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status) == ("lookup", None)
+    assert exc.__cause__ is None
+    assert exc.__context__ is None
+    assert exc.__suppress_context__ is True
+    for text in (str(exc), repr(exc)):
+        assert "Secret error words" not in text
+        assert "ghs_secret_token" not in text
+
+
+async def test_graphql_non_list_errors_is_not_rate_limited(
+    github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
+) -> None:
+    transport = AsyncMock(side_effect=[token_response(), (200, {"errors": 5}, {})])
+    sleep = AsyncMock()
+    client = make_client(github_private_key, transport, sleep=sleep)
+
+    with pytest.raises(GitHubError) as exc_info:
+        await client.project_fields(project_route)
+
+    exc = exc_info.value
+    assert (exc.stage, exc.status, exc.rate_limited) == ("project", 200, False)
+    assert urls(transport) == [TOKEN_URL, GRAPHQL_URL]
+    sleep.assert_not_awaited()
