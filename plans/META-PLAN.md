@@ -582,7 +582,7 @@ per-type defaults key on, and F19 must look Track options up for the repo picked
   one report sequential (its re-run finishes before the Retry button is posted, and each button
   files once) and re-files only through `file_candidate`.
 - A failed lookup is a WARNING and filing proceeds on a first attempt (DD-3); a re-filing fails
-  closed (F13 DD-4). The lookup trusts the author line alone (pass2-DD-1, kept by F13 DD-5) and
+  closed (F13 DD-4). The lookup trusts the author line alone (F12 pass2-DD-1, kept by F13 DD-5) and
   sees only the 100 newest issues and PRs.
 - Any new GitHub read is `_request(..., method="GET")` under its own stage; `GitHubError` stays
   the only failure surface.
@@ -755,11 +755,11 @@ per-installation token minting runs through `_request`.*
 - **F13 accepted limits.** Recorded in the plan's *Design decisions* and README *Known limits*:
   the Retry button is in memory (dead after a restart or after a day; run the command again after
   checking the repo); a press whose acknowledgement fails does not re-file (dd-261117-074), and a
-  press after `stop()` gets no reply (pass2-DD-1); a timed-out create that lands after the
+  press after `stop()` gets no reply (F13 pass2-DD-1); a timed-out create that lands after the
   re-filing's lookup (or beyond the 100 newest) can still duplicate; a re-sent Discord post that
   had landed duplicates the outcome post; a Discord transport error from `open_thread` or the
-  summary post still aborts filing before any retry (pass2-DD-4); worst-case retries can outlive
-  the File press's 15-minute followup token (only `SUBMITTED_REPLY` is lost, pass1-DD-4); during
+  summary post still aborts filing before any retry (F13 pass2-DD-4); worst-case retries can outlive
+  the File press's 15-minute followup token (only `SUBMITTED_REPLY` is lost, F13 pass1-DD-4); during
   an outage the startup checks retry before giving up. No live Retry smoke check yet.
 - **Drop the pre-rename `allowWrite` path.** `.claude/settings.json` still lists
   `/home/rmila/Code/c4i-issue-bot`; removing it is an optional owner edit in its own small
