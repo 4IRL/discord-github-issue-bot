@@ -43,22 +43,25 @@ is the backup). Add those rows (prose instructions, followed as written); `PR li
 
 ## Where the work stands
 
-**★FOCUS: `F13` — Retry and rate limits** (runnable; branch `feature/retry-rate-limits`).
+**★FOCUS: `F11` — Deploy on `c4i`** (blocked on homelab#P3; branch `feature/deploy-c4i`).
 
-Phases 1 through 3 are complete on `main`, and Phase 4 has begun: each report is filed at most
-once (F12). Phase 4 is runnable from F13; F11's live deploy waits on homelab's `c4i` Docker
-stage (homelab Phase 3). Phase 5 (self-service registration: F18, then F19) is queued after
-Phase 4.
+Phases 1 through 3 are complete on `main`; in Phase 4, each report is filed at most once (F12)
+and failures are retried, with a Retry button on a filing error (F13). F11's live deploy waits on
+homelab's `c4i` Docker stage (homelab Phase 3); F14, F15 and F16 are runnable now. Phase 5
+(self-service registration: F18, then F19) is queued after Phase 4.
 
 <!-- Two or three sentences at most: what is runnable today, what is gated and on what.
 Shipped work is git's record (`gh pr list --state merged`), not this file's. -->
 
 ### Shortest path to the focus feature
 
-F13 has no unmet prerequisite (its hard dependency F12 and soft dependency F6 have shipped).
+F11 has one unmet prerequisite outside this repo.
 
-1. **Run F13** (`/run-feature F13`, effort L): transient GitHub and Discord failures are retried
-   with backoff, and a persistent one gets a Retry button, re-filing through F12's lookup.
+1. **homelab Phase 3** (homelab#P3): `c4i`'s Docker stage, which places the token and key files
+   F11 mounts. Repo-side F11 work (image, compose file, health signal, `--clear-commands`) can be
+   planned before it lands (ROADMAP *Sequencing rationale*).
+2. **Run F11** (`/run-feature F11`, effort M): the bot runs unattended on `c4i` as a container,
+   deployed by one documented command over `ssh c4i`.
 
 A live run needs the bot invited with the `bot` and `applications.commands` scopes and View
 Channel, Read Message History, Send Messages, Create Public Threads and Send Messages in Threads
@@ -74,7 +77,6 @@ on each route's intake channel, plus F5's GitHub App (README § Discord setup an
 **Next F-ID:** `F20`
 
 - [ ] **F11** (added 2026-10-28): Phase 4: deploy on `c4i` (the Pi 4) as a container with automatic restart, a memory limit, a health check and readable logs, deployed by one documented command over `ssh c4i`; folds in the deferred `--clear-commands` follow-up.
-- [ ] **F13** (added 2026-10-28): Phase 4: GitHub or Discord errors are reported in the thread with a retry, never silently dropped, and rate limits are respected (automatic retry first, then a Retry button).
 - [ ] **F14** (added 2026-10-28): Phase 4 quality of life: a help command.
 - [ ] **F15** (added 2026-10-28): Phase 4 quality of life: duplicate-issue hints.
 - [ ] **F16** (added 2026-10-28): Phase 4 quality of life: more issue types, declared in the route file rather than in code.
@@ -87,13 +89,12 @@ on each route's intake channel, plus F5's GitHub App (README § Discord setup an
 
 | Order | Feature | Effort | Depends on | Phase |
 |---|---|---|---|---|
-| ★ 1 | **F13** — Retry and rate limits (auto, then a Retry button) **[FOCUS]** | L | F12; soft: F6 | 4 |
-| 2 | **F11** — Deploy on `c4i` | M | homelab#P3 (c4i Docker stage) | 4 |
-| 3 | **F14** — Help command | S | couples: F16 | 4 |
-| 4 | **F15** — Duplicate-issue hints in the preview | M | soft: F13; couples: F17 | 4 |
-| 5 | **F16** — Issue types from the route file | L | soft: F6, F17; couples: F4, F8 | 4 |
-| 6 | **F18** — Repo registry and `/register` | XL | couples: F11, F16 | 5 |
-| 7 | **F19** — Any-channel intake with a repo dropdown | L | F18; couples: F14, F16 | 5 |
+| ★ 1 | **F11** — Deploy on `c4i` **[FOCUS]** | M | homelab#P3 (c4i Docker stage) | 4 |
+| 2 | **F14** — Help command | S | couples: F16 | 4 |
+| 3 | **F15** — Duplicate-issue hints in the preview | M | soft: F13; couples: F17 | 4 |
+| 4 | **F16** — Issue types from the route file | L | soft: F6, F17; couples: F4, F8 | 4 |
+| 5 | **F18** — Repo registry and `/register` | XL | couples: F11, F16 | 5 |
+| 6 | **F19** — Any-channel intake with a repo dropdown | L | F18; couples: F14, F16 | 5 |
 
 <!-- *Depends on* holds dependency edges in the grammar of
 /home/rmila/Code/_STRONGHOLD/plans/roadmap.md §3.1 *Dependency edges and `NEXT.md`*, which is
@@ -117,7 +118,7 @@ gate), unsplit like `cond:`; any other text not in the grammar is reported, neve
 superseded row (Feature cell struck through with `~~`, *Depends on* starting `**superseded`)
 holds its supersession note, not edges; readers skip it. -->
 
-**Effort tally (remaining).** 19 pts (S=1 / M=2 / L=3 / XL=5): Phase 4 11 (F11, F13–F16),
+**Effort tally (remaining).** 16 pts (S=1 / M=2 / L=3 / XL=5): Phase 4 8 (F11, F14–F16),
 Phase 5 8 (F18, F19).
 
 ---
@@ -129,8 +130,7 @@ Phase 5 8 (F18, F19).
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F13 — Retry and rate limits** ★FOCUS | in-review | `feature/retry-rate-limits` | [#31](https://github.com/4IRL/discord-github-issue-bot/pull/31) |
-| **F11 — Deploy on `c4i`** | pending | `feature/deploy-c4i` | — |
+| **F11 — Deploy on `c4i`** ★FOCUS | pending | `feature/deploy-c4i` | — |
 | **F14 — Help command** | pending | `feature/help-command` | — |
 | **F15 — Duplicate-issue hints** | pending | `feature/duplicate-hints` | — |
 | **F16 — Issue types from the route file** | pending | `feature/route-issue-types` | — |
@@ -139,7 +139,7 @@ Phase 5 8 (F18, F19).
 
 ---
 
-## Baseline: the codebase as it exists today (`main` at PR #29, `64c67da`; code as of PR #28)
+## Baseline: the codebase as it exists today (`main` at PR #31, `49fc86a`)
 
 > The Assumed starting state for every remaining feature unless its section says
 > otherwise. Describe what *is*, never what changed.
@@ -261,8 +261,8 @@ and every preview its Edits open shares it, so the session files once (F12). `fi
 File press, not a successful filing: a File whose summary post then fails still ends the session.
 The guard is in-process only.
 
-`IntakeModal.on_error` and `PreviewView.on_error` share `_report_error`: type, issue type,
-`modal`/`preview`, interaction id, status and code (`discord_error_fields`), never `exc_info`,
+`IntakeModal.on_error`, `PreviewView.on_error` and `bot.RetryView.on_error` share `report_error`: type, issue type,
+`modal`/`preview`/`retry`, interaction id, status and code (`discord_error_fields`), never `exc_info`,
 and a private `INTAKE_ERROR_REPLY`. Every reply failure is caught and logged.
 
 `issue_bot/bot.py`: `IssueBot(discord.Client)` with the guilds intent only (no message
@@ -299,19 +299,30 @@ Message History, Send Messages, Create Public Threads and Send Messages in Threa
 route's intake channel. Read Message History also covers replying to the summary message. Guild commands persist on Discord after the bot stops; a redeploy re-syncs
 them.
 
-GitHub filing: `issue_bot/github.py` `GitHubClient(app_id, installation_id, private_key)`
-mints an App JWT, then an installation token scoped to the target's repo id with
+GitHub filing: `issue_bot/github.py` `GitHubClient(app_id, installation_id, private_key, *,
+transport=None, clock=time.time, sleep=asyncio.sleep)` mints an App JWT, then an installation token scoped to the target's repo id with
 `issues: write`, plus `organization_projects: write` only when the route has a `project`, cached
 per `(repo id, has project)` until 5 minutes before expiry (dropped on a 401).
 `create_issue(target, title, body, labels)` POSTs to `repos/<target.github_repo>/issues` and
 returns `FiledIssue(number, html_url, node_id)`, or raises `GitHubError(stage, status)` (`stage` is
 `token`, `label`, `issue`, `lookup`, `project`, `project-item`, `project-field` or `project-track`; `status` is None on a
 transport failure, 200 for a GraphQL `errors` body or a lookup mismatch).
+Every request goes through `_request(stage, url, headers, payload, method="POST", *,
+idempotent=True)`; the injectable `Transport` returns `(status, data, headers)` (header keys
+lowercased). It tries up to `MAX_ATTEMPTS` (3): a rate limit (any 429, a 403 with `retry-after` or
+`x-ratelimit-remaining: 0`, or a GraphQL 200 whose `errors` include `RATE_LIMITED`) waits what
+`retry-after` (else `x-ratelimit-reset` minus `clock()`) asks, for every request, and raises at
+once when that wait is unknown, ≤ 0 or over `MAX_RETRY_WAIT` (60 s); a transport error or
+500/502/503/504 backs off `BACKOFF_BASE` (1 s) doubling to `BACKOFF_CAP` (8 s), only when
+`idempotent` (`create_issue` passes `False`, so a POST that may have landed is never re-sent).
+Out of attempts it raises `GitHubError(stage, status, rate_limited=…)`, always `from None`
+outside the except block; `GitHubError.transient` is a status of None, 500/502/503/504 or
+`rate_limited`. Sleeps go through the injected `sleep` (tests never sleep for real).
 `find_issue(target, matches)` GETs the repo's `LOOKUP_PAGE_SIZE` (100) newest issues and PRs
 (`state=all`, newest first) and returns the newest issue (PRs skipped) whose body `matches`, else
 `None`; any failure is `GitHubError` stage `lookup` (`token` when no token can be had; a 401 drops
 the cached token; a matching item with a malformed number, URL or node id is `lookup` with status
-200). `_request(stage, url, headers, payload, method="POST")` carries the method to the transport.
+200).
 `project_fields(target)` (GraphQL `PROJECT_FIELDS_QUERY` on `GRAPHQL_URL`) resolves the
 route's Project node id, Status field and option and Effort field and one option per
 `Complexity` band by name into a frozen `ProjectFields`, plus, when the route names a
@@ -338,11 +349,13 @@ by a zero-width space in labels and answers; it calls `render_body(author_name, 
 which the preview calls with `PREVIEW_LINK` in place of the URL; the author line joins author
 and link with `AUTHOR_LINK_SEPARATOR`), `reports_link(body, link)` (whether the body's first
 line, a trailing `\r` stripped, ends with that separator and link), `issue_labels` (the target's
-label for the type, then `complexity:<band>`) and `file_candidate(github, candidate)`, which first
+label for the type, then `complexity:<band>`) and `file_candidate(github, candidate, *,
+refiling=False)`, which first
 calls `find_issue` with `reports_link` on the candidate's summary URL and returns a match (INFO
 `found existing issue for <type> message_id=… issue=…`) without creating one; a `GitHubError`
 there is a WARNING (`could not look up an existing issue for <type> message_id=…: <exc type>
-stage=… status=…`) and filing goes on. It then calls `ensure_label` and, on a `GitHubError` there,
+stage=… status=…`) and filing goes on, except on a re-filing (`refiling=True`), which re-raises
+it instead of creating (F13 DD-4). It then calls `ensure_label` and, on a `GitHubError` there,
 logs a WARNING (`could not create complexity label for <type> message_id=…: <exc type> stage=…
 status=…`) and files with the type label only. `place_on_roadmap(github, candidate, issue)` returns `None` for a route with no
 project, else awaits `add_to_project` and, when `candidate.track` is set, `set_track` with the
@@ -350,19 +363,32 @@ returned item id, and returns `True` (INFO `added <type> message_id=… to the r
 or, on any exception, `False` with a WARNING (`could not add <type> message_id=… to the roadmap
 issue=…: <exc type> stage=… status=…`, type only for a non-`GitHubError`, ending with
 `track='<option>'` when the candidate carries a pick). issues.py's log lines carry no member or response text. `bot.filing_hook(github)` is the
-production `on_candidate`: it opens the issue's thread, files the issue even if no thread
-opened, and on success logs `filed … issue=<html_url>`, runs `place_on_roadmap` and then posts
-`filed_reply(…, roadmap)`; a roadmap failure never undoes or blocks filing. On a
-`GitHubError` it logs type, stage and status and posts the fixed `threads.FILING_ERROR_REPLY`
-(which says to run the command again). Both posts go through `bot._post_outcome(message,
-thread, text, what)`: in the thread, or as a reply to the summary message when no thread
-opened, always with `AllowedMentions.none()` and `suppress_embeds=True`. A
-`discord.HTTPException` on that post is logged as `could not send <issue link|filing error> …`
-by type, status, code and ids. Any other exception reaches `PreviewView.on_error`. `issue_bot/__main__.py` builds the client, wires `filing_hook` and
+production `on_candidate` (`filing_hook(github, *, sleep=asyncio.sleep)`): it opens the issue's
+thread, files the issue even if no thread opened, and on success logs `filed … issue=<html_url>`,
+runs `place_on_roadmap` and then posts `filed_reply(…, roadmap)`; a roadmap failure never undoes
+or blocks filing. A transient `GitHubError` (`transient`, rate limits included) logs WARNING
+`retrying filing <type> message_id=… after <exc type> stage=… status=…` and, after
+`FILING_RETRY_DELAY` (2 s), re-runs `file_candidate` once as a re-filing (`FILING_ATTEMPTS` 2).
+A final `GitHubError` logs type, stage and status and posts the fixed
+`threads.FILING_ERROR_REPLY` ("Press **Retry** to try again; if the button no longer works, check
+the repo before running the command again.") with a `RetryView`: an in-memory view
+(`RETRY_TIMEOUT` one day, no `custom_id`, dead after a restart) with one **Retry** button that any
+member may press once. The press sets `pressed` and `stop()`s before any `await`, acks with
+`edit_message(content=RETRYING_REPLY, view=None)` ("Retrying…") and re-runs filing as a
+re-filing; a failed re-filing posts a new error with a new view. A press dispatched while one runs
+gets the private `RETRY_ALREADY_REPLY`; a press after `stop()` gets no reply. `on_timeout` removes
+the button from the stored message. A roadmap failure gets no button. Every outcome post goes
+through `bot._post_outcome(message, thread, text, what, *, view=None, sleep=…)`: in the thread,
+or as a reply to the summary message when no thread opened, always with
+`AllowedMentions.none()` and `suppress_embeds=True`; it retries `discord.DiscordServerError`,
+`aiohttp.ClientError` and `TimeoutError` up to `POST_ATTEMPTS` (3) with `POST_BACKOFF` (1 s)
+doubling, returns the sent message (or `None`), and logs a final failure as `could not send
+<issue link|filing error> …` by type, status, code and ids. Any other exception reaches
+`PreviewView.on_error`. `issue_bot/__main__.py` builds the client, wires `filing_hook` and
 `filing_check=github.check_access`, `project_check=github.project_fields` and
 `track_lookup=github.track_options`, and runs at INFO with `log_handler=None` (discord loggers never at DEBUG).
 
-**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 531 tests across
+**Tests & CI.** `.venv/bin/pytest` from the repo root (`pyproject.toml`): 573 tests across
 `tests/test_{handler,config,bot,intake,threads,github,issues,complexity,smoke}.py`
 (`test_complexity.py` also pins `docs/COMPLEXITY.md`'s thresholds and starting bands), with Discord
 interactions and the GitHub transport fully mocked (`make_interaction`, `make_candidate`,
@@ -389,8 +415,8 @@ table) and the revert. The `4irl-issue-bot` App has that permission (F6, 2026-10
 run of F10 passed before PR #13 merged (2026-10-21). The owner confirmed F7 works on its branch
 before PR #15 merged (2026-10-21), F8 before PR #17 merged (2026-10-25), F3 before PR #19
 merged (2026-10-26), F4 before PR #21 merged (2026-10-28), F6 before PR #24 merged
-(2026-10-29), and F17 before PR #26 merged (2026-10-29; mocked tests only, no live Track check,
-by the owner's choice). Before PR #9 merged, the owner's
+(2026-10-29), F17 before PR #26 merged (2026-10-29; mocked tests only, no live Track check,
+by the owner's choice) and F13 before PR #31 merged (2026-11-17). Before PR #9 merged, the owner's
 run filed issues #1 and #2 in a private scratch repo, torn down on 2026-10-18 (recorded in PR
 #9's description).
 Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
@@ -406,9 +432,9 @@ Not deployed anywhere yet; the target host is `c4i`, the Pi 4 (ROADMAP Phase 4).
    payloads are member text too. Logs carry the type, ids (guild, channel, message, thread,
    interaction) and message URL only. A caught Discord API error is logged by exception type,
    HTTP status and Discord error code, never its text (F2, PR #7). `on_error` logs the exception
-   type and event name only; the command, modal and preview-view error handlers log type,
+   type and event name only; the command, modal, preview-view and Retry-view error handlers log type,
    command, modal or view name, interaction id, status and code, never `exc_info` or an
-   interaction's repr (F10, PR #13; preview view F3, PR #19; CLAUDE.md rule). A GitHub API error is logged by exception type, request stage and
+   interaction's repr (F10, PR #13; preview view F3, PR #19; Retry view F13, PR #31; CLAUDE.md rule). A GitHub API error is logged by exception type, request stage and
    HTTP status, never its response text; tokens, JWTs and the App private key are never logged
    (F5, PR #9). The filed issue's URL may be logged, and a failed roadmap step's WARNING may
    name the reporter's Track pick as `track='<option>'` (a Project option name, not member text;
@@ -444,7 +470,7 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F1 — Channel listener and tag parsing · merged (#2)
 
-*Kept because F13 builds on it.*
+*Kept because F19 files into the picked repo through it.*
 - `IssueBot(config, on_candidate=...)`: the `on_candidate(message, candidate)` hook is the
   single seam for candidates; F5's `filing_hook`, with F7's link post, plugs in there.
   Don't add a second candidate dispatch path. F3's File button feeds it (`_post_and_file`) with
@@ -454,7 +480,7 @@ Parallel features: `/worktree <F-ID>...`.
 
 ## F5 — File the issue in 4IRL/chores4irl · merged (#9)
 
-*Kept because F13 and F15 build on it, and F18 replaces its single-installation auth.*
+*Kept because F15 builds on it, and F18 replaces its single-installation auth.*
 - `issue_bot/issues.py` is the only place an issue body and its labels are formatted
   (`render_body`, which `issue_body` and the preview share; `issue_labels`); later features
   extend it rather than formatting a second body.
@@ -465,7 +491,8 @@ Parallel features: `/worktree <F-ID>...`.
   there (a WARNING, then filing with the type label only) and never reaches `filing_hook`.
 - `filing_hook(github)` is the one production `on_candidate`: it opens the thread first and
   files even when no thread opened. It runs only after the preview's File press; F6's roadmap
-  placement (`place_on_roadmap`) runs after filing, inside this hook.
+  placement (`place_on_roadmap`) runs after filing, inside this hook, and F13's re-filing and
+  Retry button re-enter it.
 - Auth is one GitHub App installation (instance-wide `GITHUB_APP_*` config); each token is
   scoped to one route's repo id with `issues: write` (plus F6's `organization_projects: write`
   on a Project route) and cached per `(repo id, has project)`. Every route's repo joins that one
@@ -482,19 +509,6 @@ Parallel features: `/worktree <F-ID>...`.
   `GitHubClient.ensure_label`; a failed label create is non-fatal.
 - The thread's link message shows the band and F6's roadmap line
   (`filed_reply(issue, title, complexity, roadmap)`), posted via `_post_outcome`.
-
-## F7 — Post the issue link in the thread · merged (#15)
-
-*Kept because F13 builds on it.*
-- `bot._post_outcome(message, thread, text, what)` is the one path that posts a filing
-  outcome: in the thread, else as a reply to the summary message, always with
-  `AllowedMentions.none()` and `suppress_embeds=True`, logging a Discord failure by type,
-  status, code and ids. Any new outcome message reuses it rather than adding a second send path
-  (F6's roadmap result is a line of the link message, not a second post). The private preview is not an outcome: it is the interaction's own
-  ephemeral response (`followup.send`, `edit_message`, `edit_original_response`).
-- The link message is `threads.filed_reply(issue, title, complexity, roadmap)` (F4 added the band, F6 the roadmap line), built from the route's own
-  `FiledIssue.html_url`. It is posted after the
-  `filed … issue=<url>` log line, so a failed post never hides the issue URL.
 
 ## F8 — Multi-target routes and multi-instance deployment · merged (#17)
 
@@ -518,9 +532,8 @@ retires its channel-keyed lookup and shared-token multi-instance mode.*
 
 ## F6 — Add the issue to the roadmap Project · merged (#24)
 
-*Kept because F13 must cover its Project writes (F17's Track write included), F16
-adds route keys beside its `project` table, and F18's token minting must keep its
-`organization_projects` scope rule.*
+*Kept because F16 adds route keys beside its `project` table, and F18's token minting must keep
+its `organization_projects` scope rule.*
 - A route's Project is its optional `[routes.<name>.project]` table → `TargetConfig.project`
   (`ProjectConfig(number, status_field, status, effort_field, track_field=None,
   track_defaults=())`): names, never ids; the owner is
@@ -541,9 +554,8 @@ adds route keys beside its `project` table, and F18's token minting must keep it
 
 ## F17 — Track dropdown in the private preview · merged (#26)
 
-*Kept because F13 must cover its Track write, F15 shares the preview with its Track row, F16
-reshapes the `IssueType` its per-type defaults key on, and F19 must look Track options up for the
-repo picked in the modal.*
+*Kept because F15 shares the preview with its Track row, F16 reshapes the `IssueType` its
+per-type defaults key on, and F19 must look Track options up for the repo picked in the modal.*
 - The Track row is a `discord.ui.Select` on `PreviewView` row 2, present only when the route's
   project names a `track_field` and the lookup returned options; its pick is `Draft.track`,
   carried across Edit like the band override and into `IssueCandidate.track`. A new preview
@@ -551,15 +563,14 @@ repo picked in the modal.*
 - Options come only from the Project (`GitHubClient.track_options`, from the cached
   `project_fields`), never a hardcoded list; an Edit reuses them without re-querying.
 - The write is `GitHubClient.set_track` after `add_to_project`, inside `place_on_roadmap`'s
-  never-raise policy (stage `project-track`); a retry path (F13) must not set Track twice on two
-  items (F12's reuse path relies on `addProjectV2ItemById` returning the existing item).
+  never-raise policy (stage `project-track`); a re-filing re-runs it on the reused issue, which
+  `addProjectV2ItemById` returns as the existing item, so Track is never set on two items.
 - Per-type defaults are `ProjectConfig.track_defaults`, `(IssueType, str)` pairs; F16 must keep
   them keyed by whatever replaces `IssueType`.
 
 ## F12 — Never file a report twice · merged (#28)
 
-*Kept because F13's automatic retry and Retry button re-file through it, and F19's modal repo
-pick must keep one `Report` per intake session.*
+*Kept because F19's modal repo pick must keep one `Report` per intake session.*
 - Two layers, no persisted state. In-process: one `Report` per intake session (a fresh submit
   plus every preview its Edits open); `PreviewView.file_button` checks and sets `report.filed`
   with no `await` between, so one File per session; a second File or a later Edit submit gets
@@ -567,14 +578,29 @@ pick must keep one `Report` per intake session.*
   `reports_link` on the summary message URL (one summary per File press) and returns a match
   instead of creating; a re-filing re-runs `place_on_roadmap` on the reused issue.
 - The lookup is check-then-create, not atomic: it dedups a retry that starts after the earlier
-  attempt finished, never two overlapping filings of one candidate. **F13 must keep the retries
-  of one report sequential** (an automatic retry and a Retry press must not overlap), and must
-  re-file through `file_candidate`, never `create_issue` directly.
-- A failed lookup is a WARNING and filing proceeds (DD-3, the owner's choice over fail-closed);
-  F13 decides whether its retries keep that or fail closed. The lookup trusts the author line
-  alone (pass2-DD-1, "revisit in F13") and sees only the 100 newest issues and PRs.
+  attempt finished, never two overlapping filings of one candidate. F13 keeps the retries of
+  one report sequential (its re-run finishes before the Retry button is posted, and each button
+  files once) and re-files only through `file_candidate`.
+- A failed lookup is a WARNING and filing proceeds on a first attempt (DD-3); a re-filing fails
+  closed (F13 DD-4). The lookup trusts the author line alone (F12 pass2-DD-1, kept by F13 DD-5) and
+  sees only the 100 newest issues and PRs.
 - Any new GitHub read is `_request(..., method="GET")` under its own stage; `GitHubError` stays
   the only failure surface.
+
+## F13 — Retry and rate limits · merged (#31)
+
+*Kept because F15's search call must go through its rate-limit handling, and F18's
+per-installation token minting runs through `_request`.*
+- Every GitHub request goes through `GitHubClient._request` (Baseline *GitHub filing*): rate
+  limits are honored for every request, transport errors and 5xx are retried only when
+  `idempotent`; a new non-idempotent write passes `idempotent=False`. A new read or search adds
+  its own stage and needs no retry code of its own. `GitHubError(stage, status, rate_limited=…)`
+  stays the only failure surface, and `github.py` never logs.
+- Waits use the client's injected `sleep`; tests pass a recording mock and never sleep for real.
+- `filing_hook` re-runs filing once on a transient error, then posts `FILING_ERROR_REPLY` with an
+  in-memory `RetryView` through `_post_outcome` (the one outcome send path, which now retries
+  escaped Discord failures, takes `view=` and returns the sent message). Re-filings pass
+  `refiling=True` and fail closed on a lookup error.
 
 ## Deferred follow-ups (confirmed, unscheduled, no F-ID yet)
 
@@ -714,6 +740,27 @@ pick must keep one `Report` per intake session.*
   author line alone (pass2-DD-1); two concurrent Edits leave the older replacement preview
   running (pass2-DD-2, pre-existing). No live run of the two-client refusal yet: it is
   `docs/SMOKE-TEST.md` §2 step 7.
+- **F13 push-review polish.** The unticked minor to-dos in
+  `plans/feature/retry-rate-limits/reviews/push-review-feature-retry-rate-limits.md`, Review 1:
+  - re-wrap `filing_hook`'s docstring; rename single-letter comprehension names (`k`/`v` in
+    `aiohttp_transport`, `c` in a `test_github.py` test); a one-line `aiohttp_transport` summary;
+  - collapse `RetryView.on_timeout`'s two excepts via `discord_error_fields`;
+  - log `rate_limited=` on the `retrying filing` WARNING and `could not file` ERROR;
+  - tests: a parametrized `GitHubError.transient`, `_post_outcome`'s backoff schedule and
+    `aiohttp.ClientError` branch, a rate-limited 403 on `create_issue`;
+  - optional: a `_requested_wait` helper in `_retry_wait`; drop `_post_outcome`'s trailing
+    `AssertionError`.
+
+  None blocks a remaining feature.
+- **F13 accepted limits.** Recorded in the plan's *Design decisions* and README *Known limits*:
+  the Retry button is in memory (dead after a restart or after a day; run the command again after
+  checking the repo); a press whose acknowledgement fails does not re-file (dd-261117-074), and a
+  press after `stop()` gets no reply (F13 pass2-DD-1); a timed-out create that lands after the
+  re-filing's lookup (or beyond the 100 newest) can still duplicate; a re-sent Discord post that
+  had landed duplicates the outcome post; a Discord transport error from `open_thread` or the
+  summary post still aborts filing before any retry (F13 pass2-DD-4); worst-case retries can outlive
+  the File press's 15-minute followup token (only `SUBMITTED_REPLY` is lost, F13 pass1-DD-4); during
+  an outage the startup checks retry before giving up. No live Retry smoke check yet.
 - **Drop the pre-rename `allowWrite` path.** `.claude/settings.json` still lists
   `/home/rmila/Code/c4i-issue-bot`; removing it is an optional owner edit in its own small
   PR (agents can't write that file).
@@ -722,48 +769,6 @@ pick must keep one `Report` per intake session.*
 
 # REMAINING FEATURES
 
-## F13 — Retry and rate limits · Phase 4 · Effort L · (added 2026-10-28)
-
-**Goal.** GitHub and Discord failures are retried automatically with backoff, rate limits are
-respected, and a failure that persists is reported in the thread with a Retry button.
-Feature-list line F13.
-
-**Rank rationale.** Phase 4 hardening; needs F12 so a retry can't duplicate an issue.
-
-**Dependencies.** F12; soft: F6. F6's Project writes join the retried calls.
-
-**Sizing.** unscored (intake estimate L); split check pending.
-
-**Assumed starting state** = **Baseline**. Verify:
-- `GitHubError(stage, status)` is the only GitHub failure surface; `_post_outcome` is the one
-  outcome post path (F7's kept contract).
-- `file_candidate` looks up an existing issue before creating (F12's kept contract), so a
-  sequential re-filing reuses it.
-
-**Expected end state** (repo-checkable):
-- Transient GitHub failures (transport errors, 5xx, 429 and secondary rate limits) are retried
-  with bounded backoff, honoring `Retry-After` / `x-ratelimit-reset`; Discord posts likewise.
-- After the last attempt, the thread's error post carries a Retry button that re-runs filing
-  for that report (idempotently, via F12) and replaces `FILING_ERROR_REPLY`'s "run the command
-  again".
-- Logging stays within Standing invariant 2.
-- All suites green; Standing invariants untouched.
-
-**Test-suite deltas.** Backoff and `Retry-After` against the fake transport (no real sleeps);
-the Retry button's callback re-files once and is ignored after success.
-
-**Open risks / decisions.** (a) The Retry button must survive a restart (a persistent view
-with a `custom_id` that encodes the report, rebuilt from the summary message), or be documented
-as dead after one like the preview's. (b) Who may press Retry: the reporter only, or anyone.
-(c) Retries must fit the interaction deadlines where an interaction is pending. (d) From F12:
-whether a retry stays fail-open on a failed lookup (F12's DD-3) or fails closed, and whether the
-lookup's trust in the author line alone (pass2-DD-1) needs tightening.
-
-**Session.** `/run-feature F13` on branch `feature/retry-rate-limits`; plan at
-`plans/feature/retry-rate-limits/retry-rate-limits.md`.
-
----
-
 ## F11 — Deploy on `c4i` · Phase 4 · Effort M · (added 2026-10-28)
 
 **Goal.** The bot runs unattended on `c4i`, the Pi 4 (arm64), as a container with automatic
@@ -771,8 +776,8 @@ restart, a memory limit, a health check and readable logs, deployed by one docum
 over `ssh c4i`, with a verified way to clear the commands for a rollback. Feature-list line
 F11.
 
-**Rank rationale.** Phase 4's deploy work; ranked after F13 only because its live run
-waits on homelab. Its repo-side work can be planned earlier (ROADMAP *Sequencing rationale*).
+**Rank rationale.** Phase 4's deploy work; its live run waits on homelab. Its repo-side work can
+be planned earlier (ROADMAP *Sequencing rationale*).
 
 **Dependencies.** homelab#P3 (c4i Docker stage). This repo owns the image, its config and the
 deploy command. The host side (Docker, the memory ceiling, root-only token and key files) is
@@ -849,7 +854,8 @@ rate-limit handling, and the hints share the preview with F17's Track row.
 
 **Sizing.** unscored (intake estimate M); split check pending.
 
-**Assumed starting state** = **Baseline** plus F13 if merged.
+**Assumed starting state** = **Baseline** (F13 merged: the search goes through `_request`'s
+retry, per F13's kept contract).
 
 **Expected end state** (repo-checkable):
 - The preview shows up to N likely duplicates (number, title, link) from a GitHub search
@@ -1015,16 +1021,16 @@ Phase 1:    done       (F1 #2; F9 rename #5; F2 threads #7; F5 filing #9; F10 in
 Phase 1.5:  done       (F8 routes #17)
 Phase 2:    done       (F3 questions + preview #19)
 Phase 3:    done       (F4 rating #21; F6 roadmap #24; F17 Track #26)
-Phase 4:    filing track:   (F12 dedup #28) ──► ★ F13 ┄► F15
-            deploy track:   homelab#P3 (c4i Docker stage) ──► F11
+Phase 4:    filing track:   (F12 dedup #28; F13 retry #31) ┄► F15
+            deploy track:   homelab#P3 (c4i Docker stage) ──► ★ F11
             QoL track:      F14 ⇄ F16   (couples; F16 soft after F6, F17)
 Phase 5:    registry track: F18 ──► F19   (F18 ⇄ F11, F16; F19 ⇄ F14, F16)
 ```
 
-- **Hard chains:** F18 → F19; homelab#P3 → F11 (external). F1–F10, F12 and F17 have shipped;
-  refs to them stay valid, so F13, F14, F15 and F16 have no unmet hard prerequisite.
-- **Soft preferences:** F6 and F17 (both shipped) before F13 and F16, so retry and the type
-  schema cover the Project writes and route keys once. F13 before F15, so the search call is rate-limited.
+- **Hard chains:** F18 → F19; homelab#P3 → F11 (external). F1–F10, F12, F13 and F17 have
+  shipped; refs to them stay valid, so F14, F15 and F16 have no unmet hard prerequisite.
+- **Soft preferences:** F6 and F17 (both shipped) before F16, so the type schema covers the
+  route keys once. F13 (shipped) before F15, so the search call is rate-limited.
 - **Couplings to honor:** F16 puts per-route settings under `[routes.<name>]` beside F6's
   `project` table (F8's and F6's kept contracts). F17 ↔ F15: F15 adds to the private preview
   beside F17's Track row (F17's kept contract). F14 ↔ F16: help lists the types F16 makes configurable. F11, F14 and F16 keep the
