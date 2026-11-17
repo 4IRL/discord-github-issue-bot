@@ -121,8 +121,8 @@ async def test_open_thread_logs_forbidden_without_text(
 
 def test_filing_error_reply_is_fixed_text() -> None:
     assert FILING_ERROR_REPLY == (
-        "Sorry, I couldn't file this as a GitHub issue. Check the repo before reporting it "
-        "again; to retry, run the command again."
+        "Sorry, I couldn't file this as a GitHub issue. Press **Retry** to try again; if the "
+        "button no longer works, check the repo before running the command again."
     )
 
 

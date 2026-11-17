@@ -129,7 +129,7 @@ Phase 5 8 (F18, F19).
 
 | Feature | Status | Branch | PR |
 |---|---|---|---|
-| **F13 — Retry and rate limits** ★FOCUS | pending | `feature/retry-rate-limits` | — |
+| **F13 — Retry and rate limits** ★FOCUS | in-review | `feature/retry-rate-limits` | [#31](https://github.com/4IRL/discord-github-issue-bot/pull/31) |
 | **F11 — Deploy on `c4i`** | pending | `feature/deploy-c4i` | — |
 | **F14 — Help command** | pending | `feature/help-command` | — |
 | **F15 — Duplicate-issue hints** | pending | `feature/duplicate-hints` | — |

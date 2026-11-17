@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 THREAD_NAME_LIMIT = 100  # Discord's maximum thread-name length.
 THREAD_ALREADY_CREATED = 160004  # Discord error code: the message already has a thread.
 # Fixed text: it carries no member text and no GitHub response text.
-FILING_ERROR_REPLY = "Sorry, I couldn't file this as a GitHub issue. Check the repo before reporting it again; to retry, run the command again."
+FILING_ERROR_REPLY = "Sorry, I couldn't file this as a GitHub issue. Press **Retry** to try again; if the button no longer works, check the repo before running the command again."
 FILED_REPLY = "Filed as GitHub issue #{number} (complexity {band}): {title}\n{url}"
 ROADMAP_ADDED_NOTE = "Added to the roadmap."
 # One note, true whether the add or the field set failed.

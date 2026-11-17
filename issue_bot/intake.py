@@ -97,7 +97,7 @@ async def _reply(interaction: discord.Interaction, text: str, issue_type: IssueT
         )
 
 
-async def _report_error(
+async def report_error(
     interaction: discord.Interaction, error: Exception, issue_type: IssueType, what: str
 ) -> None:
     """Log an unhandled error by type, ids and Discord status and code, then reply privately.
@@ -456,7 +456,7 @@ class PreviewView(discord.ui.View):
         self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item, /
     ) -> None:
         """Replace discord.py's default, which logs the traceback (it can quote member text)."""
-        await _report_error(interaction, error, self.issue_type, "preview")
+        await report_error(interaction, error, self.issue_type, "preview")
 
 
 class IntakeModal(discord.ui.Modal):
@@ -631,7 +631,7 @@ class IntakeModal(discord.ui.Modal):
         Logs the exception type, interaction id and Discord status and code only, then
         replies privately with fixed text.
         """
-        await _report_error(interaction, error, self.issue_type, "modal")
+        await report_error(interaction, error, self.issue_type, "modal")
 
 
 def intake_command(

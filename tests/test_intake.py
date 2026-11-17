@@ -3,7 +3,7 @@ import logging
 from collections.abc import Sequence
 from dataclasses import replace
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import ANY, AsyncMock, Mock
 
 import discord
 import pytest
@@ -696,7 +696,7 @@ async def test_github_error_still_posts_filing_error_reply(
     summary = button_interaction.channel.send.return_value
     await view.file_button.callback(button_interaction)
     summary.create_thread.return_value.send.assert_awaited_once_with(
-        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True, view=ANY
     )
     summary.reply.assert_not_awaited()
     button_interaction.followup.send.assert_awaited_once_with(

@@ -1,10 +1,12 @@
 """The Discord client: registers the intake commands and hands each report to a hook."""
 
+import asyncio
 import logging
 import sys
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+import aiohttp
 import discord
 from discord import app_commands
 
@@ -19,12 +21,22 @@ from issue_bot.intake import (
     TrackLookup,
     discord_error_fields,
     intake_command,
+    report_error,
 )
 from issue_bot.issue_type import IssueType
 from issue_bot.issues import file_candidate, place_on_roadmap
 from issue_bot.threads import FILING_ERROR_REPLY, filed_reply, open_thread, thread_name
 
 logger = logging.getLogger(__name__)
+
+FILING_ATTEMPTS = 2  # file_candidate runs; the re-run is a re-filing (DD-4, DD-6)
+FILING_RETRY_DELAY = 2.0  # seconds
+POST_ATTEMPTS = 3
+POST_BACKOFF = 1.0  # seconds, doubled per attempt
+RETRY_TIMEOUT = 24 * 60 * 60  # seconds; the Retry button lives a day, in memory only (DD-1)
+# Fixed text: it carries no member text and no GitHub response text.
+RETRY_ALREADY_REPLY = "This report is already being retried."
+RETRYING_REPLY = "Retrying…"
 
 ProjectCheck = Callable[[TargetConfig], Awaitable[ProjectFields]]
 
@@ -70,70 +82,190 @@ async def open_issue_thread(message: discord.Message, candidate: IssueCandidate)
 
 
 async def _post_outcome(
-    message: discord.Message, thread: discord.Thread | None, text: str, what: str
-) -> None:
-    """Post in the thread, else as a reply to the summary; log a Discord failure by type, status and code only."""
-    try:
-        if thread is not None:
-            await thread.send(text, allowed_mentions=NO_MENTIONS, suppress_embeds=True)
-        else:
-            await message.reply(text, allowed_mentions=NO_MENTIONS, suppress_embeds=True)
-    except discord.HTTPException as exc:
+    message: discord.Message,
+    thread: discord.Thread | None,
+    text: str,
+    what: str,
+    *,
+    view: discord.ui.View | None = None,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+) -> discord.Message | None:
+    """Post in the thread, else as a reply to the summary, and return the sent message.
+
+    Retries a Discord server error, an ``aiohttp.ClientError`` or a ``TimeoutError`` up to
+    ``POST_ATTEMPTS`` times with doubling backoff (discord.py already retries 429s itself). A
+    failed send may still have landed, so a retry can post the message twice (accepted risk:
+    a duplicate bot message, never a duplicate issue).
+    Returns None when the post failed, after logging the failure by type, status and code only.
+    """
+    send_kwargs: dict[str, Any] = {"allowed_mentions": NO_MENTIONS, "suppress_embeds": True}
+    if view is not None:
+        send_kwargs["view"] = view
+    for attempt in range(1, POST_ATTEMPTS + 1):
+        try:
+            if thread is not None:
+                return await thread.send(text, **send_kwargs)
+            return await message.reply(text, **send_kwargs)
+        except (discord.DiscordServerError, aiohttp.ClientError, TimeoutError) as exc:
+            if attempt < POST_ATTEMPTS:
+                await sleep(POST_BACKOFF * 2 ** (attempt - 1))
+                continue
+            failure: Exception = exc
+        except discord.HTTPException as exc:
+            failure = exc
+        status, code = discord_error_fields(failure)
         logger.error(
             "could not send %s for message_id=%s thread_id=%s: %s status=%s code=%s",
             what,
             message.id,
             thread.id if thread else None,
-            type(exc).__name__,
-            exc.status,
-            exc.code,
+            type(failure).__name__,
+            status,
+            code,
         )
+        return None
+    raise AssertionError("unreachable: the last attempt returns")
 
 
-def filing_hook(github: GitHubClient) -> CandidateHook:
-    """Return the production hook: open the issue's thread, then file the issue on GitHub.
+class RetryView(discord.ui.View):
+    """The **Retry** button on a filing-error post: re-runs filing once, as a re-filing.
 
-    The issue is filed even when the thread could not be opened. On success it posts
-    ``filed_reply`` and on a ``GitHubError`` the fixed ``FILING_ERROR_REPLY``, in the thread
-    or, with no thread, as a reply to the summary message. A route with a Project also gets
-    the roadmap step after filing (``place_on_roadmap``); its failure is a WARNING and a note
-    in the link message, never a filing error. It never logs member text or GitHub response
-    text: only the type, ids, URLs, error type, stage and status.
+    Any member may press it (DD-2; re-filing is idempotent through ``file_candidate``). It lives
+    ``RETRY_TIMEOUT`` seconds in memory only, so it is dead after a restart (DD-1). Each view
+    files at most once; a failed re-filing posts a new error post with a new view.
     """
 
-    async def file_and_report(message: discord.Message, candidate: IssueCandidate) -> None:
-        thread = await open_thread(message, thread_name(candidate.title))
-        thread_id = thread.id if thread else None
+    def __init__(self, retry: Callable[[], Awaitable[None]], issue_type: IssueType) -> None:
+        super().__init__(timeout=RETRY_TIMEOUT)
+        self._retry = retry
+        self.issue_type = issue_type
+        self.pressed = False
+        self.message: discord.Message | None = None
+
+    @discord.ui.button(label="Retry", style=discord.ButtonStyle.primary)
+    async def retry_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        if self.pressed:
+            await interaction.response.send_message(RETRY_ALREADY_REPLY, ephemeral=True)
+            return
+        # No await before this: each click runs as its own task, so this guard files once (F12).
+        self.pressed = True
+        self.stop()
+        await interaction.response.edit_message(content=RETRYING_REPLY, view=None)
+        await self._retry()
+
+    async def on_timeout(self) -> None:
+        """Remove the expired button from the error post; a failed edit is logged and swallowed."""
+        if self.message is None:
+            return
         try:
-            issue = await file_candidate(github, candidate)
-        except GitHubError as exc:
+            await self.message.edit(view=None)
+        except discord.HTTPException as exc:
             logger.error(
-                "could not file %s message_id=%s (%s) thread_id=%s: %s stage=%s status=%s",
+                "could not remove %s retry button message_id=%s: %s status=%s code=%s",
+                self.issue_type,
+                self.message.id,
+                type(exc).__name__,
+                exc.status,
+                exc.code,
+            )
+        except Exception as exc:
+            # A network or timeout failure must not reach asyncio's traceback log.
+            logger.error(
+                "could not remove %s retry button message_id=%s: %s",
+                self.issue_type,
+                self.message.id,
+                type(exc).__name__,
+            )
+
+    async def on_error(
+        self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item, /
+    ) -> None:
+        """Replace discord.py's default, which logs the traceback (it can quote member text)."""
+        await report_error(interaction, error, self.issue_type, "retry")
+
+
+def filing_hook(
+    github: GitHubClient, *, sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
+) -> CandidateHook:
+    """Return the production hook: open the issue's thread, then file the issue on GitHub.
+
+    The issue is filed even when the thread could not be opened. A transient ``GitHubError``
+    re-runs filing once, as a re-filing (lookup first, fail-closed), after
+    ``FILING_RETRY_DELAY``. On success it posts ``filed_reply``; on a final ``GitHubError`` it
+    posts the fixed ``FILING_ERROR_REPLY``, in the thread or, with no thread, as a reply to the
+    summary message. That error post carries a **Retry** button (``RetryView``) that re-runs
+    filing once, as a re-filing; a failed re-filing posts a new error post with a new button.
+    A route with a Project also gets the roadmap step after filing (``place_on_roadmap``); its
+    failure is a WARNING and a note in the link message, never a filing error. It never logs member text or GitHub response text: only the type, ids, URLs,
+    error type, stage and status.
+    """
+
+    async def attempt(
+        message: discord.Message,
+        candidate: IssueCandidate,
+        thread: discord.Thread | None,
+        *,
+        refiling: bool,
+    ) -> None:
+        thread_id = thread.id if thread else None
+        for run in range(1, FILING_ATTEMPTS + 1):
+            try:
+                issue = await file_candidate(github, candidate, refiling=refiling or run > 1)
+            except GitHubError as exc:
+                if exc.transient and run < FILING_ATTEMPTS:
+                    logger.warning(
+                        "retrying filing %s message_id=%s after %s stage=%s status=%s",
+                        candidate.type,
+                        candidate.message_id,
+                        type(exc).__name__,
+                        exc.stage,
+                        exc.status,
+                    )
+                    await sleep(FILING_RETRY_DELAY)
+                    continue
+                logger.error(
+                    "could not file %s message_id=%s (%s) thread_id=%s: %s stage=%s status=%s",
+                    candidate.type,
+                    candidate.message_id,
+                    candidate.message_url,
+                    thread_id,
+                    type(exc).__name__,
+                    exc.stage,
+                    exc.status,
+                )
+                view = RetryView(
+                    lambda: attempt(message, candidate, thread, refiling=True), candidate.type
+                )
+                sent = await _post_outcome(
+                    message, thread, FILING_ERROR_REPLY, "filing error", view=view, sleep=sleep
+                )
+                view.message = sent
+                if sent is None:
+                    view.stop()
+                return
+            logger.info(
+                "filed %s message_id=%s (%s) thread_id=%s issue=%s",
                 candidate.type,
                 candidate.message_id,
                 candidate.message_url,
                 thread_id,
-                type(exc).__name__,
-                exc.stage,
-                exc.status,
+                issue.html_url,
             )
-            await _post_outcome(message, thread, FILING_ERROR_REPLY, "filing error")
+            roadmap = await place_on_roadmap(github, candidate, issue)
+            await _post_outcome(
+                message,
+                thread,
+                filed_reply(issue, candidate.title, candidate.complexity, roadmap),
+                "issue link",
+                sleep=sleep,
+            )
             return
-        logger.info(
-            "filed %s message_id=%s (%s) thread_id=%s issue=%s",
-            candidate.type,
-            candidate.message_id,
-            candidate.message_url,
-            thread_id,
-            issue.html_url,
-        )
-        roadmap = await place_on_roadmap(github, candidate, issue)
-        await _post_outcome(
-            message,
-            thread,
-            filed_reply(issue, candidate.title, candidate.complexity, roadmap),
-            "issue link",
-        )
+
+    async def file_and_report(message: discord.Message, candidate: IssueCandidate) -> None:
+        thread = await open_thread(message, thread_name(candidate.title))
+        await attempt(message, candidate, thread, refiling=False)
 
     return file_and_report
 
