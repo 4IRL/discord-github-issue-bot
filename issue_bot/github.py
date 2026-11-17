@@ -5,6 +5,7 @@ never GitHub's response text, tokens or the App private key; callers log them
 by type, stage and status.
 """
 
+import asyncio
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
@@ -54,13 +55,17 @@ SET_TRACK_MUTATION = (
     " fieldId: $field, value: {singleSelectOptionId: $option}}) { projectV2Item { id } } }"
 )
 
-Transport = Callable[[str, str, Mapping[str, str], object], Awaitable[tuple[int, Any]]]
+# The reply is (status, parsed JSON or None, response headers with lowercased keys).
+Transport = Callable[
+    [str, str, Mapping[str, str], object], Awaitable[tuple[int, Any, Mapping[str, str]]]
+]
 
 
 async def aiohttp_transport(
     method: str, url: str, headers: Mapping[str, str], payload: object
-) -> tuple[int, Any]:
-    """Send one JSON request in its own session; return the status and parsed JSON (or None)."""
+) -> tuple[int, Any, dict[str, str]]:
+    """Send one JSON request in its own session; return the status, parsed JSON
+    (or None) and the response headers with lowercased keys."""
     async with aiohttp.ClientSession(
         timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)
     ) as session:
@@ -69,7 +74,7 @@ async def aiohttp_transport(
                 data = await resp.json(content_type=None)
             except ValueError:
                 data = None
-            return resp.status, data
+            return resp.status, data, {k.lower(): v for k, v in resp.headers.items()}
 
 
 @dataclass(frozen=True)
@@ -228,12 +233,14 @@ class GitHubClient:
         *,
         transport: Transport | None = None,
         clock: Callable[[], float] = time.time,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._app_id = app_id
         self._installation_id = installation_id
         self._private_key = private_key
         self._transport = transport or aiohttp_transport
         self._clock = clock
+        self._sleep = sleep
         self._tokens: dict[tuple[int, bool], tuple[str, float]] = {}
         self._labels: set[tuple[int, str]] = set()
         # A concurrent first miss looks up twice, harmlessly, like the token and label caches.
@@ -260,7 +267,8 @@ class GitHubClient:
         method: str = "POST",
     ) -> tuple[int, Any]:
         try:
-            return await self._transport(method, url, headers, payload)
+            status, data, _response_headers = await self._transport(method, url, headers, payload)
+            return status, data
         except (aiohttp.ClientError, TimeoutError):
             pass
         # Raised outside the handler so __context__ is None: the transport error's

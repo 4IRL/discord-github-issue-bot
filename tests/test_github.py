@@ -1,7 +1,7 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from datetime import datetime
-from typing import Any
+from typing import Any, Self
 from unittest.mock import AsyncMock
 
 import aiohttp
@@ -22,6 +22,8 @@ from issue_bot.github import (
     Transport,
     app_jwt,
 )
+# Bound at collection, before the autouse no_live_github fixture replaces the module attribute.
+from issue_bot.github import aiohttp_transport as real_aiohttp_transport
 
 TOKEN_URL = "https://api.github.com/app/installations/444/access_tokens"
 ISSUE_URL = "https://api.github.com/repos/example-org/example-repo/issues"
@@ -37,16 +39,27 @@ def make_client(
     github_private_key: rsa.RSAPrivateKey,
     transport: Transport,
     clock: Callable[[], float] = lambda: 1_000_000.0,
+    sleep: Callable[[float], Awaitable[None]] | None = None,
 ) -> GitHubClient:
-    return GitHubClient(333, 444, github_private_key, transport=transport, clock=clock)
+    # A recording AsyncMock by default, so no GitHub test sleeps for real.
+    return GitHubClient(
+        333,
+        444,
+        github_private_key,
+        transport=transport,
+        clock=clock,
+        sleep=sleep if sleep is not None else AsyncMock(),
+    )
 
 
-def token_response(expires_at: str = EXPIRES_AT) -> tuple[int, dict[str, Any]]:
-    return 201, {"token": "ghs_secret_token", "expires_at": expires_at}
+def token_response(
+    expires_at: str = EXPIRES_AT,
+) -> tuple[int, dict[str, Any], dict[str, str]]:
+    return 201, {"token": "ghs_secret_token", "expires_at": expires_at}, {}
 
 
-def issue_response() -> tuple[int, dict[str, Any]]:
-    return 201, {"number": 7, "html_url": HTML_URL, "node_id": "I_node7"}
+def issue_response() -> tuple[int, dict[str, Any], dict[str, str]]:
+    return 201, {"number": 7, "html_url": HTML_URL, "node_id": "I_node7"}, {}
 
 
 async def create(client: GitHubClient, route: TargetConfig) -> FiledIssue:
@@ -175,7 +188,7 @@ async def test_token_refreshed_near_expiry(
 async def test_token_request_401_raises(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
-    transport = AsyncMock(return_value=(401, {"message": "Secret error words"}))
+    transport = AsyncMock(return_value=(401, {"message": "Secret error words"}, {}))
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
@@ -191,7 +204,7 @@ async def test_issue_request_error_raises_without_text(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig, status: int
 ) -> None:
     error_body = {"message": "Validation Failed", "errors": [{"value": "Secret title words"}]}
-    transport = AsyncMock(side_effect=[token_response(), (status, error_body)])
+    transport = AsyncMock(side_effect=[token_response(), (status, error_body, {})])
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
@@ -209,7 +222,7 @@ async def test_issue_request_401_drops_cached_token(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     transport = AsyncMock(
-        side_effect=[token_response(), (401, None), token_response(), issue_response()]
+        side_effect=[token_response(), (401, None, {}), token_response(), issue_response()]
     )
     client = make_client(github_private_key, transport)
 
@@ -229,7 +242,7 @@ async def test_issue_request_401_drops_cached_token(
 async def test_issue_request_404_keeps_cached_token(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
-    transport = AsyncMock(side_effect=[token_response(), (404, None), issue_response()])
+    transport = AsyncMock(side_effect=[token_response(), (404, None, {}), issue_response()])
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError):
@@ -246,15 +259,17 @@ async def test_issue_request_404_keeps_cached_token(
 @pytest.mark.parametrize(
     "response",
     [
-        (201, None),
-        (201, {"expires_at": EXPIRES_AT}),
-        (201, {"token": 5, "expires_at": EXPIRES_AT}),
-        (201, {"token": "t", "expires_at": "not-a-date"}),
-        (201, {"token": "t", "expires_at": "2026-10-18T13:00:00"}),
+        (201, None, {}),
+        (201, {"expires_at": EXPIRES_AT}, {}),
+        (201, {"token": 5, "expires_at": EXPIRES_AT}, {}),
+        (201, {"token": "t", "expires_at": "not-a-date"}, {}),
+        (201, {"token": "t", "expires_at": "2026-10-18T13:00:00"}, {}),
     ],
 )
 async def test_bad_token_shape_raises(
-    github_private_key: rsa.RSAPrivateKey, route: TargetConfig, response: tuple[int, Any]
+    github_private_key: rsa.RSAPrivateKey,
+    route: TargetConfig,
+    response: tuple[int, Any, dict[str, str]],
 ) -> None:
     transport = AsyncMock(return_value=response)
     client = make_client(github_private_key, transport)
@@ -296,16 +311,18 @@ async def test_transport_error_raises_status_none(
 @pytest.mark.parametrize(
     "response",
     [
-        (201, {"number": "x", "html_url": "u"}),
-        (201, None),
-        (201, {"number": True, "html_url": "u"}),
-        (201, {"number": 7}),
-        (201, {"number": 7, "html_url": HTML_URL}),
-        (201, {"number": 7, "html_url": HTML_URL, "node_id": 5}),
+        (201, {"number": "x", "html_url": "u"}, {}),
+        (201, None, {}),
+        (201, {"number": True, "html_url": "u"}, {}),
+        (201, {"number": 7}, {}),
+        (201, {"number": 7, "html_url": HTML_URL}, {}),
+        (201, {"number": 7, "html_url": HTML_URL, "node_id": 5}, {}),
     ],
 )
 async def test_bad_success_shape_raises(
-    github_private_key: rsa.RSAPrivateKey, route: TargetConfig, response: tuple[int, Any]
+    github_private_key: rsa.RSAPrivateKey,
+    route: TargetConfig,
+    response: tuple[int, Any, dict[str, str]],
 ) -> None:
     transport = AsyncMock(side_effect=[token_response(), response])
     client = make_client(github_private_key, transport)
@@ -338,6 +355,42 @@ async def test_default_transport_is_guarded(
 
     with pytest.raises(AssertionError, match="live GitHub call in a test"):
         await create(client, route)
+
+
+async def test_aiohttp_transport_returns_lowercased_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        status = 200
+        headers = {"Retry-After": "3"}
+
+        async def json(self, content_type: str | None = None) -> dict[str, Any]:
+            return {}
+
+        async def __aenter__(self) -> Self:
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+    class FakeSession:
+        def __init__(self, **kwargs: object) -> None:
+            pass
+
+        def request(self, *args: object, **kwargs: object) -> FakeResponse:
+            return FakeResponse()
+
+        async def __aenter__(self) -> Self:
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+    monkeypatch.setattr(aiohttp, "ClientSession", FakeSession)
+
+    result = await real_aiohttp_transport("GET", "https://example.invalid", {}, None)
+
+    assert result == (200, {}, {"retry-after": "3"})
 
 
 async def test_check_access_mints_a_token(
@@ -413,7 +466,7 @@ async def test_issue_401_on_project_route_drops_only_its_token(
         side_effect=[
             token_response(),
             token_response(),
-            (401, None),
+            (401, None, {}),
             issue_response(),
             token_response(),
             issue_response(),
@@ -455,7 +508,7 @@ async def test_check_access_reuses_cached_token(
 async def test_check_access_token_error_raises(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
-    transport = AsyncMock(return_value=(404, {"message": "Secret error words"}))
+    transport = AsyncMock(return_value=(404, {"message": "Secret error words"}, {}))
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
@@ -480,7 +533,7 @@ async def test_check_access_transport_error_raises_status_none(
 async def test_ensure_label_creates_label(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
-    transport = AsyncMock(side_effect=[token_response(), (201, {"name": "complexity:M"})])
+    transport = AsyncMock(side_effect=[token_response(), (201, {"name": "complexity:M"}, {})])
     client = make_client(github_private_key, transport)
 
     await client.ensure_label(route, "complexity:M")
@@ -495,7 +548,7 @@ async def test_ensure_label_creates_label(
 async def test_ensure_label_422_is_success(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
-    transport = AsyncMock(side_effect=[token_response(), (422, {"message": "already_exists"})])
+    transport = AsyncMock(side_effect=[token_response(), (422, {"message": "already_exists"}, {})])
     client = make_client(github_private_key, transport)
 
     await client.ensure_label(route, "complexity:M")
@@ -506,7 +559,7 @@ async def test_ensure_label_422_is_success(
 async def test_ensure_label_is_cached_per_name(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
-    transport = AsyncMock(side_effect=[token_response(), (201, {}), (201, {})])
+    transport = AsyncMock(side_effect=[token_response(), (201, {}, {}), (201, {}, {})])
     client = make_client(github_private_key, transport, clock=lambda: EXPIRES_AT_EPOCH - 301)
 
     await client.ensure_label(route, "complexity:M")
@@ -524,7 +577,7 @@ async def test_ensure_label_is_cached_per_repo(
 ) -> None:
     first, second = two_route_config.routes.values()
     transport = AsyncMock(
-        side_effect=[token_response(), (201, {}), token_response(), (201, {})]
+        side_effect=[token_response(), (201, {}, {}), token_response(), (201, {}, {})]
     )
     client = make_client(github_private_key, transport)
 
@@ -544,7 +597,7 @@ async def test_ensure_label_401_drops_cached_token(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     transport = AsyncMock(
-        side_effect=[token_response(), (401, None), token_response(), (201, {})]
+        side_effect=[token_response(), (401, None, {}), token_response(), (201, {}, {})]
     )
     client = make_client(github_private_key, transport)
 
@@ -568,10 +621,10 @@ async def test_ensure_label_401_on_project_route_drops_only_its_token(
         side_effect=[
             token_response(),
             token_response(),
-            (401, None),
-            (201, {}),
+            (401, None, {}),
+            (201, {}, {}),
             token_response(),
-            (201, {}),
+            (201, {}, {}),
         ]
     )
     client = make_client(github_private_key, transport)
@@ -599,7 +652,7 @@ async def test_ensure_label_500_raises_and_is_not_cached(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     error_body = {"message": "Secret error words"}
-    transport = AsyncMock(side_effect=[token_response(), (500, error_body), (201, {})])
+    transport = AsyncMock(side_effect=[token_response(), (500, error_body, {}), (201, {}, {})])
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
@@ -622,7 +675,7 @@ async def test_ensure_label_transport_error_raises_status_none(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     error = aiohttp.ClientConnectionError("Secret error words")
-    transport = AsyncMock(side_effect=[token_response(), error, (201, {})])
+    transport = AsyncMock(side_effect=[token_response(), error, (201, {}, {})])
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
@@ -650,7 +703,7 @@ async def test_find_issue_returns_first_match(
         {"number": 3, "html_url": "https://github.com/example-org/example-repo/issues/3",
          "node_id": "I_3", "body": "yes"},
     ]
-    transport = AsyncMock(side_effect=[token_response(), (200, listing)])
+    transport = AsyncMock(side_effect=[token_response(), (200, listing, {})])
     client = make_client(github_private_key, transport)
 
     result = await client.find_issue(route, body_is_yes)
@@ -669,7 +722,7 @@ async def test_find_issue_returns_first_match(
 async def test_find_issue_returns_none_without_match(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig, listing: list[dict[str, Any]]
 ) -> None:
-    transport = AsyncMock(side_effect=[token_response(), (200, listing)])
+    transport = AsyncMock(side_effect=[token_response(), (200, listing, {})])
     client = make_client(github_private_key, transport)
 
     assert await client.find_issue(route, body_is_yes) is None
@@ -684,7 +737,7 @@ async def test_find_issue_skips_pull_requests_null_bodies_and_non_dicts(
         {"number": 8, "html_url": HTML_URL, "node_id": "PR_8", "body": "yes", "pull_request": {}},
         {"number": 6, "html_url": HTML_URL, "node_id": "I_6", "body": None},
     ]
-    transport = AsyncMock(side_effect=[token_response(), (200, listing)])
+    transport = AsyncMock(side_effect=[token_response(), (200, listing, {})])
     client = make_client(github_private_key, transport)
     seen_bodies: list[str] = []
 
@@ -700,7 +753,7 @@ async def test_find_issue_non_200_raises_lookup_error(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     error_body = {"message": "Secret error words"}
-    transport = AsyncMock(side_effect=[token_response(), (500, error_body)])
+    transport = AsyncMock(side_effect=[token_response(), (500, error_body, {})])
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
@@ -715,7 +768,7 @@ async def test_find_issue_401_drops_token(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
     transport = AsyncMock(
-        side_effect=[token_response(), (401, None), token_response(), (200, [])]
+        side_effect=[token_response(), (401, None, {}), token_response(), (200, [], {})]
     )
     client = make_client(github_private_key, transport)
 
@@ -735,7 +788,7 @@ async def test_find_issue_401_drops_token(
 async def test_find_issue_non_list_raises(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig
 ) -> None:
-    transport = AsyncMock(side_effect=[token_response(), (200, {"items": []})])
+    transport = AsyncMock(side_effect=[token_response(), (200, {"items": []}, {})])
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
@@ -756,7 +809,7 @@ async def test_find_issue_non_list_raises(
 async def test_find_issue_malformed_match_raises(
     github_private_key: rsa.RSAPrivateKey, route: TargetConfig, item: dict[str, Any]
 ) -> None:
-    transport = AsyncMock(side_effect=[token_response(), (200, [item])])
+    transport = AsyncMock(side_effect=[token_response(), (200, [item], {})])
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
@@ -826,7 +879,7 @@ def track_field(options: list[str] | None = None) -> dict[str, Any]:
 
 def project_response(
     nodes: list[Any] | None = None,
-) -> tuple[int, dict[str, Any]]:
+) -> tuple[int, dict[str, Any], dict[str, str]]:
     if nodes is None:
         nodes = [
             None,
@@ -838,23 +891,23 @@ def project_response(
         ]
     return 200, {
         "data": {"organization": {"projectV2": {"id": "PVT_1", "fields": {"nodes": nodes}}}}
-    }
+    }, {}
 
 
-def add_response() -> tuple[int, dict[str, Any]]:
-    return 200, {"data": {"addProjectV2ItemById": {"item": {"id": "PVTI_1"}}}}
+def add_response() -> tuple[int, dict[str, Any], dict[str, str]]:
+    return 200, {"data": {"addProjectV2ItemById": {"item": {"id": "PVTI_1"}}}}, {}
 
 
-def set_response() -> tuple[int, dict[str, Any]]:
+def set_response() -> tuple[int, dict[str, Any], dict[str, str]]:
     return 200, {
         "data": {
             "status": {"projectV2Item": {"id": "PVTI_1"}},
             "effort": {"projectV2Item": {"id": "PVTI_1"}},
         }
-    }
+    }, {}
 
 
-ERRORS_RESPONSE = (200, {"errors": [{"message": "Secret detail"}]})
+ERRORS_RESPONSE = (200, {"errors": [{"message": "Secret detail"}]}, {})
 
 
 async def test_project_fields_looks_up_and_caches(
@@ -908,12 +961,12 @@ async def test_project_fields_without_project_raises_value_error(
     "response",
     [
         ERRORS_RESPONSE,
-        (200, {"data": {"organization": {"projectV2": None}}}),
-        (200, {"data": {"organization": None}}),
-        (200, {"data": None}),
-        (200, None),
-        (200, {"data": {"organization": {"projectV2": {"id": 5, "fields": {"nodes": []}}}}}),
-        (200, {"data": {"organization": {"projectV2": {"id": "PVT_1", "fields": None}}}}),
+        (200, {"data": {"organization": {"projectV2": None}}}, {}),
+        (200, {"data": {"organization": None}}, {}),
+        (200, {"data": None}, {}),
+        (200, None, {}),
+        (200, {"data": {"organization": {"projectV2": {"id": 5, "fields": {"nodes": []}}}}}, {}),
+        (200, {"data": {"organization": {"projectV2": {"id": "PVT_1", "fields": None}}}}, {}),
         project_response([effort_field()]),
         project_response([status_field(["In Progress", "Done"]), effort_field()]),
         project_response([status_field()]),
@@ -938,7 +991,7 @@ async def test_project_fields_without_project_raises_value_error(
 async def test_project_fields_bad_response_raises(
     github_private_key: rsa.RSAPrivateKey,
     project_route: TargetConfig,
-    response: tuple[int, Any],
+    response: tuple[int, Any, dict[str, str]],
 ) -> None:
     transport = AsyncMock(side_effect=[token_response(), response, project_response()])
     client = make_client(github_private_key, transport)
@@ -960,7 +1013,7 @@ async def test_project_fields_bad_response_raises(
 async def test_project_fields_non_200_raises(
     github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
 ) -> None:
-    transport = AsyncMock(side_effect=[token_response(), (502, {"message": "Secret detail"})])
+    transport = AsyncMock(side_effect=[token_response(), (502, {"message": "Secret detail"}, {})])
     client = make_client(github_private_key, transport)
 
     with pytest.raises(GitHubError) as exc_info:
@@ -975,7 +1028,7 @@ async def test_project_fields_401_drops_token(
     github_private_key: rsa.RSAPrivateKey, project_route: TargetConfig
 ) -> None:
     transport = AsyncMock(
-        side_effect=[token_response(), (401, None), token_response(), project_response()]
+        side_effect=[token_response(), (401, None, {}), token_response(), project_response()]
     )
     client = make_client(github_private_key, transport)
 
@@ -1029,16 +1082,16 @@ async def test_add_to_project_adds_and_sets_fields(
     "response",
     [
         ERRORS_RESPONSE,
-        (200, {"data": {"addProjectV2ItemById": {"item": None}}}),
-        (200, {"data": {"addProjectV2ItemById": {"item": {"id": 5}}}}),
-        (200, {"data": {"addProjectV2ItemById": None}}),
+        (200, {"data": {"addProjectV2ItemById": {"item": None}}}, {}),
+        (200, {"data": {"addProjectV2ItemById": {"item": {"id": 5}}}}, {}),
+        (200, {"data": {"addProjectV2ItemById": None}}, {}),
     ],
     ids=["errors", "null-item", "bad-item-id", "null-add"],
 )
 async def test_add_to_project_bad_add_raises(
     github_private_key: rsa.RSAPrivateKey,
     project_route: TargetConfig,
-    response: tuple[int, Any],
+    response: tuple[int, Any, dict[str, str]],
 ) -> None:
     transport = AsyncMock(side_effect=[token_response(), project_response(), response])
     client = make_client(github_private_key, transport)
@@ -1057,16 +1110,16 @@ async def test_add_to_project_bad_add_raises(
     "response",
     [
         ERRORS_RESPONSE,
-        (200, {"data": {"status": None, "effort": {"projectV2Item": {"id": "PVTI_1"}}}}),
-        (200, {"data": {"status": {"projectV2Item": {"id": "PVTI_1"}}, "effort": None}}),
-        (200, {"data": {"status": {"projectV2Item": None}, "effort": {"projectV2Item": {}}}}),
+        (200, {"data": {"status": None, "effort": {"projectV2Item": {"id": "PVTI_1"}}}}, {}),
+        (200, {"data": {"status": {"projectV2Item": {"id": "PVTI_1"}}, "effort": None}}, {}),
+        (200, {"data": {"status": {"projectV2Item": None}, "effort": {"projectV2Item": {}}}}, {}),
     ],
     ids=["errors", "null-status", "null-effort", "null-item"],
 )
 async def test_add_to_project_bad_set_raises(
     github_private_key: rsa.RSAPrivateKey,
     project_route: TargetConfig,
-    response: tuple[int, Any],
+    response: tuple[int, Any, dict[str, str]],
 ) -> None:
     transport = AsyncMock(
         side_effect=[token_response(), project_response(), add_response(), response]
@@ -1190,12 +1243,14 @@ def track_route(project_route: TargetConfig) -> TargetConfig:
     return replace(project_route, project=replace(project_route.project, track_field="Track"))
 
 
-def track_project_response(options: list[str] | None = None) -> tuple[int, dict[str, Any]]:
+def track_project_response(
+    options: list[str] | None = None,
+) -> tuple[int, dict[str, Any], dict[str, str]]:
     return project_response([status_field(), effort_field(), track_field(options)])
 
 
-def set_track_response() -> tuple[int, dict[str, Any]]:
-    return 200, {"data": {"track": {"projectV2Item": {"id": "PVTI_1"}}}}
+def set_track_response() -> tuple[int, dict[str, Any], dict[str, str]]:
+    return 200, {"data": {"track": {"projectV2Item": {"id": "PVTI_1"}}}}, {}
 
 
 async def test_project_fields_reads_track_options(
@@ -1349,7 +1404,7 @@ async def test_set_track_sets_the_option(
 async def test_set_track_without_option_raises_before_request(
     github_private_key: rsa.RSAPrivateKey,
     track_route: TargetConfig,
-    lookup: tuple[int, dict[str, Any]],
+    lookup: tuple[int, dict[str, Any], dict[str, str]],
     track: str,
 ) -> None:
     transport = AsyncMock(side_effect=[token_response(), lookup, track_project_response()])
@@ -1376,9 +1431,9 @@ async def test_set_track_without_option_raises_before_request(
     ("response", "status"),
     [
         (ERRORS_RESPONSE, 200),
-        ((200, {"data": {"track": None}}), 200),
-        ((200, {"data": {"track": {"projectV2Item": None}}}), 200),
-        ((200, {"data": {}}), 200),
+        ((200, {"data": {"track": None}}, {}), 200),
+        ((200, {"data": {"track": {"projectV2Item": None}}}, {}), 200),
+        ((200, {"data": {}}, {}), 200),
         (aiohttp.ClientConnectionError("Secret detail"), None),
     ],
     ids=["errors", "null-track", "null-item", "no-alias", "transport"],
