@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, call
 
+import aiohttp
 import discord
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -12,6 +13,10 @@ from discord import app_commands
 
 import issue_bot.__main__ as entry_point
 from issue_bot.bot import (
+    FILING_ATTEMPTS,
+    FILING_RETRY_DELAY,
+    POST_ATTEMPTS,
+    POST_BACKOFF,
     IssueBot,
     build_intents,
     channel_problems,
@@ -493,24 +498,119 @@ async def test_retry_after_timed_out_create_finds_the_issue(
     message = make_message()
     candidate = tracked_candidate(make_candidate, project_route)
     send = message.create_thread.return_value.send
+    recording_sleep = AsyncMock()
     with caplog.at_level(logging.INFO):
-        await filing_hook(github)(message, candidate)
-        send.assert_awaited_once_with(
-            FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
-        )
-        github.add_to_project.assert_not_awaited()
-        await filing_hook(github)(message, candidate)
+        await filing_hook(github, sleep=recording_sleep)(message, candidate)
     github.create_issue.assert_awaited_once()
+    assert github.find_issue.await_count == 2
     issue = github.created[0][1]
-    assert send.await_count == 2
-    assert send.await_args_list[1] == call(
+    send.assert_awaited_once_with(
         filed_reply(issue, "Secret title words", Complexity.M, True),
         allowed_mentions=NO_MENTIONS,
         suppress_embeds=True,
     )
+    assert recording_sleep.await_args_list == [call(FILING_RETRY_DELAY)]
     github.add_to_project.assert_awaited_once_with(project_route, issue, Complexity.M)
     github.set_track.assert_awaited_once_with(project_route, "PVTI_1", "A · Bugs")
+    warnings = [
+        record.getMessage()
+        for record in bot_records(caplog)
+        if record.levelno == logging.WARNING
+    ]
+    assert warnings == [
+        "retrying filing bug message_id=99 after GitHubError stage=issue status=None"
+    ]
+    assert not [record for record in bot_records(caplog) if record.levelno == logging.ERROR]
     assert any("found existing issue for bug" in text for text in record_texts(caplog))
+    assert_no_member_text(caplog)
+
+
+async def test_filing_retry_lookup_failure_fails_closed(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = fake_github(GitHubError("issue", None))
+    github.find_issue.side_effect = [None, GitHubError("lookup", 502)]
+    message = make_message()
+    recording_sleep = AsyncMock()
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github, sleep=recording_sleep)(message, secret_candidate(make_candidate))
+    github.create_issue.assert_awaited_once()
+    assert github.find_issue.await_count == 2
+    assert recording_sleep.await_args_list == [call(FILING_RETRY_DELAY)]
+    message.create_thread.return_value.send.assert_awaited_once_with(
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
+    )
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert len(errors) == 1
+    assert "stage=lookup" in errors[0] and "status=502" in errors[0]
+    assert_no_member_text(caplog)
+
+
+async def test_filing_not_retried_on_permanent_error(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = fake_github(GitHubError("issue", 422))
+    message = make_message()
+    recording_sleep = AsyncMock()
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github, sleep=recording_sleep)(message, secret_candidate(make_candidate))
+    recording_sleep.assert_not_awaited()
+    github.create_issue.assert_awaited_once()
+    message.create_thread.return_value.send.assert_awaited_once_with(
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
+    )
+    assert not [record for record in bot_records(caplog) if record.levelno == logging.WARNING]
+    assert_no_member_text(caplog)
+
+
+async def test_filing_retry_reruns_once_when_rate_limited(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = fake_github(GitHubError("issue", 429, rate_limited=True))
+    message = make_message()
+    recording_sleep = AsyncMock()
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github, sleep=recording_sleep)(message, secret_candidate(make_candidate))
+    assert github.find_issue.await_count == FILING_ATTEMPTS
+    assert github.create_issue.await_count == FILING_ATTEMPTS
+    assert recording_sleep.await_args_list == [call(FILING_RETRY_DELAY)]
+    warnings = [
+        record.getMessage()
+        for record in bot_records(caplog)
+        if record.levelno == logging.WARNING
+    ]
+    assert warnings == [
+        "retrying filing bug message_id=99 after GitHubError stage=issue status=429"
+    ]
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert len(errors) == 1
+    assert "could not file bug" in errors[0]
+    message.create_thread.return_value.send.assert_awaited_once_with(
+        FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
+    )
+    assert_no_member_text(caplog)
+
+
+async def test_filing_retry_logs_no_member_text(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = fake_github(GitHubError("issue", 503))
+    message = make_message()
+    with caplog.at_level(logging.DEBUG):
+        await filing_hook(github, sleep=AsyncMock())(message, secret_candidate(make_candidate))
+    assert any("retrying filing bug" in text for text in record_texts(caplog))
     assert_no_member_text(caplog)
 
 
@@ -581,13 +681,16 @@ async def test_filing_hook_failure_without_thread_replies_error_on_summary(
     github = fake_github(GitHubError("token", None))
     message = make_message()
     message.create_thread.side_effect = forbidden(50013, "x")
+    recording_sleep = AsyncMock()
     with caplog.at_level(logging.INFO):
-        await filing_hook(github)(message, secret_candidate(make_candidate))
+        await filing_hook(github, sleep=recording_sleep)(message, secret_candidate(make_candidate))
     errors = [
         record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
     ]
     assert len(errors) == 1
     assert "could not file bug" in errors[0] and "thread_id=None" in errors[0]
+    assert recording_sleep.await_args_list == [call(FILING_RETRY_DELAY)]
+    assert github.create_issue.await_count == FILING_ATTEMPTS
     message.reply.assert_awaited_once_with(
         FILING_ERROR_REPLY, allowed_mentions=NO_MENTIONS, suppress_embeds=True
     )
@@ -645,6 +748,86 @@ async def test_link_send_failure_logged_without_text(
         record.levelno == logging.INFO and "filed bug" in record.getMessage()
         for record in bot_records(caplog)
     )
+    for text in record_texts(caplog):
+        assert "Secret error words" not in text
+    assert_no_member_text(caplog)
+
+
+def server_error(text: str) -> discord.DiscordServerError:
+    return discord.DiscordServerError(
+        SimpleNamespace(status=503, reason="x"), {"code": 0, "message": text}
+    )
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [server_error("Secret error words"), aiohttp.ClientConnectionError("Secret error words")],
+    ids=["server-error", "transport-error"],
+)
+async def test_link_post_retries_escaped_discord_failure(
+    failure: Exception,
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
+    message = make_message()
+    send = message.create_thread.return_value.send
+    send.side_effect = [failure, None]
+    recording_sleep = AsyncMock()
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github, sleep=recording_sleep)(message, secret_candidate(make_candidate))
+    assert send.await_count == 2
+    assert recording_sleep.await_args_list == [call(POST_BACKOFF)]
+    assert not [record for record in bot_records(caplog) if record.levelno == logging.ERROR]
+    for text in record_texts(caplog):
+        assert "Secret error words" not in text
+    assert_no_member_text(caplog)
+
+
+async def test_link_post_gives_up_and_logs(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
+    message = make_message()
+    send = message.create_thread.return_value.send
+    send.side_effect = TimeoutError()
+    recording_sleep = AsyncMock()
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github, sleep=recording_sleep)(message, secret_candidate(make_candidate))
+    assert send.await_count == POST_ATTEMPTS
+    assert recording_sleep.await_args_list == [call(POST_BACKOFF), call(2 * POST_BACKOFF)]
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert errors == [
+        "could not send issue link for message_id=99 thread_id=1234: TimeoutError"
+        " status=None code=None"
+    ]
+    assert_no_member_text(caplog)
+
+
+async def test_link_post_does_not_retry_forbidden(
+    make_message: MessageFactory,
+    make_candidate: CandidateFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))
+    message = make_message()
+    send = message.create_thread.return_value.send
+    send.side_effect = forbidden(50013, "Secret error words")
+    recording_sleep = AsyncMock()
+    with caplog.at_level(logging.INFO):
+        await filing_hook(github, sleep=recording_sleep)(message, secret_candidate(make_candidate))
+    send.assert_awaited_once()
+    recording_sleep.assert_not_awaited()
+    errors = [
+        record.getMessage() for record in bot_records(caplog) if record.levelno == logging.ERROR
+    ]
+    assert len(errors) == 1
+    assert "could not send issue link" in errors[0] and "Forbidden" in errors[0]
     for text in record_texts(caplog):
         assert "Secret error words" not in text
     assert_no_member_text(caplog)

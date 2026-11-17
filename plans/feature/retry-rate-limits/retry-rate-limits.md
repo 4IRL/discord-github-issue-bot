@@ -363,15 +363,15 @@ that timed out but landed is never duplicated.
   the first attempt, fail-closed on a re-filing, F13 DD-4).
 - [x] Run `.venv/bin/pytest tests/test_issues.py`.
 
-### 5. Filing-level retry, `_post_outcome` retry and `view=` (DD-6, DD-7)
+### 5. Filing-level retry, `_post_outcome` retry and `view=` (DD-6, DD-7) - COMPLETE (2026-11-17)
 This step makes `filing_hook` re-run `file_candidate` once on a transient failure, and makes
 `_post_outcome` retry escaped Discord failures, accept a view and return the sent message.
 
 **To-do:**
-- [ ] Add constants in `issue_bot/bot.py` with unit comments:
+- [x] Add constants in `issue_bot/bot.py` with unit comments:
   `FILING_ATTEMPTS = 2  # file_candidate runs; the re-run is a re-filing (DD-4, DD-6)`,
   `FILING_RETRY_DELAY = 2.0  # seconds`, `POST_ATTEMPTS = 3`, `POST_BACKOFF = 1.0  # seconds, doubled per attempt`.
-- [ ] **Red (`_post_outcome`)** in `tests/test_bot.py`, driven through the public hook
+- [x] **Red (`_post_outcome`)** in `tests/test_bot.py`, driven through the public hook
   (pass2-DD-2; no test imports the private `_post_outcome`), as
   `test_filing_error_send_failure_logged_without_text` already does: a successful filing,
   `github = fake_github(FiledIssue(7, ISSUE_URL, "I_node7"))`, scripted failures on the
@@ -383,7 +383,7 @@ This step makes `filing_hook` re-run `file_candidate` once on a transient failur
     `send` is awaited twice, `recording_sleep.await_args_list == [call(POST_BACKOFF)]`, no ERROR
     is logged, and `"Secret error words"` is in no `record_texts(caplog)` entry.
   - `test_link_post_retries_transport_error`: `send.side_effect = [aiohttp.ClientConnectionError("Secret error words"), None]`;
-    the same assertions.
+    the same assertions. (Written with the server-error case as one test parametrized over both failures, ids `server-error` / `transport-error`.)
   - `test_link_post_gives_up_and_logs`: `send.side_effect = TimeoutError()` (raised on every
     call). `send` is awaited `POST_ATTEMPTS` times, no exception escapes the hook, one ERROR
     `could not send issue link for message_id=99 thread_id=1234: TimeoutError status=None code=None`
@@ -395,7 +395,7 @@ This step makes `filing_hook` re-run `file_candidate` once on a transient failur
   The `view=` pass-through (thread and no-thread) is pinned by Step 6's
   `test_filing_error_post_has_retry_button`; the sent-message return value by Step 6's
   `test_retry_view_timeout_removes_button`.
-- [ ] **Green:** change `_post_outcome` to
+- [x] **Green:** change `_post_outcome` to
   `async def _post_outcome(message, thread, text, what, *, view: discord.ui.View | None = None, sleep: Callable[[float], Awaitable[None]] = asyncio.sleep) -> discord.Message | None`.
   Loop `POST_ATTEMPTS` times. Build the send kwargs as
   `allowed_mentions=NO_MENTIONS, suppress_embeds=True` plus `view=view` **only when `view` is not
@@ -409,7 +409,7 @@ This step makes `filing_hook` re-run `file_candidate` once on a transient failur
   `import aiohttp` as the first third-party import (before `import discord`). Update the
   `_post_outcome` docstring: it retries Discord server and transport errors up to
   `POST_ATTEMPTS` times and returns the sent message, or None when the post failed.
-- [ ] **Red (filing retry)** in `tests/test_bot.py`, with `filing_hook(github, sleep=recording_sleep)`:
+- [x] **Red (filing retry)** in `tests/test_bot.py`, with `filing_hook(github, sleep=recording_sleep)`:
   - Rework `test_retry_after_timed_out_create_finds_the_issue` (`tests/test_bot.py`): with
     `recording_github(fail_first_create=True)`, **one** `filing_hook(...)(message, candidate)`
     call now re-files automatically. `create_issue` is awaited once, `find_issue` twice, the
@@ -439,7 +439,7 @@ This step makes `filing_hook` re-run `file_candidate` once on a transient failur
     success, a non-transient `GitHubError` (`issue` 422, `label` 403, or a roadmap-stage 200) or
     a non-`GitHubError`, so none sleeps.
     Any test added later that feeds `filing_hook` a transient `GitHubError` injects `sleep` too.
-- [ ] **Green:** change `filing_hook(github: GitHubClient) -> CandidateHook` to
+- [x] **Green:** change `filing_hook(github: GitHubClient) -> CandidateHook` to
   `filing_hook(github: GitHubClient, *, sleep: Callable[[float], Awaitable[None]] = asyncio.sleep) -> CandidateHook`.
   Split `file_and_report` into an inner
   `async def attempt(message, candidate, thread, *, refiling: bool) -> None` that loops
@@ -456,10 +456,10 @@ This step makes `filing_hook` re-run `file_candidate` once on a transient failur
   `_post_outcome` call. Update the `filing_hook` docstring: a transient `GitHubError` re-runs
   filing once, as a re-filing, after `FILING_RETRY_DELAY`; a final failure posts
   `FILING_ERROR_REPLY` (Step 6 adds the Retry button and extends this docstring).
-- [ ] Check `issue_bot/__main__.py`'s `on_candidate=filing_hook(github)`. The default `sleep`
+- [x] Check `issue_bot/__main__.py`'s `on_candidate=filing_hook(github)`. The default `sleep`
   needs no change, and `test_main_builds_github_client` (`tests/test_bot.py`, positional-only
   `record_client`) still passes because `GitHubClient(...)` in `__main__.py` is unchanged.
-- [ ] Run `.venv/bin/pytest tests/test_bot.py tests/test_intake.py`, then `.venv/bin/pytest`.
+- [x] Run `.venv/bin/pytest tests/test_bot.py tests/test_intake.py`, then `.venv/bin/pytest`.
 
 ### 6. Retry button on the filing-error post (DD-1, DD-2, DD-11)
 This step attaches an in-memory **Retry** button to the error post. Any member may press it once.
